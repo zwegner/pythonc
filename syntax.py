@@ -9,18 +9,12 @@ class IntConst(Node):
     def __init__(self, value):
         self.value = value
 
-    def is_atom(self):
-        return True
-
     def __str__(self):
         return '(new int_const(%s))' % self.value
 
 class StringConst(Node):
     def __init__(self, value):
         self.value = value
-
-    def is_atom(self):
-        return True
 
     def __str__(self):
         return '(new string_const("%s"))' % repr(self.value)[1:-1]
@@ -40,9 +34,6 @@ class Ref(Node):
         self.ref_type = ref_type
         self.args = args
 
-    def is_atom(self):
-        return True
-
     def __str__(self):
         return '(new %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
 
@@ -58,9 +49,6 @@ class BinaryOp(Node):
 class Load(Node):
     def __init__(self, name):
         self.name = name
-
-    def is_atom(self):
-        return True
 
     def __str__(self):
         return 'ctx->load("%s")' % self.name
@@ -165,6 +153,28 @@ class If(Node):
     }}
     """.format(expr=self.expr, stmts=stmts)
         return body
+
+class For(Node):
+    def __init__(self, expr, iter, stmts):
+        self.expr = expr
+        self.iter = iter
+        self.stmts = stmts
+
+    def __str__(self):
+        stmts = block_str(self.stmts)
+        arg_unpacking = [Store(self.expr, '*__iter')]
+        arg_unpacking = block_str(arg_unpacking)
+        # XXX sorta weird?
+        body = """
+if (!{iter}->is_list())
+    error("cannot iterate over non-list");
+for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __iter++) {{
+{arg_unpacking}
+{stmts}
+}}
+""".format(expr=self.expr, iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
+        return body
+
 
 class Return(Node):
     def __init__(self, value):

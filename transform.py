@@ -148,6 +148,13 @@ class Transformer(ast.NodeTransformer):
             else_block = None
         return syntax.If(expr, stmts, else_block)
 
+    def visit_For(self, node):
+        assert isinstance(node.target, ast.Name)
+        assert not node.orelse
+        iter = self.flatten_ref(node.iter)
+        stmts = self.flatten_list(node.body)
+        return syntax.For(node.target.id, iter, stmts)
+
     def visit_Return(self, node):
         if node.value is not None:
             expr = self.flatten_ref(node.value)

@@ -200,6 +200,8 @@ public:
     {
         items.push_back(obj);
     }
+    node_list::iterator begin() { return items.begin(); }
+    node_list::iterator end() { return items.end(); }
 
     virtual bool is_list() { return true; }
     virtual node *__getitem__(node *rhs)
