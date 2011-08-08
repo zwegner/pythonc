@@ -2,12 +2,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <map>
+#include <string>
 #include <vector>
 
 #define error(...) do { printf(__VA_ARGS__); puts(""); exit(1); } while(0)
 
 class node;
 class context;
+class string_const;
 
 typedef std::vector<node *> node_list;
 typedef std::map<const char *, node *> symbol_table;
@@ -16,7 +18,10 @@ class node
 {
 public:
     virtual bool is_int_const() { return false; }
+    virtual bool is_string() { return false; }
+    virtual bool is_list() { return false; }
     virtual uint64_t int_value() { error("int_value unimplemented"); return 0; }
+    virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
 
 #define UNIMP_OP(NAME) \
     virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
@@ -33,6 +38,8 @@ public:
     UNIMP_OP(sub)
     UNIMP_OP(truediv)
     UNIMP_OP(xor)
+
+    virtual node *__str__() { error("str unimplemented"); return NULL; }
 
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
@@ -70,6 +77,23 @@ public:
     INT_OP(rshift, >>)
     INT_OP(sub, -)
     INT_OP(xor, ^)
+
+    virtual node *__str__();
+};
+
+class string_const : public node
+{
+private:
+    std::string value;
+
+public:
+    string_const(std::string value)
+    {
+        this->value = value;
+    }
+
+    virtual bool is_string() { return true; }
+    virtual std::string string_value() { return this->value; }
 };
 
 class list : public node
@@ -85,6 +109,7 @@ public:
     {
         items.push_back(obj);
     }
+    virtual bool is_list() { return true; }
     virtual node *__getitem__(node *rhs)
     {
         if (rhs->is_int_const())
@@ -152,10 +177,24 @@ public:
     }
 };
 
+node *int_const::__str__()
+{
+    char buf[32];
+    sprintf(buf, "%lld", this->value);
+    return new string_const(std::string(buf));
+}
+
 bool test_truth(node *expr)
 {
     if (expr->is_int_const())
         return expr->int_value() != 0;
     error("cannot determine truth value of expr");
     return false;
+}
+
+#include "builtins.cpp"
+
+void set_builtins(context *ctx)
+{
+    ctx->store("print", new function(builtin_print));
 }

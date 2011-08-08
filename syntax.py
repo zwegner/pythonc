@@ -154,7 +154,6 @@ node *{name}(context *parent_ctx, node *args) {{
     context *ctx = new context(parent_ctx);
 {arg_unpacking}
 {stmts}
-    ctx->dump();
     return NULL;
 }}""".format(name=self.name, arg_unpacking=arg_unpacking, stmts=stmts)
         return body

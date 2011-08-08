@@ -119,6 +119,9 @@ class Transformer(ast.NodeTransformer):
         args = args.flatten(self)
         return syntax.Call(fn, args)
 
+    def visit_Expr(self, node):
+        return self.visit(node.value)
+
     def visit_Module(self, node):
         return self.flatten_list(node.body)
 
@@ -136,7 +139,7 @@ with open('test.py') as f:
 
         f.write('int main() {\n')
         f.write('    context *ctx = new context();\n')
+        f.write('    set_builtins(ctx);\n')
         for stmt in node:
             f.write('    %s;\n' % stmt)
-        f.write('    ctx->dump();\n')
         f.write('}\n')
