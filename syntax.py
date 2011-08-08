@@ -233,6 +233,35 @@ class If(Node):
     """.format(expr=self.expr, stmts=stmts)
         return body
 
+class ListComp(Node):
+    def __init__(self, target, iter, stmts, expr):
+        self.target = target
+        self.iter = iter
+        self.stmts = stmts
+        self.expr = expr
+
+    def flatten(self, ctx):
+        l = List([])
+        self.temp = l.flatten(ctx)
+        ctx.statements += [self]
+        return self.temp
+
+    def __str__(self):
+        stmts = block_str(self.stmts)
+        arg_unpacking = [Store(self.target, '*__iter')]
+        arg_unpacking = block_str(arg_unpacking)
+        # XXX sorta weird?
+        body = """
+if (!{iter}->is_list())
+    error("cannot iterate over non-list");
+for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __iter++) {{
+{arg_unpacking}
+{stmts}
+    {temp}->append({expr});
+}}
+""".format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts, temp=self.temp, expr=self.expr)
+        return body
+
 class For(Node):
     def __init__(self, expr, iter, stmts):
         self.expr = expr
@@ -251,7 +280,7 @@ for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __it
 {arg_unpacking}
 {stmts}
 }}
-""".format(expr=self.expr, iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
+""".format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 
 class Return(Node):

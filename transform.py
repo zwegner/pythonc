@@ -16,15 +16,18 @@ class Transformer(ast.NodeTransformer):
         return syntax.Identifier('temp_%02i' % self.temp_id)
 
     def flatten_ref(self, node, statements=None):
+        old_stmts = self.statements
+        if statements is not None:
+            self.statements = statements
         node = self.visit(node)
         if node.is_atom():
-            return node
+            r = node
         else:
             temp = self.get_temp()
-            if statements is None:
-                statements = self.statements
-            statements.append(syntax.Assign(temp, node))
-            return temp
+            self.statements.append(syntax.Assign(temp, node))
+            r = temp
+        self.statements = old_stmts
+        return r
 
     def flatten_list(self, node_list):
         old_stmts = self.statements
@@ -224,9 +227,12 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(gen.target, ast.Name)
         assert not gen.ifs
 
-        iter = self.flatten_ref(node.iter)
-        stmts = self.flatten_list(node.body)
-        return syntax.ListComp(node.target.id, iter, stmts)
+        target = gen.target.id
+        iter = self.flatten_ref(gen.iter)
+        stmts = []
+        expr = self.flatten_ref(node.elt, statements=stmts)
+        comp = syntax.ListComp(target, iter, stmts, expr)
+        return comp.flatten(self)
 
     def visit_Return(self, node):
         if node.value is not None:
