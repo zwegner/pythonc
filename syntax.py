@@ -264,6 +264,26 @@ for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter
 """.format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts, temp=self.temp, expr=self.expr)
         return body
 
+class Break(Node):
+    def __init__(self):
+        pass
+
+    def is_atom(self):
+        return True
+
+    def __str__(self):
+        return 'break'
+
+class Continue(Node):
+    def __init__(self):
+        pass
+
+    def is_atom(self):
+        return True
+
+    def __str__(self):
+        return 'continue'
+
 class For(Node):
     def __init__(self, target, iter, stmts):
         self.target = target
@@ -314,7 +334,6 @@ while (test_truth({test}))
 }}
 """.format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test, stmts=stmts)
         return body
-
 
 class Return(Node):
     def __init__(self, value):

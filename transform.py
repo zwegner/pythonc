@@ -220,6 +220,12 @@ class Transformer(ast.NodeTransformer):
             else_block = None
         return syntax.If(expr, stmts, else_block)
 
+    def visit_Break(self, node):
+        return syntax.Break()
+
+    def visit_Continue(self, node):
+        return syntax.Continue()
+
     def visit_For(self, node):
         assert not node.orelse
         iter = self.flatten_ref(node.iter)
@@ -252,6 +258,10 @@ class Transformer(ast.NodeTransformer):
         expr = self.flatten_ref(node.elt, statements=stmts)
         comp = syntax.ListComp(target, iter, stmts, expr)
         return comp.flatten(self)
+
+    # XXX HACK if we ever want these to differ...
+    def visit_GeneratorExp(self, node):
+        return self.visit_ListComp(node)
 
     def visit_Return(self, node):
         if node.value is not None:
