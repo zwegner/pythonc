@@ -27,6 +27,7 @@ public:
     virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
+    virtual node_list *list_value() { error("string_value unimplemented"); return NULL; }
 
 #define UNIMP_OP(NAME) \
     virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
@@ -224,6 +225,8 @@ public:
     node_list::iterator end() { return items.end(); }
 
     virtual bool is_list() { return true; }
+    virtual node_list *list_value() { return &items; }
+
     virtual node *__getitem__(node *rhs)
     {
         if (rhs->is_int_const())

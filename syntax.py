@@ -250,11 +250,8 @@ class ListComp(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = [Store(self.target, '*__iter')]
         arg_unpacking = block_str(arg_unpacking)
-        # XXX sorta weird?
         body = """
-if (!{iter}->is_list())
-    error("cannot iterate over non-list");
-for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __iter++) {{
+for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
     {temp}->append({expr});
@@ -276,7 +273,7 @@ class For(Node):
         body = """
 if (!{iter}->is_list())
     error("cannot iterate over non-list");
-for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __iter++) {{
+for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
 }}
