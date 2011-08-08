@@ -225,7 +225,6 @@ class Transformer(ast.NodeTransformer):
         iter = self.flatten_ref(node.iter)
         stmts = self.flatten_list(node.body)
 
-        print(node.target, node.lineno)
         if isinstance(node.target, ast.Name):
             target = [node.target.id]
         elif isinstance(node.target, ast.Tuple):
@@ -233,6 +232,13 @@ class Transformer(ast.NodeTransformer):
         else:
             assert False
         return syntax.For(target, iter, stmts)
+
+    def visit_While(self, node):
+        assert not node.orelse
+        test_stmts = []
+        test = self.flatten_ref(node.test, statements=test_stmts)
+        stmts = self.flatten_list(node.body)
+        return syntax.While(test_stmts, test, stmts)
 
     def visit_ListComp(self, node):
         assert len(node.generators) == 1

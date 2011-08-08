@@ -1,3 +1,5 @@
+import copy
+
 def block_str(stmts):
     return '\n'.join('    %s;' % s for s in stmts)
 
@@ -211,7 +213,10 @@ class Assign(Node):
         self.target_type = target_type
 
     def __str__(self):
-        return '%s *%s = %s' % (self.target_type, self.target, self.expr)
+        if self.target_type is None:
+            return '%s = %s' % (self.target, self.expr)
+        else:
+            return '%s *%s = %s' % (self.target_type, self.target, self.expr)
 
 class If(Node):
     def __init__(self, expr, stmts, else_block):
@@ -284,6 +289,32 @@ for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter
 }}
 """.format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
+
+class While(Node):
+    def __init__(self, test_stmts, test, stmts):
+        self.test_stmts = test_stmts
+        self.test = test
+        self.stmts = stmts
+
+    def __str__(self):
+        # XXX Super hack: too lazy to do this properly now
+        dup_test_stmts = copy.deepcopy(self.test_stmts)
+        assert isinstance(dup_test_stmts[-1], Assign)
+        dup_test_stmts[-1].target_type = None
+
+        test_stmts = block_str(self.test_stmts)
+        dup_test_stmts = block_str(dup_test_stmts)
+        stmts = block_str(self.stmts)
+        body = """
+{test_stmts}
+while (test_truth({test}))
+{{
+{stmts}
+{dup_test_stmts}
+}}
+""".format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test, stmts=stmts)
+        return body
+
 
 class Return(Node):
     def __init__(self, value):
