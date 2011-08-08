@@ -18,7 +18,21 @@ public:
     virtual bool is_int_const() { return false; }
     virtual uint64_t int_value() { error("int_value unimplemented"); return 0; }
 
-    virtual node *__add__(node *rhs) { error("add unimplemented"); return NULL; }
+#define UNIMP_OP(NAME) \
+    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
+    UNIMP_OP(add)
+    UNIMP_OP(and)
+    UNIMP_OP(divmod)
+    UNIMP_OP(floordiv)
+    UNIMP_OP(lshift)
+    UNIMP_OP(mod)
+    UNIMP_OP(mul)
+    UNIMP_OP(or)
+    UNIMP_OP(pow)
+    UNIMP_OP(rshift)
+    UNIMP_OP(sub)
+    UNIMP_OP(truediv)
+    UNIMP_OP(xor)
 
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
@@ -38,13 +52,24 @@ public:
     virtual bool is_int_const() { return true; }
     virtual uint64_t int_value() { return this->value; }
 
-    virtual node *__add__(node *rhs)
-    {
-        if (rhs->is_int_const())
-            return new int_const(this->int_value() + rhs->int_value());
-        error("add unimplemented");
-        return NULL;
+#define INT_OP(NAME, OP) \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        if (rhs->is_int_const()) \
+            return new int_const(this->int_value() OP rhs->int_value()); \
+        error(#NAME " unimplemented"); \
+        return NULL; \
     }
+    INT_OP(add, +)
+    INT_OP(and, &)
+    INT_OP(floordiv, /)
+    INT_OP(lshift, <<)
+    INT_OP(mod, %)
+    INT_OP(mul, *)
+    INT_OP(or, |)
+    INT_OP(rshift, >>)
+    INT_OP(sub, -)
+    INT_OP(xor, ^)
 };
 
 class list : public node

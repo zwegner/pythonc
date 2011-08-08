@@ -13,7 +13,7 @@ class IntConst(Node):
         return True
 
     def __str__(self):
-        return 'new int_const(%s)' % self.value
+        return '(new int_const(%s))' % self.value
 
 class Identifier(Node):
     def __init__(self, name):
@@ -34,7 +34,7 @@ class Ref(Node):
         return True
 
     def __str__(self):
-        return 'new %s(%s)' % (self.ref_type, ', '.join(str(a) for a in self.args))
+        return '(new %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
 
 class BinaryOp(Node):
     def __init__(self, op, lhs, rhs):
