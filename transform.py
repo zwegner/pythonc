@@ -200,12 +200,18 @@ class Transformer(ast.NodeTransformer):
         elif isinstance(target, ast.Attribute):
             base = self.flatten_ref(target.value)
             return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
+        elif isinstance(target, ast.Subscript):
+            assert isinstance(target.slice, ast.Index)
+            base = self.flatten_ref(target.value)
+            index = self.flatten_ref(target.slice.value)
+            return [syntax.StoreSubscript(base, index, value)]
         else:
             assert False
 
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
         value = self.flatten_ref(node.value)
+        print(node.target.lineno)
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
@@ -281,6 +287,9 @@ class Transformer(ast.NodeTransformer):
         body = self.flatten_list(node.body)
         fn = syntax.FunctionDef(node.name, node.args, body).flatten(self)
         return fn
+
+    def visit_Pass(self, node):
+        return None
 
     def visit_ClassDef(self, node):
         assert not node.bases 

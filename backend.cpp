@@ -69,7 +69,7 @@ public:
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
-    virtual node *__setitem__(node *rhs) { error("setitem unimplemented"); return NULL; }
+    virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
     virtual node *__str__() { error("str unimplemented"); return NULL; }
 };

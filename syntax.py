@@ -94,6 +94,15 @@ class StoreAttr(Node):
     def __str__(self):
         return '%s->__setattr__(%s, %s)' % (self.name, self.attr, self.expr)
 
+class StoreSubscript(Node):
+    def __init__(self, expr, index, value):
+        self.expr = expr
+        self.index = index
+        self.value = value
+
+    def __str__(self):
+        return '%s->__setitem__(%s, %s)' % (self.expr, self.index, self.value)
+
 class List(Node):
     def __init__(self, items):
         self.items = items
