@@ -5,6 +5,13 @@ class Node:
     def is_atom(self):
         return False
 
+class BoolConst(Node):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return '(new bool_const(%s))' % int(self.value)
+
 class IntConst(Node):
     def __init__(self, value):
         self.value = value

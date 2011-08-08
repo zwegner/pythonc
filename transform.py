@@ -46,6 +46,7 @@ class Transformer(ast.NodeTransformer):
         return super().visit(node)
 
     def generic_visit(self, node):
+        print(node.lineno)
         raise RuntimeError('can\'t translate %s' % node)
 
     def visit_children(self, node):
@@ -53,6 +54,8 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Name(self, node):
         assert isinstance(node.ctx, ast.Load)
+        if node.id in ['True', 'False']:
+            return syntax.BoolConst(node.id == 'True')
         return syntax.Load(node.id)
 
     def visit_Num(self, node):
@@ -214,6 +217,16 @@ class Transformer(ast.NodeTransformer):
         iter = self.flatten_ref(node.iter)
         stmts = self.flatten_list(node.body)
         return syntax.For(node.target.id, iter, stmts)
+
+    def visit_ListComp(self, node):
+        assert len(node.generators) == 1
+        gen = node.generators[0]
+        assert isinstance(gen.target, ast.Name)
+        assert not gen.ifs
+
+        iter = self.flatten_ref(node.iter)
+        stmts = self.flatten_list(node.body)
+        return syntax.ListComp(node.target.id, iter, stmts)
 
     def visit_Return(self, node):
         if node.value is not None:
