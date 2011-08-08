@@ -215,11 +215,18 @@ class Transformer(ast.NodeTransformer):
         return syntax.If(expr, stmts, else_block)
 
     def visit_For(self, node):
-        assert isinstance(node.target, ast.Name)
         assert not node.orelse
         iter = self.flatten_ref(node.iter)
         stmts = self.flatten_list(node.body)
-        return syntax.For(node.target.id, iter, stmts)
+
+        print(node.target, node.lineno)
+        if isinstance(node.target, ast.Name):
+            target = [node.target.id]
+        elif isinstance(node.target, ast.Tuple):
+            target = node.target.elts
+        else:
+            assert False
+        return syntax.For(target, iter, stmts)
 
     def visit_ListComp(self, node):
         assert len(node.generators) == 1
