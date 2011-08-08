@@ -7,6 +7,13 @@ class Node:
     def is_atom(self):
         return False
 
+class NoneConst(Node):
+    def __init__(self):
+        pass
+
+    def __str__(self):
+        return 'NULL'
+
 class BoolConst(Node):
     def __init__(self, value):
         self.value = value
@@ -132,6 +139,16 @@ class Set(Node):
 
     def __str__(self):
         return ''
+
+class Slice(Node):
+    def __init__(self, expr, start, end, step):
+        self.expr = expr
+        self.start = start
+        self.end = end
+        self.step = step
+
+    def __str__(self):
+        return '%s->__slice__(%s, %s, %s)' % (self.expr, self.start, self.end, self.step)
 
 class Subscript(Node):
     def __init__(self, expr, index):

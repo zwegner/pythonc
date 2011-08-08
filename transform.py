@@ -164,11 +164,14 @@ class Transformer(ast.NodeTransformer):
         return d.flatten(self)
 
     def visit_Subscript(self, node):
-        assert isinstance(node.slice, ast.Index)
         l = self.flatten_ref(node.value)
-        index = self.flatten_ref(node.slice.value)
-        sub = syntax.Subscript(l, index)
-        return sub
+        if isinstance(node.slice, ast.Index):
+            index = self.flatten_ref(node.slice.value)
+            return syntax.Subscript(l, index)
+        elif isinstance(node.slice, ast.Slice):
+            [start, end, step] = [self.flatten_ref(a) if a else syntax.NoneConst() for a in
+                    [node.slice.lower, node.slice.upper, node.slice.step]]
+            return syntax.Slice(l, start, end, step)
 
     def visit_Attribute(self, node):
         assert isinstance(node.ctx, ast.Load)
