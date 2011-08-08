@@ -1,3 +1,8 @@
+node *builtin_len(context *ctx, node *args)
+{
+    return args->__getitem__(new int_const(0))->__len__();
+}
+
 node *builtin_print(context *ctx, node *args)
 {
     node *s = args->__getitem__(new int_const(0));

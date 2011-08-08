@@ -74,6 +74,7 @@ public:
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
+    virtual node *__len__() { error("len unimplemented"); return NULL; }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
     virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
@@ -280,6 +281,10 @@ public:
         }
         return items[this->index(rhs->int_value())];
     }
+    virtual node *__len__()
+    {
+        return new int_const(this->items.size());
+    }
     virtual node *__slice__(node *start, node *end, node *step)
     {
         if ((start && !start->is_int_const()) ||
@@ -325,6 +330,10 @@ public:
             error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
         return value;
     }
+    virtual node *__len__()
+    {
+        return new int_const(this->items.size());
+    }
     virtual void __setitem__(node *key, node *value)
     {
         if (!key->is_int_const())
@@ -352,6 +361,10 @@ public:
     virtual node *__contains__(node *key)
     {
         return new bool_const(items.lookup(key) != NULL);
+    }
+    virtual node *__len__()
+    {
+        return this->items.__len__();
     }
     virtual node *__str__()
     {
@@ -476,6 +489,7 @@ bool test_truth(node *expr)
 
 void set_builtins(context *ctx)
 {
+    ctx->store("len", new function_def(builtin_len));
     ctx->store("print", new function_def(builtin_print));
     ctx->store("range", new function_def(builtin_range));
 }
