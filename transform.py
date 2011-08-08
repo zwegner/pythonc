@@ -56,6 +56,8 @@ class Transformer(ast.NodeTransformer):
 
     # Binary Ops
     def visit_Add(self, node): return '__add__'
+    def visit_Xor(self, node): return '__xor__'
+    def visit_Mul(self, node): return '__mul__'
     def visit_BinOp(self, node):
         op = self.visit(node.op)
         lhs = self.flatten_ref(node.left)
@@ -126,5 +128,5 @@ with open('test.py') as f:
         f.write('    context *ctx = new context();\n')
         for stmt in node:
             f.write('    %s;\n' % stmt)
-        #f.write('    ctx->dump();\n')
+        f.write('    ctx->dump();\n')
         f.write('}\n')

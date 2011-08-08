@@ -84,7 +84,7 @@ class Subscript(Node):
         self.index = index
 
     def __str__(self):
-        return '%s->__subscript__(%s)' % (self.expr, self.index)
+        return '%s->__getitem__(%s)' % (self.expr, self.index)
 
 class Call(Node):
     def __init__(self, func, args):
@@ -147,7 +147,7 @@ class FunctionDef(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = []
         for i, arg in enumerate(self.args.args):
-            arg_unpacking += [Store(arg.arg, 'args->__subscript__(%s)' % IntConst(i))]
+            arg_unpacking += [Store(arg.arg, 'args->__getitem__(%s)' % IntConst(i))]
         arg_unpacking = block_str(arg_unpacking)
         body = """
 node *{name}(context *parent_ctx, node *args) {{

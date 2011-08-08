@@ -20,7 +20,7 @@ public:
 
     virtual node *__add__(node *rhs) { error("add unimplemented"); return NULL; }
 
-    virtual node *__subscript__(node *rhs) { error("subscript unimplemented"); return NULL; }
+    virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
 };
 
@@ -60,11 +60,11 @@ public:
     {
         items.push_back(obj);
     }
-    virtual node *__subscript__(node *rhs)
+    virtual node *__getitem__(node *rhs)
     {
         if (rhs->is_int_const())
             return items[rhs->int_value()];
-        error("subscript unimplemented");
+        error("getitem unimplemented");
         return NULL;
     }
 };
