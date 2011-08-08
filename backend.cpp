@@ -41,10 +41,48 @@ public:
     UNIMP_OP(truediv)
     UNIMP_OP(xor)
 
-    virtual node *__hash__() { error("hash unimplemented"); return NULL; }
-    virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
+    virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
+    virtual node *__hash__() { error("hash unimplemented"); return NULL; }
+    virtual node *__setitem__(node *rhs) { error("setitem unimplemented"); return NULL; }
     virtual node *__str__() { error("str unimplemented"); return NULL; }
+};
+
+class context
+{
+private:
+    symbol_table symbols;
+    context *parent_ctx;
+
+public:
+    context()
+    {
+    }
+
+    context(context *parent_ctx)
+    {
+        this->parent_ctx = parent_ctx;
+    }
+
+    void store(const char *name, node *obj)
+    {
+        this->symbols[name] = obj;
+    }
+    node *load(const char *name)
+    {
+        symbol_table::const_iterator v = this->symbols.find(name);
+        if (v == this->symbols.end())
+            error("cannot find '%s' in symbol table", name);
+        return v->second;
+    }
+    void dump()
+    {
+        for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
+            if (i->second->is_int_const())
+                printf("symbol['%s'] = int(%i);\n", i->first, i->second->int_value());
+            else
+                printf("symbol['%s'] = %p;\n", i->first, i->second);
+    }
 };
 
 class int_const : public node
@@ -108,6 +146,7 @@ public:
         }
         return new int_const(hash);
     }
+    virtual node *__str__() { return this; }
 };
 
 class list : public node
@@ -143,35 +182,54 @@ public:
     dict()
     {
     }
-    void setitem(node *key, node *value)
+
+    virtual bool is_dict() { return true; }
+    virtual node *__getitem__(node *key)
+    {
+        node *old_key = key;
+        if (!key->is_int_const())
+            key = key->__hash__();
+        node_dict::const_iterator v = this->items.find(key->int_value());
+        if (v == this->items.end())
+            error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
+        // XXX: check equality of keys
+        return v->second;
+    }
+    virtual void __setitem__(node *key, node *value)
     {
         if (!key->is_int_const())
             key = key->__hash__();
         items[key->int_value()] = value;
     }
+};
 
-    virtual bool is_dict() { return true; }
-    virtual node *__getitem__(node *key)
+class object : public node
+{
+private:
+    dict items;
+
+public:
+    object() {}
+
+    virtual node *__getattr__(node *key)
     {
-        if (!key->is_int_const())
-            key = key->__hash__();
-        node_dict::const_iterator v = this->items.find(key->int_value());
-        if (v == this->items.end())
-            error("cannot find '%s' in dict", key->__str__()->string_value().c_str());
-        // XXX: check equality of keys
-        return v->second;
+        return items.__getitem__(key);
+    }
+    virtual void __setattr__(node *key, node *value)
+    {
+        items.__setitem__(key, value);
     }
 };
 
 typedef node *(*fptr)(context *parent_ctx, node *args);
 
-class function : public node
+class function_def : public node
 {
 private:
     fptr base_function;
 
 public:
-    function(fptr base_function)
+    function_def(fptr base_function)
     {
         this->base_function = base_function;
     }
@@ -184,40 +242,38 @@ public:
     }
 };
 
-class context
+class class_def : public node
 {
 private:
-    symbol_table symbols;
-    context *parent_ctx;
+    std::string name;
+    dict items;
 
 public:
-    context()
+    class_def(std::string name, void (*creator)(class_def *))
     {
+        this->name = name;
+        creator(this);
     }
 
-    context(context *parent_ctx)
+    virtual bool is_function() { return true; }
+
+    virtual node *__call__(context *ctx, node *args)
     {
-        this->parent_ctx = parent_ctx;
+        node *init = this->load("__init__");
+        node *obj = new object();
+        list *call_args = new list();
+        call_args->append(obj);
+        context *call_ctx = new context(ctx);
+        return init->__call__(call_ctx, call_args);
     }
 
-    void store(const char *name, node *obj)
-    {
-        this->symbols[name] = obj;
-    }
     node *load(const char *name)
     {
-        symbol_table::const_iterator v = this->symbols.find(name);
-        if (v == this->symbols.end())
-            error("cannot find '%s' in symbol table", name);
-        return v->second;
+        return items.__getitem__(new string_const("_"+this->name+"_"+name));
     }
-    void dump()
+    void store(const char *name, node *value)
     {
-        for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
-            if (i->second->is_int_const())
-                printf("symbol['%s'] = int(%i);\n", i->first, i->second->int_value());
-            else
-                printf("symbol['%s'] = %p;\n", i->first, i->second);
+        items.__setitem__(new string_const("_"+this->name+"_"+name), value);
     }
 };
 
@@ -240,5 +296,5 @@ bool test_truth(node *expr)
 
 void set_builtins(context *ctx)
 {
-    ctx->store("print", new function(builtin_print));
+    ctx->store("print", new function_def(builtin_print));
 }

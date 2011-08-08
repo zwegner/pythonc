@@ -7,6 +7,7 @@ class Transformer(ast.NodeTransformer):
         self.temp_id = 0
         self.statements = []
         self.functions = []
+        self.in_class = False
 
     def get_temp(self):
         self.temp_id += 1
@@ -96,6 +97,12 @@ class Transformer(ast.NodeTransformer):
         sub = syntax.Subscript(l, index)
         return sub
 
+    def visit_Call(self, node):
+        fn = self.flatten_ref(node.func)
+        args = syntax.List([self.flatten_ref(a) for a in node.args])
+        args = args.flatten(self)
+        return syntax.Call(fn, args)
+
     def visit_Assign(self, node):
         assert len(node.targets) == 1
         assert isinstance(node.targets[0], ast.Name)
@@ -120,14 +127,32 @@ class Transformer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node):
         body = self.flatten_list(node.body)
-        fn = syntax.FunctionDef(node.name, node.args, body)
-        return fn.flatten(self)
+        fn = syntax.FunctionDef(node.name, node.args, body).flatten(self)
+        return fn
 
-    def visit_Call(self, node):
-        fn = self.flatten_ref(node.func)
-        args = syntax.List([self.flatten_ref(a) for a in node.args])
-        args = args.flatten(self)
-        return syntax.Call(fn, args)
+    def visit_ClassDef(self, node):
+        assert not node.bases 
+        assert not node.keywords 
+        assert not node.starargs 
+        assert not node.kwargs 
+        assert not node.decorator_list 
+        assert not self.in_class
+
+        old_fns = self.functions
+        self.functions = []
+        self.in_class = True
+        body = self.flatten_list(node.body)
+        self.in_class = False
+
+        for fn in node.body:
+            if isinstance(fn, ast.FunctionDef):
+                fn.name = '_%s_%s' % (node.name, fn.name)
+
+        # Mangle names of inner functions
+        self.functions = old_fns + self.functions
+
+        c = syntax.ClassDef(node.name, body)
+        return c.flatten(self)
 
     def visit_Expr(self, node):
         return self.visit(node.value)

@@ -98,7 +98,7 @@ class Dict(Node):
         ctx.statements += [Assign(name, Ref('dict'), target_type='dict')]
         for k, v in zip(self.keys, self.values):
             # XXX HACK: add just some C++ text instead of syntax nodes...
-            ctx.statements += ['%s->setitem(%s, %s)' % (name, k, v)]
+            ctx.statements += ['%s->__setitem__(%s, %s)' % (name, k, v)]
         return name
 
     def __str__(self):
@@ -167,7 +167,7 @@ class FunctionDef(Node):
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function', Identifier(self.name)))]
+        return [Store(self.name, Ref('function_def', Identifier(self.name)))]
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -182,4 +182,21 @@ node *{name}(context *parent_ctx, node *args) {{
 {stmts}
     return NULL;
 }}""".format(name=self.name, arg_unpacking=arg_unpacking, stmts=stmts)
+        return body
+
+class ClassDef(Node):
+    def __init__(self, name, stmts):
+        self.name = name
+        self.stmts = stmts
+
+    def flatten(self, ctx):
+        ctx.functions += [self]
+        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)))]
+
+    def __str__(self):
+        stmts = block_str(self.stmts)
+        body = """
+void _{name}__create__(class_def *ctx) {{
+{stmts}
+}}""".format(name=self.name, stmts=stmts)
         return body
