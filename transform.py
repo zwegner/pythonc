@@ -1,4 +1,6 @@
 import ast
+import sys
+
 import syntax
 
 all_nodes = set()
@@ -102,6 +104,11 @@ class Transformer(ast.NodeTransformer):
         l = syntax.List(items)
         return l.flatten(self)
 
+    def visit_Tuple(self, node):
+        items = [self.flatten_ref(i) for i in node.elts]
+        l = syntax.List(items)
+        return l.flatten(self)
+
     def visit_Dict(self, node):
         keys = [self.flatten_ref(i) for i in node.keys]
         values = [self.flatten_ref(i) for i in node.values]
@@ -136,6 +143,17 @@ class Transformer(ast.NodeTransformer):
         elif isinstance(target, ast.Attribute):
             base = self.flatten_ref(target.value)
             return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
+        else:
+            assert False
+
+    def visit_AugAssign(self, node):
+        op = self.visit(node.op)
+        value = self.flatten_ref(node.value)
+        if isinstance(node.target, ast.Name):
+            target = node.target.id
+            # XXX HACK: doesn't modify in place
+            binop = syntax.BinaryOp(op, syntax.Load(target), value)
+            return [syntax.Store(target, binop)]
         else:
             assert False
 
@@ -200,7 +218,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Load(self, node): pass
     def visit_Store(self, node): pass
 
-with open('test.py') as f:
+with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
     x = Transformer()
     node = x.visit(node)
