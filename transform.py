@@ -236,6 +236,9 @@ class Transformer(ast.NodeTransformer):
         value = self.flatten_ref(target.slice.value)
         return [syntax.DeleteSubscript(name, value)]
 
+    def visit_Global(self, node):
+        return [syntax.Global(name) for name in node.names]
+
     def visit_If(self, node):
         expr = self.flatten_ref(node.test)
         stmts = self.flatten_list(node.body)

@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@ class string_const;
 typedef std::vector<node *> node_list;
 typedef std::map<const char *, node *> symbol_table;
 typedef std::map<int64_t, node *> node_dict;
+typedef std::set<std::string> globals_set;
 
 class node
 {
@@ -83,27 +85,48 @@ class context
 private:
     symbol_table symbols;
     context *parent_ctx;
+    context *globals_ctx;
+    globals_set globals;
 
 public:
     context()
     {
+        this->parent_ctx = NULL;
+        this->globals_ctx = NULL;
     }
 
     context(context *parent_ctx)
     {
         this->parent_ctx = parent_ctx;
+        this->globals_ctx = parent_ctx;
+        while (this->globals_ctx->parent_ctx)
+            this->globals_ctx = this->globals_ctx->parent_ctx;
     }
 
     void store(const char *name, node *obj)
     {
-        this->symbols[name] = obj;
+        if (this->globals.find(std::string(name)) != this->globals.end())
+            this->globals_ctx->store(name, obj);
+        else
+            this->symbols[name] = obj;
     }
     node *load(const char *name)
     {
+        if (this->globals.find(std::string(name)) != this->globals.end())
+            return this->globals_ctx->load(name);
         symbol_table::const_iterator v = this->symbols.find(name);
         if (v == this->symbols.end())
-            error("cannot find '%s' in symbol table", name);
+        {
+            if (this->parent_ctx)
+                return this->parent_ctx->load(name);
+            else
+                error("cannot find '%s' in symbol table", name);
+        }
         return v->second;
+    }
+    void set_global(const char *name)
+    {
+        this->globals.insert(name);
     }
     void dump()
     {

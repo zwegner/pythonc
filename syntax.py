@@ -111,6 +111,13 @@ class DeleteSubscript(Node):
     def __str__(self):
         return '%s->__delitem__(%s)' % (self.expr, self.index)
 
+class Global(Node):
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return 'ctx->set_global("%s")' % self.name
+
 class List(Node):
     def __init__(self, items):
         self.items = items
