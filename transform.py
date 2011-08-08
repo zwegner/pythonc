@@ -111,9 +111,15 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Assign(self, node):
         assert len(node.targets) == 1
-        assert isinstance(node.targets[0], ast.Name)
+        target = node.targets[0]
         value = self.flatten_ref(node.value)
-        return [syntax.Store(node.targets[0].id, value)]
+        if isinstance(target, ast.Name):
+            return [syntax.Store(target.id, value)]
+        elif isinstance(target, ast.Attribute):
+            base = self.flatten_ref(target.value)
+            return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
+        else:
+            assert False
 
     def visit_If(self, node):
         expr = self.flatten_ref(node.test)

@@ -73,6 +73,15 @@ class Store(Node):
     def __str__(self):
         return 'ctx->store("%s", %s)' % (self.name, self.expr)
 
+class StoreAttr(Node):
+    def __init__(self, name, attr, expr):
+        self.name = name
+        self.attr = attr
+        self.expr = expr
+
+    def __str__(self):
+        return '%s->__setattr__(%s, %s)' % (self.name, self.attr, self.expr)
+
 class List(Node):
     def __init__(self, items):
         self.items = items
