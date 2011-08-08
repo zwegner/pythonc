@@ -15,6 +15,16 @@ class IntConst(Node):
     def __str__(self):
         return '(new int_const(%s))' % self.value
 
+class StringConst(Node):
+    def __init__(self, value):
+        self.value = value
+
+    def is_atom(self):
+        return True
+
+    def __str__(self):
+        return '(new string_const("%s"))' % repr(self.value)[1:-1]
+
 class Identifier(Node):
     def __init__(self, name):
         self.name = name

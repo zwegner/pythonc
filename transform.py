@@ -54,6 +54,10 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(node.n, int)
         return syntax.IntConst(node.n)
 
+    def visit_Str(self, node):
+        assert isinstance(node.s, str)
+        return syntax.StringConst(node.s)
+
     # Binary Ops
     def visit_Add(self, node): return '__add__' 
     def visit_BitAnd(self, node): return '__and__' 
