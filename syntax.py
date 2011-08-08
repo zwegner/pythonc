@@ -203,7 +203,6 @@ for (node_list::iterator __iter = {iter}->begin(); __iter != {iter}->end(); __it
 """.format(expr=self.expr, iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 
-
 class Return(Node):
     def __init__(self, value):
         self.value = value
@@ -213,6 +212,17 @@ class Return(Node):
             return 'return %s' % self.value
         else:
             return 'return'
+
+class Assert(Node):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def __str__(self):
+        body =  """if (!test_truth({expr})) {{
+    error("assert failed");
+}}
+""".format(expr=self.expr)
+        return body
 
 class FunctionDef(Node):
     def __init__(self, name, args, stmts):

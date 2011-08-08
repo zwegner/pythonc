@@ -191,6 +191,10 @@ class Transformer(ast.NodeTransformer):
         else:
             return syntax.Return(None)
 
+    def visit_Assert(self, node):
+        expr = self.flatten_ref(node.test)
+        return syntax.Assert(expr)
+
     def visit_FunctionDef(self, node):
         body = self.flatten_list(node.body)
         fn = syntax.FunctionDef(node.name, node.args, body).flatten(self)
