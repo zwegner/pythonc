@@ -226,6 +226,16 @@ class Transformer(ast.NodeTransformer):
         else:
             return None
 
+    def visit_Delete(self, node):
+        assert len(node.targets) == 1
+        target = node.targets[0]
+        assert isinstance(target, ast.Subscript)
+        assert isinstance(target.slice, ast.Index)
+
+        name = self.flatten_ref(target.value)
+        value = self.flatten_ref(target.slice.value)
+        return [syntax.DeleteSubscript(name, value)]
+
     def visit_If(self, node):
         expr = self.flatten_ref(node.test)
         stmts = self.flatten_list(node.body)

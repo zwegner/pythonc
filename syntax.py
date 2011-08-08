@@ -103,6 +103,14 @@ class StoreSubscript(Node):
     def __str__(self):
         return '%s->__setitem__(%s, %s)' % (self.expr, self.index, self.value)
 
+class DeleteSubscript(Node):
+    def __init__(self, expr, index):
+        self.expr = expr
+        self.index = index
+
+    def __str__(self):
+        return '%s->__delitem__(%s)' % (self.expr, self.index)
+
 class List(Node):
     def __init__(self, items):
         self.items = items

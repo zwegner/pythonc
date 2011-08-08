@@ -68,6 +68,7 @@ public:
     virtual node *__isnot__(node *rhs);
 
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
+    virtual void __delitem__(node *rhs) { error("delitem unimplemented"); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
@@ -227,18 +228,35 @@ public:
     }
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
+    int64_t index(int64_t base)
+    {
+        if (base < 0)
+            base = items.size() + base;
+        return base;
+    }
 
     virtual bool is_list() { return true; }
     virtual node_list *list_value() { return &items; }
 
+    virtual void __delitem__(node *rhs)
+    {
+        if (!rhs->is_int_const())
+        {
+            error("delitem unimplemented");
+            return;
+        }
+        node_list::iterator f = items.begin() + this->index(rhs->int_value());
+        items.erase(f);
+    }
     virtual node *__getitem__(node *rhs)
     {
-        if (rhs->is_int_const())
-            return items[rhs->int_value()];
-        error("getitem unimplemented");
-        return NULL;
+        if (!rhs->is_int_const())
+        {
+            error("getitem unimplemented");
+            return NULL;
+        }
+        return items[this->index(rhs->int_value())];
     }
-
     virtual node *__slice__(node *start, node *end, node *step)
     {
         if ((start && !start->is_int_const()) ||
