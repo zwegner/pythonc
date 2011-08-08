@@ -217,9 +217,10 @@ class BoolOp(Node):
         self.rhs_stmts = rhs_stmts
         self.rhs_expr = rhs_expr
 
-    def flatten(self, ctx):
+    # XXX hack
+    def flatten(self, ctx, statements):
         self.temp = ctx.get_temp()
-        ctx.statements += [Assign(self.temp, self.lhs_expr), self]
+        statements += [Assign(self.temp, self.lhs_expr), self]
         return self.temp
 
     def __str__(self):
@@ -327,8 +328,6 @@ class For(Node):
         arg_unpacking = block_str(arg_unpacking)
         # XXX sorta weird?
         body = """
-if (!{iter}->is_list())
-    error("cannot iterate over non-list");
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
