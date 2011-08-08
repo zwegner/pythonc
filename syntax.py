@@ -88,6 +88,22 @@ class List(Node):
     def __str__(self):
         return ''
 
+class Dict(Node):
+    def __init__(self, keys, values):
+        self.keys = keys
+        self.values = values
+
+    def flatten(self, ctx):
+        name = ctx.get_temp()
+        ctx.statements += [Assign(name, Ref('dict'), target_type='dict')]
+        for k, v in zip(self.keys, self.values):
+            # XXX HACK: add just some C++ text instead of syntax nodes...
+            ctx.statements += ['%s->setitem(%s, %s)' % (name, k, v)]
+        return name
+
+    def __str__(self):
+        return ''
+
 class Subscript(Node):
     def __init__(self, expr, index):
         self.expr = expr

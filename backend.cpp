@@ -13,14 +13,16 @@ class string_const;
 
 typedef std::vector<node *> node_list;
 typedef std::map<const char *, node *> symbol_table;
+typedef std::map<int64_t, node *> node_dict;
 
 class node
 {
 public:
+    virtual bool is_dict() { return false; }
     virtual bool is_int_const() { return false; }
-    virtual bool is_string() { return false; }
     virtual bool is_list() { return false; }
-    virtual uint64_t int_value() { error("int_value unimplemented"); return 0; }
+    virtual bool is_string() { return false; }
+    virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
 
 #define UNIMP_OP(NAME) \
@@ -39,25 +41,25 @@ public:
     UNIMP_OP(truediv)
     UNIMP_OP(xor)
 
-    virtual node *__str__() { error("str unimplemented"); return NULL; }
-
+    virtual node *__hash__() { error("hash unimplemented"); return NULL; }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
+    virtual node *__str__() { error("str unimplemented"); return NULL; }
 };
 
 class int_const : public node
 {
 private:
-    uint64_t value;
+    int64_t value;
 
 public:
-    int_const(uint64_t value)
+    int_const(int64_t value)
     {
         this->value = value;
     }
 
     virtual bool is_int_const() { return true; }
-    virtual uint64_t int_value() { return this->value; }
+    virtual int64_t int_value() { return this->value; }
 
 #define INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) \
@@ -94,6 +96,18 @@ public:
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
+
+    // FNV-1a algorithm
+    virtual node *__hash__()
+    {
+        int64_t hash = 14695981039346656037ull;
+        for (const char *c = this->value.c_str(); *c; c++)
+        {
+            hash ^= *c;
+            hash *= 1099511628211;
+        }
+        return new int_const(hash);
+    }
 };
 
 class list : public node
@@ -109,6 +123,7 @@ public:
     {
         items.push_back(obj);
     }
+
     virtual bool is_list() { return true; }
     virtual node *__getitem__(node *rhs)
     {
@@ -116,6 +131,35 @@ public:
             return items[rhs->int_value()];
         error("getitem unimplemented");
         return NULL;
+    }
+};
+
+class dict : public node
+{
+private:
+    node_dict items;
+
+public:
+    dict()
+    {
+    }
+    void setitem(node *key, node *value)
+    {
+        if (!key->is_int_const())
+            key = key->__hash__();
+        items[key->int_value()] = value;
+    }
+
+    virtual bool is_dict() { return true; }
+    virtual node *__getitem__(node *key)
+    {
+        if (!key->is_int_const())
+            key = key->__hash__();
+        node_dict::const_iterator v = this->items.find(key->int_value());
+        if (v == this->items.end())
+            error("cannot find '%s' in dict", key->__str__()->string_value().c_str());
+        // XXX: check equality of keys
+        return v->second;
     }
 };
 

@@ -83,6 +83,12 @@ class Transformer(ast.NodeTransformer):
         l = syntax.List(items)
         return l.flatten(self)
 
+    def visit_Dict(self, node):
+        keys = [self.flatten_ref(i) for i in node.keys]
+        values = [self.flatten_ref(i) for i in node.values]
+        d = syntax.Dict(keys, values)
+        return d.flatten(self)
+
     def visit_Subscript(self, node):
         assert isinstance(node.slice, ast.Index)
         l = self.flatten_ref(node.value)
