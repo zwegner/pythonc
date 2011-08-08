@@ -125,6 +125,34 @@ class Call(Node):
     def __str__(self):
         return '%s->__call__(ctx, %s)' % (self.func, self.args)
 
+class IfExp(Node):
+    def __init__(self, expr, true_stmts, true_expr, false_stmts, false_expr):
+        self.expr = expr
+        self.true_stmts = true_stmts
+        self.true_expr = true_expr
+        self.false_stmts = false_stmts
+        self.false_expr = false_expr
+
+    def flatten(self, ctx):
+        self.temp = ctx.get_temp()
+        ctx.statements += [Assign(self.temp, 'NULL'), self]
+        return self.temp
+
+    def __str__(self):
+        true_stmts = block_str(self.true_stmts)
+        false_stmts = block_str(self.false_stmts)
+        body =  """if (test_truth({expr})) {{
+    {true_stmts}
+    {temp} = {true_expr};
+}} else {{
+    {false_stmts}
+    {temp} = {false_expr};
+}}
+""".format(expr=self.expr, temp=self.temp.name, true_stmts=true_stmts,
+        true_expr=self.true_expr, false_stmts=false_stmts, false_expr=self.false_expr)
+        return body
+
+
 class Assign(Node):
     def __init__(self, target, expr, target_type='node'):
         self.target = target

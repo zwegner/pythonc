@@ -15,13 +15,15 @@ class Transformer(ast.NodeTransformer):
         self.temp_id += 1
         return syntax.Identifier('temp_%02i' % self.temp_id)
 
-    def flatten_ref(self, node):
+    def flatten_ref(self, node, statements=None):
         node = self.visit(node)
         if node.is_atom():
             return node
         else:
             temp = self.get_temp()
-            self.statements.append(syntax.Assign(temp, node))
+            if statements is None:
+                statements = self.statements
+            statements.append(syntax.Assign(temp, node))
             return temp
 
     def flatten_list(self, node_list):
@@ -98,6 +100,15 @@ class Transformer(ast.NodeTransformer):
         lhs = self.flatten_ref(node.left)
         rhs = self.flatten_ref(node.comparators[0])
         return syntax.BinaryOp(op, lhs, rhs)
+
+    def visit_IfExp(self, node):
+        expr = self.flatten_ref(node.test)
+        true_stmts = []
+        true_expr = self.flatten_ref(node.body, statements=true_stmts)
+        false_stmts = []
+        false_expr = self.flatten_ref(node.orelse, statements=false_stmts)
+        if_exp = syntax.IfExp(expr, true_stmts, true_expr, false_stmts, false_expr)
+        return if_exp.flatten(self)
 
     def visit_List(self, node):
         items = [self.flatten_ref(i) for i in node.elts]
