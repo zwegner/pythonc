@@ -280,7 +280,12 @@ class ListComp(Node):
 
     def __str__(self):
         stmts = block_str(self.stmts)
-        arg_unpacking = [Store(self.target, '*__iter')]
+        arg_unpacking = []
+        if isinstance(self.target, list):
+            for i, arg in enumerate(self.target):
+                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % IntConst(i))]
+        else:
+            arg_unpacking = [Store(self.target, '*__iter')]
         arg_unpacking = block_str(arg_unpacking)
         body = """
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{

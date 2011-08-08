@@ -247,7 +247,7 @@ class Transformer(ast.NodeTransformer):
         stmts = self.flatten_list(node.body)
 
         if isinstance(node.target, ast.Name):
-            target = [node.target.id]
+            target = node.target.id
         elif isinstance(node.target, ast.Tuple):
             target = node.target.elts
         else:
@@ -264,10 +264,15 @@ class Transformer(ast.NodeTransformer):
     def visit_ListComp(self, node):
         assert len(node.generators) == 1
         gen = node.generators[0]
-        assert isinstance(gen.target, ast.Name)
         assert not gen.ifs
 
-        target = gen.target.id
+        if isinstance(gen.target, ast.Name):
+            target = gen.target.id
+        elif isinstance(gen.target, ast.Tuple):
+            target = gen.target.elts
+        else:
+            assert False
+
         iter = self.flatten_ref(gen.iter)
         stmts = []
         expr = self.flatten_ref(node.elt, statements=stmts)
