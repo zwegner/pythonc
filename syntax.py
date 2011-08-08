@@ -214,14 +214,15 @@ class Return(Node):
             return 'return'
 
 class Assert(Node):
-    def __init__(self, expr):
+    def __init__(self, expr, lineno):
         self.expr = expr
+        self.lineno = lineno
 
     def __str__(self):
         body =  """if (!test_truth({expr})) {{
-    error("assert failed");
+    error("assert failed at line {lineno}");
 }}
-""".format(expr=self.expr)
+""".format(expr=self.expr, lineno=self.lineno)
         return body
 
 class FunctionDef(Node):
