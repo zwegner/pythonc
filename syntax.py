@@ -1,3 +1,6 @@
+def block_str(stmts):
+    return '\n'.join('    %s;' % s for s in stmts)
+
 class Node:
     def is_atom(self):
         return False
@@ -100,6 +103,26 @@ class Assign(Node):
     def __str__(self):
         return '%s *%s = %s' % (self.target_type, self.target, self.expr)
 
+class If(Node):
+    def __init__(self, expr, stmts, else_block):
+        self.expr = expr
+        self.stmts = stmts
+        self.else_block = else_block
+
+    def __str__(self):
+        stmts = block_str(self.stmts)
+        body =  """if (test_truth({expr})) {{
+{stmts}
+}}
+""".format(expr=self.expr, stmts=stmts)
+        if self.else_block:
+            stmts = block_str(self.else_block)
+            body +=  """else {{
+    {stmts}
+    }}
+    """.format(expr=self.expr, stmts=stmts)
+        return body
+
 class Return(Node):
     def __init__(self, value):
         self.value = value
@@ -109,9 +132,6 @@ class Return(Node):
             return 'return %s' % self.value
         else:
             return 'return'
-
-def block_str(stmts):
-    return '\n'.join('    %s;' % s for s in stmts)
 
 class FunctionDef(Node):
     def __init__(self, name, args, stmts):

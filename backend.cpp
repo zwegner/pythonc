@@ -4,11 +4,7 @@
 #include <map>
 #include <vector>
 
-void error(const char *msg)
-{
-    printf("error: %s\n", msg);
-    exit(1);
-}
+#define error(...) do { printf(__VA_ARGS__); puts(""); exit(1); } while(0)
 
 class node;
 class context;
@@ -116,7 +112,10 @@ public:
     }
     node *load(const char *name)
     {
-        return this->symbols[name];
+        symbol_table::const_iterator v = this->symbols.find(name);
+        if (v == this->symbols.end())
+            error("cannot find '%s' in symbol table", name);
+        return v->second;
     }
     void dump()
     {
@@ -127,3 +126,11 @@ public:
                 printf("symbol['%s'] = %p;\n", i->first, i->second);
     }
 };
+
+bool test_truth(node *expr)
+{
+    if (expr->is_int_const())
+        return expr->int_value() != 0;
+    error("cannot determine truth value of expr");
+    return false;
+}

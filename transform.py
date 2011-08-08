@@ -40,8 +40,8 @@ class Transformer(ast.NodeTransformer):
         all_nodes |= {type(node)}
         return super().visit(node)
 
-#    def generic_visit(self, node):
-#        raise RuntimeError('can\'t translate %s' % node)
+    def generic_visit(self, node):
+        raise RuntimeError('can\'t translate %s' % node)
 
     def visit_children(self, node):
         return [self.visit(i) for i in ast.iter_child_nodes(node)]
@@ -80,6 +80,15 @@ class Transformer(ast.NodeTransformer):
         value = self.flatten_ref(node.value)
         return [syntax.Store(node.targets[0].id, value)]
 
+    def visit_If(self, node):
+        expr = self.flatten_ref(node.test)
+        stmts = self.flatten_list(node.body)
+        if node.orelse:
+            else_block = self.flatten_list(node.orelse)
+        else:
+            else_block = None
+        return syntax.If(expr, stmts, else_block)
+
     def visit_Return(self, node):
         if node.value is not None:
             expr = self.flatten_ref(node.value)
@@ -117,5 +126,5 @@ with open('test.py') as f:
         f.write('    context *ctx = new context();\n')
         for stmt in node:
             f.write('    %s;\n' % stmt)
-        f.write('    ctx->dump();\n')
+        #f.write('    ctx->dump();\n')
         f.write('}\n')
