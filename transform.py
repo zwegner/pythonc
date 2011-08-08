@@ -63,6 +63,16 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(node.s, str)
         return syntax.StringConst(node.s)
 
+    # Unary Ops
+    def visit_Invert(self, node): return '__invert__' 
+    def visit_Not(self, node): return '__not__' 
+    def visit_UAdd(self, node): return '__pos__' 
+    def visit_USub(self, node): return '__neg__' 
+    def visit_UnaryOp(self, node):
+        op = self.visit(node.op)
+        rhs = self.flatten_ref(node.operand)
+        return syntax.UnaryOp(op, rhs)
+
     # Binary Ops
     def visit_Add(self, node): return '__add__' 
     def visit_BitAnd(self, node): return '__and__' 
@@ -83,7 +93,7 @@ class Transformer(ast.NodeTransformer):
         rhs = self.flatten_ref(node.right)
         return syntax.BinaryOp(op, lhs, rhs)
 
-    # Binary Ops
+    # Comparisons
     def visit_Eq(self, node): return '__eq__' 
     def visit_NotEq(self, node): return '__ne__' 
     def visit_Lt(self, node): return '__lt__' 

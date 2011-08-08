@@ -29,6 +29,7 @@ public:
 
 #define UNIMP_OP(NAME) \
     virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
+
     UNIMP_OP(add)
     UNIMP_OP(and)
     UNIMP_OP(divmod)
@@ -52,6 +53,14 @@ public:
 
     UNIMP_OP(contains)
     UNIMP_OP(ncontains)
+
+#define UNIMP_UNOP(NAME) \
+    virtual node *__##NAME##__() { error(#NAME " unimplemented"); return NULL; }
+
+    UNIMP_UNOP(invert)
+    UNIMP_UNOP(not)
+    UNIMP_UNOP(pos)
+    UNIMP_UNOP(neg)
 
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
@@ -155,6 +164,16 @@ public:
     INT_OP(le, <=)
     INT_OP(gt, >)
     INT_OP(ge, >=)
+
+#define INT_UNOP(NAME, OP) \
+    virtual node *__##NAME##__() \
+    { \
+        return new int_const(OP this->int_value()); \
+    }
+    INT_UNOP(invert, ~)
+    INT_UNOP(not, !)
+    INT_UNOP(pos, +)
+    INT_UNOP(neg, -)
 
     virtual node *__str__();
 };

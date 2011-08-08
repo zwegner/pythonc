@@ -37,6 +37,14 @@ class Ref(Node):
     def __str__(self):
         return '(new %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
 
+class UnaryOp(Node):
+    def __init__(self, op, rhs):
+        self.op = op
+        self.rhs = rhs
+
+    def __str__(self):
+        return '%s->%s()' % (self.rhs, self.op)
+
 class BinaryOp(Node):
     def __init__(self, op, lhs, rhs):
         self.op = op
