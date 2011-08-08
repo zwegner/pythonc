@@ -108,6 +108,8 @@ class Transformer(ast.NodeTransformer):
     def visit_GtE(self, node): return '__gte__'
     def visit_In(self, node): return '__contains__' 
     def visit_NotIn(self, node): return '__ncontains__' 
+    def visit_Is(self, node): return '__is__' 
+    def visit_IsNot(self, node): return '__isnot__' 
 
     def visit_Compare(self, node):
         assert len(node.ops) == 1

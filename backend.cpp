@@ -64,6 +64,9 @@ public:
     UNIMP_UNOP(pos)
     UNIMP_UNOP(neg)
 
+    virtual node *__is__(node *rhs);
+    virtual node *__isnot__(node *rhs);
+
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
@@ -393,6 +396,16 @@ public:
         return this->load(attr->string_value().c_str());
     }
 };
+
+node *node::__is__(node *rhs)
+{
+    return new bool_const(this == rhs);
+}
+
+node *node::__isnot__(node *rhs)
+{
+    return new bool_const(this != rhs);
+}
 
 node *int_const::__str__()
 {
