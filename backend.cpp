@@ -70,7 +70,7 @@ public:
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
     virtual node *__setitem__(node *rhs) { error("setitem unimplemented"); return NULL; }
-    virtual node *__slice__() { error("slice unimplemented"); return NULL; }
+    virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
     virtual node *__str__() { error("str unimplemented"); return NULL; }
 };
 
@@ -234,6 +234,21 @@ public:
             return items[rhs->int_value()];
         error("getitem unimplemented");
         return NULL;
+    }
+
+    virtual node *__slice__(node *start, node *end, node *step)
+    {
+        if ((start && !start->is_int_const()) ||
+            (end && !end->is_int_const()) ||
+            (step && !step->is_int_const()))
+            error("slice error");
+        int64_t lo = start ? start->int_value() : 0;
+        int64_t hi = end ? end->int_value() : items.size();
+        int64_t st = step ? step->int_value() : 1;
+        list *new_list = new list();
+        for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
+            new_list->append(items[lo]);
+        return new_list;
     }
 };
 
