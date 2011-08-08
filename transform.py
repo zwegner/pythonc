@@ -59,6 +59,8 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(node.ctx, ast.Load)
         if node.id in ['True', 'False']:
             return syntax.BoolConst(node.id == 'True')
+        elif node.id == 'None':
+            return syntax.NoneConst()
         return syntax.Load(node.id)
 
     def visit_Num(self, node):
@@ -70,28 +72,28 @@ class Transformer(ast.NodeTransformer):
         return syntax.StringConst(node.s)
 
     # Unary Ops
-    def visit_Invert(self, node): return '__invert__' 
-    def visit_Not(self, node): return '__not__' 
-    def visit_UAdd(self, node): return '__pos__' 
-    def visit_USub(self, node): return '__neg__' 
+    def visit_Invert(self, node): return '__invert__'
+    def visit_Not(self, node): return '__not__'
+    def visit_UAdd(self, node): return '__pos__'
+    def visit_USub(self, node): return '__neg__'
     def visit_UnaryOp(self, node):
         op = self.visit(node.op)
         rhs = self.flatten_ref(node.operand)
         return syntax.UnaryOp(op, rhs)
 
     # Binary Ops
-    def visit_Add(self, node): return '__add__' 
-    def visit_BitAnd(self, node): return '__and__' 
-    def visit_BitOr(self, node): return '__or__' 
-    def visit_BitXor(self, node): return '__xor__' 
-    def visit_Div(self, node): return '__truediv__' 
+    def visit_Add(self, node): return '__add__'
+    def visit_BitAnd(self, node): return '__and__'
+    def visit_BitOr(self, node): return '__or__'
+    def visit_BitXor(self, node): return '__xor__'
+    def visit_Div(self, node): return '__truediv__'
     def visit_FloorDiv(self, node): return '__floordiv__'
-    def visit_LShift(self, node): return '__lshift__' 
-    def visit_Mod(self, node): return '__mod__' 
-    def visit_Mult(self, node): return '__mul__' 
-    def visit_Pow(self, node): return '__pow__' 
-    def visit_RShift(self, node): return '__rshift__' 
-    def visit_Sub(self, node): return '__sub__' 
+    def visit_LShift(self, node): return '__lshift__'
+    def visit_Mod(self, node): return '__mod__'
+    def visit_Mult(self, node): return '__mul__'
+    def visit_Pow(self, node): return '__pow__'
+    def visit_RShift(self, node): return '__rshift__'
+    def visit_Sub(self, node): return '__sub__'
 
     def visit_BinOp(self, node):
         op = self.visit(node.op)
@@ -100,16 +102,16 @@ class Transformer(ast.NodeTransformer):
         return syntax.BinaryOp(op, lhs, rhs)
 
     # Comparisons
-    def visit_Eq(self, node): return '__eq__' 
-    def visit_NotEq(self, node): return '__ne__' 
-    def visit_Lt(self, node): return '__lt__' 
-    def visit_LtE(self, node): return '__le__' 
-    def visit_Gt(self, node): return '__gt__' 
+    def visit_Eq(self, node): return '__eq__'
+    def visit_NotEq(self, node): return '__ne__'
+    def visit_Lt(self, node): return '__lt__'
+    def visit_LtE(self, node): return '__le__'
+    def visit_Gt(self, node): return '__gt__'
     def visit_GtE(self, node): return '__ge__'
-    def visit_In(self, node): return '__contains__' 
-    def visit_NotIn(self, node): return '__ncontains__' 
-    def visit_Is(self, node): return '__is__' 
-    def visit_IsNot(self, node): return '__isnot__' 
+    def visit_In(self, node): return '__contains__'
+    def visit_NotIn(self, node): return '__ncontains__'
+    def visit_Is(self, node): return '__is__'
+    def visit_IsNot(self, node): return '__isnot__'
 
     def visit_Compare(self, node):
         assert len(node.ops) == 1
@@ -123,8 +125,8 @@ class Transformer(ast.NodeTransformer):
         return syntax.BinaryOp(op, lhs, rhs)
 
     # Bool ops
-    def visit_And(self, node): return 'and' 
-    def visit_Or(self, node): return 'or' 
+    def visit_And(self, node): return 'and'
+    def visit_Or(self, node): return 'or'
 
     def visit_BoolOp(self, node):
         assert len(node.values) >= 2
@@ -309,29 +311,22 @@ class Transformer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node):
         body = self.flatten_list(node.body)
-        fn = syntax.FunctionDef(node.name, node.args, body).flatten(self)
+        exp_name = node.exp_name if 'exp_name' in dir(node) else None
+        fn = syntax.FunctionDef(node.name, node.args, body, exp_name).flatten(self)
         return fn
 
     def visit_ClassDef(self, node):
-        assert not node.bases 
-        assert not node.keywords 
-        assert not node.starargs 
-        assert not node.kwargs 
-        assert not node.decorator_list 
-        assert not self.in_class
-
-        old_fns = self.functions
-        self.functions = []
-        self.in_class = True
-        body = self.flatten_list(node.body)
-        self.in_class = False
+        assert not node.bases
+        assert not node.keywords
+        assert not node.starargs
+        assert not node.kwargs
+        assert not node.decorator_list
 
         for fn in node.body:
             if isinstance(fn, ast.FunctionDef):
-                fn.name = '_%s_%s' % (node.name, fn.name)
+                fn.exp_name = '_%s_%s' % (node.name, fn.name)
 
-        # Mangle names of inner functions
-        self.functions = old_fns + self.functions
+        body = self.flatten_list(node.body)
 
         c = syntax.ClassDef(node.name, body)
         return c.flatten(self)
@@ -355,9 +350,9 @@ with open(sys.argv[1]) as f:
         for func in x.functions:
             f.write('%s\n' % func)
 
-        f.write('int main() {\n')
+        f.write('int main(int argc, char **argv) {\n')
         f.write('    context *ctx = new context();\n')
-        f.write('    set_builtins(ctx);\n')
+        f.write('    set_builtins(ctx, argc, argv);\n')
         for stmt in node:
             f.write('    %s;\n' % stmt)
         f.write('}\n')

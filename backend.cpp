@@ -26,6 +26,7 @@ public:
     virtual bool is_list() { return false; }
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
+    virtual bool is_file() { return false; }
     virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
@@ -223,6 +224,22 @@ public:
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
 
+#define STRING_OP(NAME, OP) \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        if (rhs->is_string()) \
+            return new bool_const(this->string_value() OP rhs->string_value()); \
+        error(#NAME " unimplemented"); \
+        return NULL; \
+    }
+
+    STRING_OP(eq, ==)
+    STRING_OP(ne, !=)
+    STRING_OP(lt, <)
+    STRING_OP(le, <=)
+    STRING_OP(gt, >)
+    STRING_OP(ge, >=)
+
     // FNV-1a algorithm
     virtual node *__hash__()
     {
@@ -230,7 +247,7 @@ public:
         for (const char *c = this->value.c_str(); *c; c++)
         {
             hash ^= *c;
-            hash *= 1099511628211;
+            hash *= 1099511628211ll;
         }
         return new int_const(hash);
     }
@@ -391,6 +408,28 @@ public:
     }
 };
 
+class file : public node
+{
+private:
+    FILE *f;
+
+public:
+    file(const char *path, const char *mode)
+    {
+        f = fopen(path, mode);
+    }
+
+    node *read(int len)
+    {
+        static char buf[64*1024];
+        fread(buf, len, 1, this->f);
+        std::string s(buf, len);
+        return new string_const(s);
+    }
+
+    virtual bool is_file() { return true; }
+};
+
 typedef node *(*fptr)(context *parent_ctx, node *args);
 
 class function_def : public node
@@ -426,11 +465,11 @@ public:
     }
     node *load(const char *name)
     {
-        return items.__getitem__(new string_const("_"+this->name+"_"+name));
+        return items.__getitem__(new string_const(name));
     }
     void store(const char *name, node *value)
     {
-        items.__setitem__(new string_const("_"+this->name+"_"+name), value);
+        items.__setitem__(new string_const(name), value);
     }
 
     virtual bool is_function() { return true; }
@@ -487,9 +526,17 @@ bool test_truth(node *expr)
 
 #include "builtins.cpp"
 
-void set_builtins(context *ctx)
+void set_builtins(context *ctx, int argc, char **argv)
 {
     ctx->store("len", new function_def(builtin_len));
     ctx->store("print", new function_def(builtin_print));
     ctx->store("range", new function_def(builtin_range));
+    ctx->store("set", new function_def(builtin_set));
+    ctx->store("open", new function_def(builtin_open));
+    ctx->store("fread", new function_def(builtin_fread));
+    ctx->store("__name__", new string_const("__main__"));
+    list *plist = new list();
+    for (int a = 0; a < argc; a++)
+        plist->append(new string_const(argv[a]));
+    ctx->store("__args__", plist);
 }

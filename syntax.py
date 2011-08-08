@@ -26,7 +26,7 @@ class IntConst(Node):
         self.value = value
 
     def __str__(self):
-        return '(new int_const(%s))' % self.value
+        return '(new int_const(%sll))' % self.value
 
 class StringConst(Node):
     def __init__(self, value):
@@ -403,14 +403,16 @@ class Assert(Node):
         return body
 
 class FunctionDef(Node):
-    def __init__(self, name, args, stmts):
+    def __init__(self, name, args, stmts, exp_name=None):
         self.name = name
+        self.exp_name = exp_name if exp_name else name
+        self.exp_name = 'fn_%s' % self.exp_name # make sure main() doesn't collide
         self.args = args
         self.stmts = stmts
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function_def', Identifier(self.name)))]
+        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)))]
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -424,7 +426,7 @@ node *{name}(context *parent_ctx, node *args) {{
 {arg_unpacking}
 {stmts}
     return NULL;
-}}""".format(name=self.name, arg_unpacking=arg_unpacking, stmts=stmts)
+}}""".format(name=self.exp_name, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 
 class ClassDef(Node):
