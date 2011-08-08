@@ -109,6 +109,9 @@ class Transformer(ast.NodeTransformer):
         op = self.visit(node.ops[0])
         lhs = self.flatten_ref(node.left)
         rhs = self.flatten_ref(node.comparators[0])
+        # Sigh--Python has these ordered weirdly
+        if op in ['__contains__', '__ncontains__']:
+            lhs, rhs = rhs, lhs
         return syntax.BinaryOp(op, lhs, rhs)
 
     def visit_IfExp(self, node):
@@ -134,6 +137,11 @@ class Transformer(ast.NodeTransformer):
         keys = [self.flatten_ref(i) for i in node.keys]
         values = [self.flatten_ref(i) for i in node.values]
         d = syntax.Dict(keys, values)
+        return d.flatten(self)
+
+    def visit_Set(self, node):
+        items = [self.flatten_ref(i) for i in node.elts]
+        d = syntax.Set(items)
         return d.flatten(self)
 
     def visit_Subscript(self, node):

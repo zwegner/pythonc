@@ -22,6 +22,7 @@ public:
     virtual bool is_dict() { return false; }
     virtual bool is_int_const() { return false; }
     virtual bool is_list() { return false; }
+    virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
     virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
@@ -242,23 +243,57 @@ public:
     {
     }
 
-    virtual bool is_dict() { return true; }
-    virtual node *__getitem__(node *key)
+    node *lookup(node *key)
     {
-        node *old_key = key;
         if (!key->is_int_const())
             key = key->__hash__();
         node_dict::const_iterator v = this->items.find(key->int_value());
         if (v == this->items.end())
-            error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
+            return NULL;
         // XXX: check equality of keys
         return v->second;
+    }
+    virtual bool is_dict() { return true; }
+    virtual node *__getitem__(node *key)
+    {
+        node *old_key = key;
+        node *value = this->lookup(key);
+        if (value == NULL)
+            error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
+        return value;
     }
     virtual void __setitem__(node *key, node *value)
     {
         if (!key->is_int_const())
             key = key->__hash__();
         items[key->int_value()] = value;
+    }
+};
+
+class set : public node
+{
+private:
+    dict items;
+
+public:
+    set()
+    {
+    }
+
+    void add(node *key)
+    {
+        items.__setitem__(key, (node *)1); // XXX HACK: just something non-NULL
+    }
+
+    virtual bool is_set() { return true; }
+    virtual node *__contains__(node *key)
+    {
+        return new bool_const(items.lookup(key) != NULL);
+    }
+    virtual node *__str__()
+    {
+        std::string r = "{}";
+        return new string_const(r);
     }
 };
 

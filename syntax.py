@@ -109,6 +109,21 @@ class Dict(Node):
     def __str__(self):
         return ''
 
+class Set(Node):
+    def __init__(self, items):
+        self.items = items
+
+    def flatten(self, ctx):
+        name = ctx.get_temp()
+        ctx.statements += [Assign(name, Ref('set'), target_type='set')]
+        for i in self.items:
+            # XXX HACK: add just some C++ text instead of syntax nodes...
+            ctx.statements += ['%s->add(%s)' % (name, i)]
+        return name
+
+    def __str__(self):
+        return ''
+
 class Subscript(Node):
     def __init__(self, expr, index):
         self.expr = expr
