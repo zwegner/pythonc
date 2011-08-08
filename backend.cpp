@@ -43,6 +43,7 @@ public:
 
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
+    virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
     virtual node *__setitem__(node *rhs) { error("setitem unimplemented"); return NULL; }
     virtual node *__str__() { error("str unimplemented"); return NULL; }
@@ -254,6 +255,14 @@ public:
         this->name = name;
         creator(this);
     }
+    node *load(const char *name)
+    {
+        return items.__getitem__(new string_const("_"+this->name+"_"+name));
+    }
+    void store(const char *name, node *value)
+    {
+        items.__setitem__(new string_const("_"+this->name+"_"+name), value);
+    }
 
     virtual bool is_function() { return true; }
 
@@ -264,16 +273,12 @@ public:
         list *call_args = new list();
         call_args->append(obj);
         context *call_ctx = new context(ctx);
-        return init->__call__(call_ctx, call_args);
+        init->__call__(call_ctx, call_args);
+        return obj;
     }
-
-    node *load(const char *name)
+    virtual node *__getattr__(node *attr)
     {
-        return items.__getitem__(new string_const("_"+this->name+"_"+name));
-    }
-    void store(const char *name, node *value)
-    {
-        items.__setitem__(new string_const("_"+this->name+"_"+name), value);
+        return this->load(attr->string_value().c_str());
     }
 };
 

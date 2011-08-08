@@ -112,6 +112,14 @@ class Subscript(Node):
     def __str__(self):
         return '%s->__getitem__(%s)' % (self.expr, self.index)
 
+class Attribute(Node):
+    def __init__(self, expr, attr):
+        self.expr = expr
+        self.attr = attr
+
+    def __str__(self):
+        return '%s->__getattr__(%s)' % (self.expr, self.attr)
+
 class Call(Node):
     def __init__(self, func, args):
         self.func = func

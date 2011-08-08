@@ -97,6 +97,12 @@ class Transformer(ast.NodeTransformer):
         sub = syntax.Subscript(l, index)
         return sub
 
+    def visit_Attribute(self, node):
+        assert isinstance(node.ctx, ast.Load)
+        l = self.flatten_ref(node.value)
+        attr = syntax.Attribute(l, syntax.StringConst(node.attr))
+        return attr
+
     def visit_Call(self, node):
         fn = self.flatten_ref(node.func)
         args = syntax.List([self.flatten_ref(a) for a in node.args])
