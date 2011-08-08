@@ -211,14 +211,13 @@ class Transformer(ast.NodeTransformer):
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
         value = self.flatten_ref(node.value)
-        print(node.target.lineno)
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
             binop = syntax.BinaryOp(op, syntax.Load(target), value)
             return [syntax.Store(target, binop)]
         else:
-            assert False
+            return None
 
     def visit_If(self, node):
         expr = self.flatten_ref(node.test)

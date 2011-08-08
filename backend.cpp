@@ -423,4 +423,5 @@ bool test_truth(node *expr)
 void set_builtins(context *ctx)
 {
     ctx->store("print", new function_def(builtin_print));
+    ctx->store("range", new function_def(builtin_range));
 }
