@@ -114,6 +114,19 @@ class Transformer(ast.NodeTransformer):
             lhs, rhs = rhs, lhs
         return syntax.BinaryOp(op, lhs, rhs)
 
+    # Bool ops
+    def visit_And(self, node): return 'and' 
+    def visit_Or(self, node): return 'or' 
+
+    def visit_BoolOp(self, node):
+        assert len(node.values) == 2
+        op = self.visit(node.op)
+        lhs = self.flatten_ref(node.values[0])
+        rhs_stmts = []
+        rhs_expr = self.flatten_ref(node.values[1], statements=rhs_stmts)
+        bool_op = syntax.BoolOp(op, lhs, rhs_stmts, rhs_expr)
+        return bool_op.flatten(self)
+
     def visit_IfExp(self, node):
         expr = self.flatten_ref(node.test)
         true_stmts = []

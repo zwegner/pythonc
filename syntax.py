@@ -175,6 +175,27 @@ class IfExp(Node):
         true_expr=self.true_expr, false_stmts=false_stmts, false_expr=self.false_expr)
         return body
 
+class BoolOp(Node):
+    def __init__(self, op, lhs_expr, rhs_stmts, rhs_expr):
+        self.op = op
+        self.lhs_expr = lhs_expr
+        self.rhs_stmts = rhs_stmts
+        self.rhs_expr = rhs_expr
+
+    def flatten(self, ctx):
+        self.temp = ctx.get_temp()
+        ctx.statements += [Assign(self.temp, self.lhs_expr), self]
+        return self.temp
+
+    def __str__(self):
+        rhs_stmts = block_str(self.rhs_stmts)
+        body =  """if ({op}test_truth({lhs_expr})) {{
+    {rhs_stmts}
+    {temp} = {rhs_expr};
+}}
+""".format(op='!' if self.op == 'or' else '', lhs_expr=self.lhs_expr,
+        temp=self.temp.name, rhs_stmts=rhs_stmts, rhs_expr=self.rhs_expr)
+        return body
 
 class Assign(Node):
     def __init__(self, target, expr, target_type='node'):
