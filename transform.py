@@ -188,6 +188,12 @@ class Transformer(ast.NodeTransformer):
         value = self.flatten_ref(node.value)
         if isinstance(target, ast.Name):
             return [syntax.Store(target.id, value)]
+        elif isinstance(target, ast.Tuple):
+            assert all(isinstance(t, ast.Name) for t in target.elts)
+            stmts = []
+            for i, t in enumerate(target.elts):
+                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)))]
+            return stmts
         elif isinstance(target, ast.Attribute):
             base = self.flatten_ref(target.value)
             return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
