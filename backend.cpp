@@ -18,10 +18,12 @@ typedef std::map<int64_t, node *> node_dict;
 class node
 {
 public:
+    virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
     virtual bool is_int_const() { return false; }
     virtual bool is_list() { return false; }
     virtual bool is_string() { return false; }
+    virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
 
@@ -40,6 +42,16 @@ public:
     UNIMP_OP(sub)
     UNIMP_OP(truediv)
     UNIMP_OP(xor)
+
+    UNIMP_OP(eq)
+    UNIMP_OP(ne)
+    UNIMP_OP(lt)
+    UNIMP_OP(le)
+    UNIMP_OP(gt)
+    UNIMP_OP(ge)
+
+    UNIMP_OP(contains)
+    UNIMP_OP(ncontains)
 
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
@@ -87,6 +99,23 @@ public:
     }
 };
 
+class bool_const : public node // lame name
+{
+private:
+    bool value;
+
+public:
+    bool_const(bool value)
+    {
+        this->value = value;
+    }
+
+    virtual bool is_bool() { return true; }
+    virtual bool bool_value() { return this->value; }
+
+    virtual node *__str__();
+};
+
 class int_const : public node
 {
 private:
@@ -119,6 +148,13 @@ public:
     INT_OP(rshift, >>)
     INT_OP(sub, -)
     INT_OP(xor, ^)
+
+    INT_OP(eq, ==)
+    INT_OP(ne, !=)
+    INT_OP(lt, <)
+    INT_OP(le, <=)
+    INT_OP(gt, >)
+    INT_OP(ge, >=)
 
     virtual node *__str__();
 };
@@ -290,10 +326,19 @@ node *int_const::__str__()
     return new string_const(std::string(buf));
 }
 
+node *bool_const::__str__()
+{
+    return new string_const(std::string(this->value ? "True" : "False"));
+}
+
 bool test_truth(node *expr)
 {
+    if (expr->is_bool())
+        return expr->bool_value();
     if (expr->is_int_const())
         return expr->int_value() != 0;
+    if (expr->is_string())
+        return expr->string_value().length() != 0;
     error("cannot determine truth value of expr");
     return false;
 }

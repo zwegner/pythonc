@@ -79,6 +79,24 @@ class Transformer(ast.NodeTransformer):
         rhs = self.flatten_ref(node.right)
         return syntax.BinaryOp(op, lhs, rhs)
 
+    # Binary Ops
+    def visit_Eq(self, node): return '__eq__' 
+    def visit_NotEq(self, node): return '__ne__' 
+    def visit_Lt(self, node): return '__lt__' 
+    def visit_LtE(self, node): return '__lte__' 
+    def visit_Gt(self, node): return '__gt__' 
+    def visit_GtE(self, node): return '__gte__'
+    def visit_In(self, node): return '__contains__' 
+    def visit_NotIn(self, node): return '__ncontains__' 
+
+    def visit_Compare(self, node):
+        assert len(node.ops) == 1
+        assert len(node.comparators) == 1
+        op = self.visit(node.ops[0])
+        lhs = self.flatten_ref(node.left)
+        rhs = self.flatten_ref(node.comparators[0])
+        return syntax.BinaryOp(op, lhs, rhs)
+
     def visit_List(self, node):
         items = [self.flatten_ref(i) for i in node.elts]
         l = syntax.List(items)
