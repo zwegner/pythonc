@@ -347,7 +347,7 @@ class ListComp(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % IntConst(i))]
+                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i)]
         else:
             arg_unpacking = [Store(self.target, '*__iter')]
         arg_unpacking = block_str(arg_unpacking)
@@ -391,7 +391,7 @@ class For(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % IntConst(i))]
+                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i)]
         else:
             arg_unpacking = [Store(self.target, '*__iter')]
         arg_unpacking = block_str(arg_unpacking)
@@ -467,7 +467,7 @@ class FunctionDef(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = []
         for i, arg in enumerate(self.args.args):
-            arg_unpacking += [Store(arg.arg, 'args->__getitem__(%s)' % IntConst(i))]
+            arg_unpacking += [Store(arg.arg, 'args->__getitem__(%s)' % i)]
         arg_unpacking = block_str(arg_unpacking)
         body = """
 node *{name}(context *parent_ctx, node *args) {{

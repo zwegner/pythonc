@@ -92,6 +92,7 @@ public:
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented"); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
+    virtual node *__getitem__(int index) { error("getitem unimplemented"); return NULL; }
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
     virtual node *__len__() { error("len unimplemented"); return NULL; }
@@ -339,7 +340,11 @@ public:
             error("getitem unimplemented");
             return NULL;
         }
-        return items[this->index(rhs->int_value())];
+        return this->__getitem__(rhs->int_value());
+    }
+    virtual node *__getitem__(int index)
+    {
+        return items[index];
     }
     virtual node *__len__()
     {
