@@ -290,7 +290,7 @@ public:
         }
         return new int_const(hash);
     }
-    virtual node *__len__(node *rhs)
+    virtual node *__len__()
     {
         return new int_const(value.length());
     }
