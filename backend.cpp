@@ -556,9 +556,36 @@ bool test_truth(node *expr)
     return false;
 }
 
+node *builtin_fread(context *ctx, node *args)
+{
+    node *f = args->__getitem__(new int_const(0));
+    node *len = args->__getitem__(new int_const(1));
+    if (!f->is_file() || !len->is_int_const())
+        error("bad arguments to fread()");
+    return ((file *)f)->read(len->int_value());
+}
+
 node *builtin_len(context *ctx, node *args)
 {
     return args->__getitem__(new int_const(0))->__len__();
+}
+
+node *builtin_open(context *ctx, node *args)
+{
+    node *path = args->__getitem__(new int_const(0));
+    node *mode = args->__getitem__(new int_const(1));
+    if (!path->is_string() || !mode->is_string())
+        error("bad arguments to open()");
+    file *f = new file(path->string_value().c_str(), mode->string_value().c_str());
+    return f;
+}
+
+node *builtin_ord(context *ctx, node *args)
+{
+    node *arg = args->__getitem__(new int_const(0));
+    if (!arg->is_string() || arg->__len__()->int_value() != 1)
+        error("bad arguments to ord()");
+    return new int_const((int)arg->string_value().c_str()[0]);
 }
 
 node *builtin_print(context *ctx, node *args)
@@ -585,33 +612,16 @@ node *builtin_set(context *ctx, node *args)
     return new set();
 }
 
-node *builtin_open(context *ctx, node *args)
-{
-    node *path = args->__getitem__(new int_const(0));
-    node *mode = args->__getitem__(new int_const(1));
-    if (!path->is_string() || !mode->is_string())
-        error("bad arguments to open()");
-    file *f = new file(path->string_value().c_str(), mode->string_value().c_str());
-    return f;
-}
-
-node *builtin_fread(context *ctx, node *args)
-{
-    node *f = args->__getitem__(new int_const(0));
-    node *len = args->__getitem__(new int_const(1));
-    if (!f->is_file() || !len->is_int_const())
-        error("bad arguments to fread()");
-    return ((file *)f)->read(len->int_value());
-}
-
 void init_context(context *ctx, int argc, char **argv)
 {
+    ctx->store("fread", new function_def(builtin_fread));
     ctx->store("len", new function_def(builtin_len));
+    ctx->store("open", new function_def(builtin_open));
+    ctx->store("ord", new function_def(builtin_ord));
     ctx->store("print", new function_def(builtin_print));
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
-    ctx->store("open", new function_def(builtin_open));
-    ctx->store("fread", new function_def(builtin_fread));
+
     ctx->store("__name__", new string_const("__main__"));
     list *plist = new list();
     for (int a = 0; a < argc; a++)
