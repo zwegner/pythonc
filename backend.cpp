@@ -36,6 +36,15 @@ typedef std::map<int64_t, node_pair> node_dict;
 typedef std::set<std::string> globals_set;
 typedef std::vector<node *> node_list;
 
+node *builtin_fread(context *ctx, node *args);
+node *builtin_len(context *ctx, node *args);
+node *builtin_open(context *ctx, node *args);
+node *builtin_ord(context *ctx, node *args);
+node *builtin_print(context *ctx, node *args);
+node *builtin_range(context *ctx, node *args);
+node *builtin_set(context *ctx, node *args);
+node *builtin_set_add(context *ctx, node *args);
+
 class node
 {
 public:
@@ -444,6 +453,7 @@ public:
         std::string r = "{}";
         return new string_const(r);
     }
+    virtual node *__getattr__(node *key);
 };
 
 class object : public node
@@ -575,6 +585,10 @@ public:
     }
 };
 
+bool_const bool_singleton_True(true);
+bool_const bool_singleton_False(false);
+none_const none_singleton(0);
+
 bool test_truth(node *expr)
 {
     if (expr->is_bool())
@@ -612,6 +626,15 @@ node *int_const::__str__()
 node *bool_const::__str__()
 {
     return new string_const(std::string(this->value ? "True" : "False"));
+}
+
+node *set::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    if (key->string_value() == "add")
+        return new bound_method(this, new function_def(builtin_set_add));
+    error("set has no attribute %s", key->string_value().c_str());
 }
 
 node *builtin_fread(context *ctx, node *args)
@@ -668,6 +691,16 @@ node *builtin_range(context *ctx, node *args)
 node *builtin_set(context *ctx, node *args)
 {
     return new set();
+}
+
+node *builtin_set_add(context *ctx, node *args)
+{
+    node *self = args->__getitem__(0);
+    node *item = args->__getitem__(1);
+
+    ((set *)self)->add(item);
+
+    return &none_singleton;
 }
 
 void init_context(context *ctx, int argc, char **argv)

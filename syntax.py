@@ -40,10 +40,6 @@ def register_string(value):
 def export_consts(f):
     global all_ints, all_strings
 
-    f.write('bool_const bool_singleton_True(true);\n')
-    f.write('bool_const bool_singleton_False(false);\n')
-    f.write('none_const none_singleton(0);\n')
-
     for i in all_ints:
         f.write('int_const int_singleton_%s(%sll);\n' % (i, i))
 
