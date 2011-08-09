@@ -1,9 +1,29 @@
+################################################################################
+## Pythonc--Python to C++ translator
+## 
+## Copyright 2011 Zach Wegner
+##
+## This file is part of Pythonc.
+## 
+## Pythonc is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+## 
+## Pythonc is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+## 
+## You should have received a copy of the GNU General Public License
+## along with Pythonc.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
 import ast
 import sys
 
 import syntax
 
-all_nodes = set()
 class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
@@ -15,7 +35,7 @@ class Transformer(ast.NodeTransformer):
         self.temp_id += 1
         return syntax.Identifier('temp_%02i' % self.temp_id)
 
-    def flatten_ref(self, node, statements=None):
+    def flatten_node(self, node, statements=None):
         old_stmts = self.statements
         if statements is not None:
             self.statements = statements
@@ -42,11 +62,6 @@ class Transformer(ast.NodeTransformer):
                     statements += self.statements + [stmts]
         self.statements = old_stmts
         return statements
-
-    def visit(self, node):
-        global all_nodes
-        all_nodes |= {type(node)}
-        return super().visit(node)
 
     def generic_visit(self, node):
         print(node.lineno)
@@ -78,7 +93,7 @@ class Transformer(ast.NodeTransformer):
     def visit_USub(self, node): return '__neg__'
     def visit_UnaryOp(self, node):
         op = self.visit(node.op)
-        rhs = self.flatten_ref(node.operand)
+        rhs = self.flatten_node(node.operand)
         return syntax.UnaryOp(op, rhs)
 
     # Binary Ops
@@ -97,8 +112,8 @@ class Transformer(ast.NodeTransformer):
 
     def visit_BinOp(self, node):
         op = self.visit(node.op)
-        lhs = self.flatten_ref(node.left)
-        rhs = self.flatten_ref(node.right)
+        lhs = self.flatten_node(node.left)
+        rhs = self.flatten_node(node.right)
         return syntax.BinaryOp(op, lhs, rhs)
 
     # Comparisons
@@ -117,8 +132,8 @@ class Transformer(ast.NodeTransformer):
         assert len(node.ops) == 1
         assert len(node.comparators) == 1
         op = self.visit(node.ops[0])
-        lhs = self.flatten_ref(node.left)
-        rhs = self.flatten_ref(node.comparators[0])
+        lhs = self.flatten_node(node.left)
+        rhs = self.flatten_node(node.comparators[0])
         # Sigh--Python has these ordered weirdly
         if op in ['__contains__', '__ncontains__']:
             lhs, rhs = rhs, lhs
@@ -132,10 +147,10 @@ class Transformer(ast.NodeTransformer):
         assert len(node.values) >= 2
         op = self.visit(node.op)
         rhs_stmts = []
-        rhs_expr = self.flatten_ref(node.values[-1], statements=rhs_stmts)
+        rhs_expr = self.flatten_node(node.values[-1], statements=rhs_stmts)
         for v in reversed(node.values[:-1]):
             lhs_stmts = []
-            lhs = self.flatten_ref(v, statements=lhs_stmts)
+            lhs = self.flatten_node(v, statements=lhs_stmts)
             bool_op = syntax.BoolOp(op, lhs, rhs_stmts, rhs_expr)
             rhs_expr = bool_op.flatten(self, lhs_stmts)
             rhs_stmts = lhs_stmts
@@ -143,61 +158,61 @@ class Transformer(ast.NodeTransformer):
         return rhs_expr
 
     def visit_IfExp(self, node):
-        expr = self.flatten_ref(node.test)
+        expr = self.flatten_node(node.test)
         true_stmts = []
-        true_expr = self.flatten_ref(node.body, statements=true_stmts)
+        true_expr = self.flatten_node(node.body, statements=true_stmts)
         false_stmts = []
-        false_expr = self.flatten_ref(node.orelse, statements=false_stmts)
+        false_expr = self.flatten_node(node.orelse, statements=false_stmts)
         if_exp = syntax.IfExp(expr, true_stmts, true_expr, false_stmts, false_expr)
         return if_exp.flatten(self)
 
     def visit_List(self, node):
-        items = [self.flatten_ref(i) for i in node.elts]
+        items = [self.flatten_node(i) for i in node.elts]
         l = syntax.List(items)
         return l.flatten(self)
 
     def visit_Tuple(self, node):
-        items = [self.flatten_ref(i) for i in node.elts]
+        items = [self.flatten_node(i) for i in node.elts]
         l = syntax.List(items)
         return l.flatten(self)
 
     def visit_Dict(self, node):
-        keys = [self.flatten_ref(i) for i in node.keys]
-        values = [self.flatten_ref(i) for i in node.values]
+        keys = [self.flatten_node(i) for i in node.keys]
+        values = [self.flatten_node(i) for i in node.values]
         d = syntax.Dict(keys, values)
         return d.flatten(self)
 
     def visit_Set(self, node):
-        items = [self.flatten_ref(i) for i in node.elts]
+        items = [self.flatten_node(i) for i in node.elts]
         d = syntax.Set(items)
         return d.flatten(self)
 
     def visit_Subscript(self, node):
-        l = self.flatten_ref(node.value)
+        l = self.flatten_node(node.value)
         if isinstance(node.slice, ast.Index):
-            index = self.flatten_ref(node.slice.value)
+            index = self.flatten_node(node.slice.value)
             return syntax.Subscript(l, index)
         elif isinstance(node.slice, ast.Slice):
-            [start, end, step] = [self.flatten_ref(a) if a else syntax.NoneConst() for a in
+            [start, end, step] = [self.flatten_node(a) if a else syntax.NoneConst() for a in
                     [node.slice.lower, node.slice.upper, node.slice.step]]
             return syntax.Slice(l, start, end, step)
 
     def visit_Attribute(self, node):
         assert isinstance(node.ctx, ast.Load)
-        l = self.flatten_ref(node.value)
+        l = self.flatten_node(node.value)
         attr = syntax.Attribute(l, syntax.StringConst(node.attr))
         return attr
 
     def visit_Call(self, node):
-        fn = self.flatten_ref(node.func)
-        args = syntax.List([self.flatten_ref(a) for a in node.args])
+        fn = self.flatten_node(node.func)
+        args = syntax.List([self.flatten_node(a) for a in node.args])
         args = args.flatten(self)
         return syntax.Call(fn, args)
 
     def visit_Assign(self, node):
         assert len(node.targets) == 1
         target = node.targets[0]
-        value = self.flatten_ref(node.value)
+        value = self.flatten_node(node.value)
         if isinstance(target, ast.Name):
             return [syntax.Store(target.id, value)]
         elif isinstance(target, ast.Tuple):
@@ -207,19 +222,19 @@ class Transformer(ast.NodeTransformer):
                 stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)))]
             return stmts
         elif isinstance(target, ast.Attribute):
-            base = self.flatten_ref(target.value)
+            base = self.flatten_node(target.value)
             return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
         elif isinstance(target, ast.Subscript):
             assert isinstance(target.slice, ast.Index)
-            base = self.flatten_ref(target.value)
-            index = self.flatten_ref(target.slice.value)
+            base = self.flatten_node(target.value)
+            index = self.flatten_node(target.slice.value)
             return [syntax.StoreSubscript(base, index, value)]
         else:
             assert False
 
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
-        value = self.flatten_ref(node.value)
+        value = self.flatten_node(node.value)
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
@@ -234,15 +249,15 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(target, ast.Subscript)
         assert isinstance(target.slice, ast.Index)
 
-        name = self.flatten_ref(target.value)
-        value = self.flatten_ref(target.slice.value)
+        name = self.flatten_node(target.value)
+        value = self.flatten_node(target.slice.value)
         return [syntax.DeleteSubscript(name, value)]
 
     def visit_Global(self, node):
         return [syntax.Global(name) for name in node.names]
 
     def visit_If(self, node):
-        expr = self.flatten_ref(node.test)
+        expr = self.flatten_node(node.test)
         stmts = self.flatten_list(node.body)
         if node.orelse:
             else_block = self.flatten_list(node.orelse)
@@ -258,7 +273,7 @@ class Transformer(ast.NodeTransformer):
 
     def visit_For(self, node):
         assert not node.orelse
-        iter = self.flatten_ref(node.iter)
+        iter = self.flatten_node(node.iter)
         stmts = self.flatten_list(node.body)
 
         if isinstance(node.target, ast.Name):
@@ -272,7 +287,7 @@ class Transformer(ast.NodeTransformer):
     def visit_While(self, node):
         assert not node.orelse
         test_stmts = []
-        test = self.flatten_ref(node.test, statements=test_stmts)
+        test = self.flatten_node(node.test, statements=test_stmts)
         stmts = self.flatten_list(node.body)
         return syntax.While(test_stmts, test, stmts)
 
@@ -288,9 +303,9 @@ class Transformer(ast.NodeTransformer):
         else:
             assert False
 
-        iter = self.flatten_ref(gen.iter)
+        iter = self.flatten_node(gen.iter)
         stmts = []
-        expr = self.flatten_ref(node.elt, statements=stmts)
+        expr = self.flatten_node(node.elt, statements=stmts)
         comp = syntax.ListComp(target, iter, stmts, expr)
         return comp.flatten(self)
 
@@ -300,13 +315,13 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Return(self, node):
         if node.value is not None:
-            expr = self.flatten_ref(node.value)
+            expr = self.flatten_node(node.value)
             return syntax.Return(expr)
         else:
             return syntax.Return(None)
 
     def visit_Assert(self, node):
-        expr = self.flatten_ref(node.test)
+        expr = self.flatten_node(node.test)
         return syntax.Assert(expr, node.lineno)
 
     def visit_FunctionDef(self, node):
@@ -343,16 +358,18 @@ class Transformer(ast.NodeTransformer):
 
 with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
-    x = Transformer()
-    node = x.visit(node)
-    with open('out.cpp', 'w') as f:
-        f.write('#include "backend.cpp"\n')
-        for func in x.functions:
-            f.write('%s\n' % func)
 
-        f.write('int main(int argc, char **argv) {\n')
-        f.write('    context *ctx = new context();\n')
-        f.write('    set_builtins(ctx, argc, argv);\n')
-        for stmt in node:
-            f.write('    %s;\n' % stmt)
-        f.write('}\n')
+x = Transformer()
+node = x.visit(node)
+
+with open('out.cpp', 'w') as f:
+    f.write('#include "backend.cpp"\n')
+    for func in x.functions:
+        f.write('%s\n' % func)
+
+    f.write('int main(int argc, char **argv) {\n')
+    f.write('    context *ctx = new context();\n')
+    f.write('    init_context(ctx, argc, argv);\n')
+    for stmt in node:
+        f.write('    %s;\n' % stmt)
+    f.write('}\n')

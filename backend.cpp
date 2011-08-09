@@ -1,3 +1,21 @@
+////////////////////////////////////////////////////////////////////////////////
+// Pythonc backend
+//
+// Copyright 2011 Zach Wegner
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+////////////////////////////////////////////////////////////////////////////////
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -140,7 +158,7 @@ public:
     }
 };
 
-class bool_const : public node // lame name
+class bool_const : public node
 {
 private:
     bool value;
@@ -524,9 +542,55 @@ bool test_truth(node *expr)
     return false;
 }
 
-#include "builtins.cpp"
+node *builtin_len(context *ctx, node *args)
+{
+    return args->__getitem__(new int_const(0))->__len__();
+}
 
-void set_builtins(context *ctx, int argc, char **argv)
+node *builtin_print(context *ctx, node *args)
+{
+    node *s = args->__getitem__(new int_const(0));
+    if (!s->is_string())
+        s = s->__str__();
+    printf("%s\n", s->string_value().c_str());
+}
+
+node *builtin_range(context *ctx, node *args)
+{
+    list *new_list = new list();
+    int64_t st;
+    int64_t end = args->__getitem__(new int_const(0))->int_value();
+
+    for (st = 0; st < end; st++)
+        new_list->append(new int_const(st));
+    return new_list;
+}
+
+node *builtin_set(context *ctx, node *args)
+{
+    return new set();
+}
+
+node *builtin_open(context *ctx, node *args)
+{
+    node *path = args->__getitem__(new int_const(0));
+    node *mode = args->__getitem__(new int_const(1));
+    if (!path->is_string() || !mode->is_string())
+        error("bad arguments to open()");
+    file *f = new file(path->string_value().c_str(), mode->string_value().c_str());
+    return f;
+}
+
+node *builtin_fread(context *ctx, node *args)
+{
+    node *f = args->__getitem__(new int_const(0));
+    node *len = args->__getitem__(new int_const(1));
+    if (!f->is_file() || !len->is_int_const())
+        error("bad arguments to fread()");
+    return ((file *)f)->read(len->int_value());
+}
+
+void init_context(context *ctx, int argc, char **argv)
 {
     ctx->store("len", new function_def(builtin_len));
     ctx->store("print", new function_def(builtin_print));
