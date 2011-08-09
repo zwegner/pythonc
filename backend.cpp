@@ -603,7 +603,7 @@ node *builtin_ord(context *ctx, node *args)
     node *arg = args->__getitem__(new int_const(0));
     if (!arg->is_string() || arg->__len__()->int_value() != 1)
         error("bad arguments to ord()");
-    return new int_const((int)arg->string_value().c_str()[0]);
+    return new int_const((unsigned char)arg->string_value()[0]);
 }
 
 node *builtin_print(context *ctx, node *args)
