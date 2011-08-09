@@ -474,7 +474,7 @@ node *{name}(context *parent_ctx, node *args) {{
     context *ctx = new context(parent_ctx);
 {arg_unpacking}
 {stmts}
-    return NULL;
+    return &none_singleton;
 }}""".format(name=self.exp_name, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 

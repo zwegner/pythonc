@@ -271,6 +271,15 @@ public:
     STRING_OP(ge, >=)
 
     // FNV-1a algorithm
+    virtual node *__getitem__(node *rhs)
+    {
+        if (!rhs->is_int_const())
+        {
+            error("getitem unimplemented");
+            return NULL;
+        }
+        return new string_const(value.substr(rhs->int_value(), 1));
+    }
     virtual node *__hash__()
     {
         int64_t hash = 14695981039346656037ull;
@@ -281,16 +290,11 @@ public:
         }
         return new int_const(hash);
     }
-    virtual node *__str__() { return this; }
-    virtual node *__getitem__(node *rhs)
+    virtual node *__len__(node *rhs)
     {
-        if (!rhs->is_int_const())
-        {
-            error("getitem unimplemented");
-            return NULL;
-        }
-        return new string_const(value.substr(rhs->int_value(), 1));
+        return new int_const(value.length());
     }
+    virtual node *__str__() { return this; }
 };
 
 class list : public node

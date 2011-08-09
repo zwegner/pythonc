@@ -12,3 +12,8 @@ You have been warned.
 The translator is released under the GPLv3.
 
 The C++ backend, used by the generated code, is released under the Apache license.
+
+Details
+=======
+Pythonc is intended to be a translator of a very simple subset of Python,
+suitable for use in embedded applications.
