@@ -40,11 +40,12 @@ class node
 public:
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
+    virtual bool is_file() { return false; }
     virtual bool is_int_const() { return false; }
     virtual bool is_list() { return false; }
+    virtual bool is_none() { return false; }
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
-    virtual bool is_file() { return false; }
     virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
@@ -165,6 +166,8 @@ public:
     none_const(int value)
     {
     }
+
+    virtual bool is_none() { return true; }
 };
 
 class bool_const : public node
@@ -331,13 +334,13 @@ public:
     }
     virtual node *__slice__(node *start, node *end, node *step)
     {
-        if ((start && !start->is_int_const()) ||
-            (end && !end->is_int_const()) ||
-            (step && !step->is_int_const()))
+        if ((!start->is_none() && !start->is_int_const()) ||
+            (!end->is_none() && !end->is_int_const()) ||
+            (!step->is_none() && !step->is_int_const()))
             error("slice error");
-        int64_t lo = start ? start->int_value() : 0;
-        int64_t hi = end ? end->int_value() : items.size();
-        int64_t st = step ? step->int_value() : 1;
+        int64_t lo = start->is_none() ? 0 : start->int_value();
+        int64_t hi = end->is_none() ? items.size() : end->int_value();
+        int64_t st = step->is_none() ? 1 : step->int_value();
         list *new_list = new list();
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
             new_list->append(items[lo]);
