@@ -158,6 +158,15 @@ public:
     }
 };
 
+class none_const : public node
+{
+public:
+    // For some reason this causes errors without an argument to the constructor...
+    none_const(int value)
+    {
+    }
+};
+
 class bool_const : public node
 {
 private:

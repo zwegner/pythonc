@@ -364,12 +364,16 @@ node = x.visit(node)
 
 with open('out.cpp', 'w') as f:
     f.write('#include "backend.cpp"\n')
+    syntax.export_consts(f)
+
     for func in x.functions:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
     f.write('    context *ctx = new context();\n')
     f.write('    init_context(ctx, argc, argv);\n')
+
     for stmt in node:
         f.write('    %s;\n' % stmt)
+
     f.write('}\n')
