@@ -447,6 +447,8 @@ public:
     file(const char *path, const char *mode)
     {
         f = fopen(path, mode);
+        if (!f)
+            error("%s: file not found", path);
     }
 
     node *read(int len)
