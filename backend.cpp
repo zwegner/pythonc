@@ -82,10 +82,10 @@ public:
     virtual node *__##NAME##__() { error(#NAME " unimplemented"); return NULL; }
 
     UNIMP_UNOP(invert)
-    UNIMP_UNOP(not)
     UNIMP_UNOP(pos)
     UNIMP_UNOP(neg)
 
+    virtual node *__not__();
     virtual node *__is__(node *rhs);
     virtual node *__isnot__(node *rhs);
 
@@ -522,6 +522,23 @@ public:
     }
 };
 
+bool test_truth(node *expr)
+{
+    if (expr->is_bool())
+        return expr->bool_value();
+    if (expr->is_int_const())
+        return expr->int_value() != 0;
+    if (expr->is_string())
+        return expr->string_value().length() != 0;
+    error("cannot determine truth value of expr");
+    return false;
+}
+
+node *node::__not__()
+{
+    return new bool_const(!test_truth(this));
+}
+
 node *node::__is__(node *rhs)
 {
     return new bool_const(this == rhs);
@@ -542,18 +559,6 @@ node *int_const::__str__()
 node *bool_const::__str__()
 {
     return new string_const(std::string(this->value ? "True" : "False"));
-}
-
-bool test_truth(node *expr)
-{
-    if (expr->is_bool())
-        return expr->bool_value();
-    if (expr->is_int_const())
-        return expr->int_value() != 0;
-    if (expr->is_string())
-        return expr->string_value().length() != 0;
-    error("cannot determine truth value of expr");
-    return false;
 }
 
 node *builtin_fread(context *ctx, node *args)
