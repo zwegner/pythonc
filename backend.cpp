@@ -30,10 +30,11 @@ class node;
 class context;
 class string_const;
 
-typedef std::vector<node *> node_list;
+typedef std::pair<node *, node *> node_pair;
 typedef std::map<const char *, node *> symbol_table;
-typedef std::map<int64_t, node *> node_dict;
+typedef std::map<int64_t, node_pair> node_dict;
 typedef std::set<std::string> globals_set;
+typedef std::vector<node *> node_list;
 
 class node
 {
@@ -41,6 +42,7 @@ public:
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
     virtual bool is_file() { return false; }
+    virtual bool is_function() { return false; }
     virtual bool is_int_const() { return false; }
     virtual bool is_list() { return false; }
     virtual bool is_none() { return false; }
@@ -311,6 +313,10 @@ public:
     {
         items.push_back(obj);
     }
+    void prepend(node *obj)
+    {
+        items.insert(items.begin(), obj);
+    }
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
     int64_t index(int64_t base)
@@ -375,7 +381,6 @@ public:
     dict()
     {
     }
-
     node *lookup(node *key)
     {
         if (!key->is_int_const())
@@ -384,8 +389,11 @@ public:
         if (v == this->items.end())
             return NULL;
         // XXX: check equality of keys
-        return v->second;
+        return v->second.second;
     }
+    node_dict::iterator begin() { return items.begin(); }
+    node_dict::iterator end() { return items.end(); }
+
     virtual bool is_dict() { return true; }
     virtual node *__getitem__(node *key)
     {
@@ -403,7 +411,7 @@ public:
     {
         if (!key->is_int_const())
             key = key->__hash__();
-        items[key->int_value()] = value;
+        items[key->int_value()] = node_pair(key, value);
     }
 };
 
@@ -482,6 +490,30 @@ public:
 
 typedef node *(*fptr)(context *parent_ctx, node *args);
 
+class bound_method : public node
+{
+private:
+    node *self;
+    node *function;
+
+public:
+    bound_method(node *self, node *function)
+    {
+        this->self = self;
+        this->function = function;
+    }
+
+    virtual bool is_function() { return true; } // XXX is it?
+
+    virtual node *__call__(context *ctx, node *args)
+    {
+        if (!args->is_list())
+            error("call with non-list args?");
+        ((list *)args)->prepend(this->self);
+        return this->function->__call__(ctx, args);
+    }
+};
+
 class function_def : public node
 {
 private:
@@ -522,16 +554,19 @@ public:
         items.__setitem__(new string_const(name), value);
     }
 
-    virtual bool is_function() { return true; }
-
     virtual node *__call__(context *ctx, node *args)
     {
         node *init = this->load("__init__");
         node *obj = new object();
-        list *call_args = new list();
-        call_args->append(obj);
+
+        // Create bound methods
+        for (node_dict::iterator i = items.begin(); i != items.end(); i++)
+            if (i->second.second->is_function())
+                obj->__setattr__(i->second.first, new bound_method(obj, i->second.second));
+
+        ((list *)args)->prepend(obj);
         context *call_ctx = new context(ctx);
-        init->__call__(call_ctx, call_args);
+        init->__call__(call_ctx, args);
         return obj;
     }
     virtual node *__getattr__(node *attr)
