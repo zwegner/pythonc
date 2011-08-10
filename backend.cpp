@@ -19,8 +19,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -283,6 +285,8 @@ public:
     STRING_OP(le, <=)
     STRING_OP(gt, >)
     STRING_OP(ge, >=)
+
+    virtual node *__mod__(node *rhs);
 
     // FNV-1a algorithm
     virtual node *__getitem__(node *rhs)
@@ -670,6 +674,57 @@ node *set::__getattr__(node *key)
     if (key->string_value() == "add")
         return new bound_method(this, new function_def(builtin_set_add));
     error("set has no attribute %s", key->string_value().c_str());
+}
+
+// This entire function is very stupidly implemented.
+node *string_const::__mod__(node *rhs)
+{
+    std::ostringstream new_string;
+    // HACK for now...
+    if (!rhs->is_list())
+    {
+        list *l = new list();
+        l->append(rhs);
+        rhs = l;
+    }
+    int args = 0;
+    for (const char *c = value.c_str(); *c; c++)
+    {
+        if (*c == '%')
+        {
+            char fmt_buf[64], buf[64];
+            char *fmt = fmt_buf;
+            *fmt++ = '%';
+            c++;
+            // Copy over formatting data: only numbers allowed as modifiers now
+            while (*c && isdigit(*c))
+                *fmt++ = *c++;
+
+            if (fmt - fmt_buf >= sizeof(buf))
+                error("I do believe you've made a terrible mistake whilst formatting a string!");
+            if (args >= rhs->__len__()->int_value())
+                error("not enough arguments for string format");
+            node *arg = rhs->__getitem__(args++);
+            if (*c == 's')
+            {
+                *fmt++ = 's';
+                *fmt = 0;
+                sprintf(buf, fmt_buf, arg->__str__()->string_value().c_str());
+            }
+            else if (*c == 'd' || *c == 'i')
+            {
+                *fmt++ = 'i';
+                *fmt = 0;
+                sprintf(buf, fmt_buf, arg->int_value());
+            }
+            else
+                error("bad format specifier '%c' in \"%s\"", *c, value.c_str());
+            new_string << buf;
+        }
+        else
+            new_string << *c;
+    }
+    return new string_const(new_string.str());
 }
 
 node *builtin_dict_get(context *ctx, node *args)
