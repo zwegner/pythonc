@@ -258,6 +258,8 @@ public:
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
 
+    virtual node *__getattr__(node *key);
+
     virtual node *__str__();
 };
 
@@ -293,6 +295,8 @@ public:
 
     virtual node *__mod__(node *rhs);
     virtual node *__mul__(node *rhs);
+
+    virtual node *__getattr__(node *key);
 
     // FNV-1a algorithm
     virtual node *__getitem__(node *rhs)
@@ -633,6 +637,18 @@ bool_const bool_singleton_True(true);
 bool_const bool_singleton_False(false);
 none_const none_singleton(0);
 
+// Silly builtin classes
+void _int__create_(class_def *ctx)
+{
+}
+
+void _str__create_(class_def *ctx)
+{
+}
+
+class_def builtin_class_int("int", _int__create_);
+class_def builtin_class_str("str", _str__create_);
+
 bool test_truth(node *expr)
 {
     if (expr->is_bool())
@@ -663,6 +679,15 @@ node *node::__is__(node *rhs)
 node *node::__isnot__(node *rhs)
 {
     return new bool_const(this != rhs);
+}
+
+node *int_const::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    if (key->string_value() == "__class__")
+        return &builtin_class_int;
+    error("int has no attribute %s", key->string_value().c_str());
 }
 
 node *int_const::__str__()
@@ -702,6 +727,15 @@ node *set::__getattr__(node *key)
     if (key->string_value() == "add")
         return new bound_method(this, new function_def(builtin_set_add));
     error("set has no attribute %s", key->string_value().c_str());
+}
+
+node *string_const::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    if (key->string_value() == "__class__")
+        return &builtin_class_str;
+    error("str has no attribute %s", key->string_value().c_str());
 }
 
 // This entire function is very stupidly implemented.
@@ -922,6 +956,9 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
     ctx->store("zip", new function_def(builtin_zip));
+
+    ctx->store("int", &builtin_class_int);
+    ctx->store("str", &builtin_class_str);
 
     ctx->store("__name__", new string_const("__main__"));
     list *plist = new list();
