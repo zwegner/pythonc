@@ -101,6 +101,7 @@ public:
     UNIMP_UNOP(pos)
     UNIMP_UNOP(neg)
 
+    virtual node *__len__();
     virtual node *__not__();
     virtual node *__is__(node *rhs);
     virtual node *__isnot__(node *rhs);
@@ -113,7 +114,7 @@ public:
     virtual node *__getitem__(int index) { error("getitem unimplemented"); return NULL; }
     virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
     virtual node *__hash__() { error("hash unimplemented"); return NULL; }
-    virtual node *__len__() { error("len unimplemented"); return NULL; }
+    virtual int len() { error("len unimplemented"); return 0; }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
     virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
@@ -312,9 +313,9 @@ public:
         }
         return new int_const(hash);
     }
-    virtual node *__len__()
+    virtual int len()
     {
-        return new int_const(value.length());
+        return value.length();
     }
     virtual node *__slice__(node *start, node *end, node *step)
     {
@@ -395,9 +396,9 @@ public:
         }
         return this->__getitem__(rhs->int_value());
     }
-    virtual node *__len__()
+    virtual int len()
     {
-        return new int_const(this->items.size());
+        return this->items.size();
     }
     virtual node *__slice__(node *start, node *end, node *step)
     {
@@ -451,9 +452,9 @@ public:
             error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
         return value;
     }
-    virtual node *__len__()
+    virtual int len()
     {
-        return new int_const(this->items.size());
+        return this->items.size();
     }
     virtual void __setitem__(node *key, node *value)
     {
@@ -484,9 +485,9 @@ public:
     {
         return new bool_const(items.lookup(key) != NULL);
     }
-    virtual node *__len__()
+    virtual int len()
     {
-        return this->items.__len__();
+        return this->items.len();
     }
     virtual node *__str__()
     {
@@ -641,6 +642,11 @@ bool test_truth(node *expr)
     return false;
 }
 
+node *node::__len__()
+{
+    return new int_const(this->len());
+}
+
 node *node::__not__()
 {
     return new bool_const(!test_truth(this));
@@ -721,7 +727,7 @@ node *string_const::__mod__(node *rhs)
 
             if (fmt - fmt_buf >= sizeof(buf))
                 error("I do believe you've made a terrible mistake whilst formatting a string!");
-            if (args >= rhs->__len__()->int_value())
+            if (args >= rhs->len())
                 error("not enough arguments for string format");
             node *arg = rhs->__getitem__(args++);
             if (*c == 's')
@@ -769,7 +775,7 @@ node *string_const::__mul__(node *rhs)
 
 node *builtin_dict_get(context *ctx, node *args)
 {
-    if (args->__len__()->int_value() != 3) // just assume 3 args for now...
+    if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
@@ -818,7 +824,7 @@ node *builtin_open(context *ctx, node *args)
 node *builtin_ord(context *ctx, node *args)
 {
     node *arg = args->__getitem__(new int_const(0));
-    if (!arg->is_string() || arg->__len__()->int_value() != 1)
+    if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
     return new int_const((unsigned char)arg->string_value()[0]);
 }
@@ -826,7 +832,7 @@ node *builtin_ord(context *ctx, node *args)
 node *builtin_print(context *ctx, node *args)
 {
     std::string new_string;
-    for (int i = 0; i < args->__len__()->int_value(); i++)
+    for (int i = 0; i < args->len(); i++)
     {
         node *s = args->__getitem__(i);
         if (!s->is_string())
