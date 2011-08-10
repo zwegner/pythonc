@@ -93,7 +93,6 @@ public:
     UNIMP_OP(ge)
 
     UNIMP_OP(contains)
-    UNIMP_OP(ncontains)
 
 #define UNIMP_UNOP(NAME) \
     virtual node *__##NAME##__() { error(#NAME " unimplemented"); return NULL; }
@@ -105,6 +104,8 @@ public:
     virtual node *__not__();
     virtual node *__is__(node *rhs);
     virtual node *__isnot__(node *rhs);
+
+    virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
     virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented"); }
@@ -360,6 +361,17 @@ public:
     virtual bool is_list() { return true; }
     virtual node_list *list_value() { return &items; }
 
+    virtual node *__contains__(node *key)
+    {
+        bool found = false;
+        for (int i = 0; i < this->items.size(); i++)
+            if (this->items[i]->__eq__(key)->bool_value())
+            {
+                found = true;
+                break;
+            }
+        return new bool_const(found);
+    }
     virtual void __delitem__(node *rhs)
     {
         if (!rhs->is_int_const())
@@ -372,7 +384,7 @@ public:
     }
     virtual node *__getitem__(int index)
     {
-        return items[index];
+        return this->items[index];
     }
     virtual node *__getitem__(node *rhs)
     {
@@ -427,6 +439,10 @@ public:
     node_dict::iterator end() { return items.end(); }
 
     virtual bool is_dict() { return true; }
+    virtual node *__contains__(node *key)
+    {
+        return new bool_const(this->lookup(key) != NULL);
+    }
     virtual node *__getitem__(node *key)
     {
         node *old_key = key;
@@ -719,6 +735,17 @@ node *string_const::__mod__(node *rhs)
                 *fmt++ = 'i';
                 *fmt = 0;
                 sprintf(buf, fmt_buf, arg->int_value());
+            }
+            else if (*c == 'c')
+            {
+                *fmt++ = 'c';
+                *fmt = 0;
+                int char_value;
+                if (arg->is_string())
+                    char_value = (unsigned char)arg->string_value()[0];
+                else
+                    char_value = arg->int_value();
+                sprintf(buf, fmt_buf, char_value);
             }
             else
                 error("bad format specifier '%c' in \"%s\"", *c, value.c_str());
