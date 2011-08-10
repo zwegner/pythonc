@@ -66,7 +66,7 @@ public:
     virtual bool bool_value() { error("bool_value unimplemented"); return false; }
     virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
     virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
-    virtual node_list *list_value() { error("string_value unimplemented"); return NULL; }
+    virtual node_list *list_value() { error("list_value unimplemented"); return NULL; }
 
 #define UNIMP_OP(NAME) \
     virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
@@ -908,7 +908,7 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("print_nonl", new function_def(builtin_print_nonl));
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
-    ctx->store("zip", new function_def(builtin_set));
+    ctx->store("zip", new function_def(builtin_zip));
 
     ctx->store("__name__", new string_const("__main__"));
     list *plist = new list();
