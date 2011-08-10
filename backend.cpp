@@ -655,8 +655,8 @@ bool test_truth(node *expr)
         return expr->bool_value();
     if (expr->is_int_const())
         return expr->int_value() != 0;
-    if (expr->is_string())
-        return expr->string_value().length() != 0;
+    if (expr->is_string() || expr->is_list() || expr->is_dict() || expr->is_set())
+        return expr->len() != 0;
     error("cannot determine truth value of expr");
     return false;
 }
