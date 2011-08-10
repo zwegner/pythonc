@@ -102,12 +102,12 @@ public:
     UNIMP_UNOP(pos)
     UNIMP_UNOP(neg)
 
-    virtual node *__len__();
-    virtual node *__hash__();
-    virtual node *__getattr__(node *rhs);
-    virtual node *__not__();
-    virtual node *__is__(node *rhs);
-    virtual node *__isnot__(node *rhs);
+    node *__len__();
+    node *__hash__();
+    node *__getattr__(node *rhs);
+    node *__not__();
+    node *__is__(node *rhs);
+    node *__isnot__(node *rhs);
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
