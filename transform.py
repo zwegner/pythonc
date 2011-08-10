@@ -364,7 +364,7 @@ with open(sys.argv[1]) as f:
 x = Transformer()
 node = x.visit(node)
 
-with open('out.cpp', 'w') as f:
+with open(sys.argv[2], 'w') as f:
     f.write('#include "backend.cpp"\n')
     syntax.export_consts(f)
 
