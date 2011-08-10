@@ -103,6 +103,8 @@ public:
     UNIMP_UNOP(neg)
 
     virtual node *__len__();
+    virtual node *__hash__();
+    virtual node *__getattr__(node *rhs);
     virtual node *__not__();
     virtual node *__is__(node *rhs);
     virtual node *__isnot__(node *rhs);
@@ -113,13 +115,15 @@ public:
     virtual void __delitem__(node *rhs) { error("delitem unimplemented"); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented"); return NULL; }
-    virtual node *__getattr__(node *rhs) { error("getattr unimplemented"); return NULL; }
-    virtual node *__hash__() { error("hash unimplemented"); return NULL; }
-    virtual int len() { error("len unimplemented"); return 0; }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
     virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
     virtual node *__str__() { error("str unimplemented"); return NULL; }
+
+    // unwrapped versions
+    virtual int len() { error("len unimplemented"); return 0; }
+    virtual node *getattr(const char *rhs) { error("getattr unimplemented"); return NULL; }
+    virtual int64_t hash() { error("hash unimplemented"); return 0; }
 };
 
 class context
@@ -258,7 +262,7 @@ public:
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
 
-    virtual node *__getattr__(node *key);
+    virtual node *getattr(const char *key);
 
     virtual node *__str__();
 };
@@ -296,7 +300,7 @@ public:
     virtual node *__mod__(node *rhs);
     virtual node *__mul__(node *rhs);
 
-    virtual node *__getattr__(node *key);
+    virtual node *getattr(const char *key);
 
     // FNV-1a algorithm
     virtual node *__getitem__(node *rhs)
@@ -308,15 +312,15 @@ public:
         }
         return new string_const(value.substr(rhs->int_value(), 1));
     }
-    virtual node *__hash__()
+    virtual int64_t hash()
     {
-        int64_t hash = 14695981039346656037ull;
+        int64_t hashkey = 14695981039346656037ull;
         for (const char *c = this->value.c_str(); *c; c++)
         {
-            hash ^= *c;
-            hash *= 1099511628211ll;
+            hashkey ^= *c;
+            hashkey *= 1099511628211ll;
         }
-        return new int_const(hash);
+        return hashkey;
     }
     virtual int len()
     {
@@ -419,7 +423,7 @@ public:
             new_list->append(items[lo]);
         return new_list;
     }
-    virtual node *__getattr__(node *key);
+    virtual node *getattr(const char *key);
 };
 
 class dict : public node
@@ -433,9 +437,12 @@ public:
     }
     node *lookup(node *key)
     {
-        if (!key->is_int_const())
-            key = key->__hash__();
-        node_dict::const_iterator v = this->items.find(key->int_value());
+        int64_t hashkey;
+        if (key->is_int_const())
+            hashkey = key->int_value();
+        else
+            hashkey = key->hash();
+        node_dict::const_iterator v = this->items.find(hashkey);
         if (v == this->items.end())
             return NULL;
         // XXX: check equality of keys
@@ -463,11 +470,14 @@ public:
     }
     virtual void __setitem__(node *key, node *value)
     {
-        if (!key->is_int_const())
-            key = key->__hash__();
-        items[key->int_value()] = node_pair(key, value);
+        int64_t hashkey;
+        if (key->is_int_const())
+            hashkey = key->int_value();
+        else
+            hashkey = key->hash();
+        items[hashkey] = node_pair(key, value);
     }
-    virtual node *__getattr__(node *key);
+    virtual node *getattr(const char *key);
 };
 
 class set : public node
@@ -499,7 +509,7 @@ public:
         std::string r = "{}";
         return new string_const(r);
     }
-    virtual node *__getattr__(node *key);
+    virtual node *getattr(const char *key);
 };
 
 class object : public node
@@ -510,9 +520,9 @@ private:
 public:
     object() {}
 
-    virtual node *__getattr__(node *key)
+    virtual node *getattr(const char *key)
     {
-        return items.__getitem__(key);
+        return items.__getitem__(new string_const(key));
     }
     virtual void __setattr__(node *key, node *value)
     {
@@ -627,9 +637,9 @@ public:
         init->__call__(call_ctx, args);
         return obj;
     }
-    virtual node *__getattr__(node *attr)
+    virtual node *getattr(const char *attr)
     {
-        return this->load(attr->string_value().c_str());
+        return this->load(attr);
     }
 };
 
@@ -661,6 +671,18 @@ bool test_truth(node *expr)
     return false;
 }
 
+node *node::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    return this->getattr(key->string_value().c_str());
+}
+
+node *node::__hash__()
+{
+    return new int_const(this->hash());
+}
+
 node *node::__len__()
 {
     return new int_const(this->len());
@@ -681,13 +703,11 @@ node *node::__isnot__(node *rhs)
     return new bool_const(this != rhs);
 }
 
-node *int_const::__getattr__(node *key)
+node *int_const::getattr(const char *key)
 {
-    if (!key->is_string())
-        error("getattr with non-string");
-    if (key->string_value() == "__class__")
+    if (!strcmp(key, "__class__"))
         return &builtin_class_int;
-    error("int has no attribute %s", key->string_value().c_str());
+    error("int has no attribute %s", key);
 }
 
 node *int_const::__str__()
@@ -702,40 +722,32 @@ node *bool_const::__str__()
     return new string_const(std::string(this->value ? "True" : "False"));
 }
 
-node *list::__getattr__(node *key)
+node *list::getattr(const char *key)
 {
-    if (!key->is_string())
-        error("getattr with non-string");
-    if (key->string_value() == "append")
+    if (!strcmp(key, "append"))
         return new bound_method(this, new function_def(builtin_list_append));
-    error("list has no attribute %s", key->string_value().c_str());
+    error("list has no attribute %s", key);
 }
 
-node *dict::__getattr__(node *key)
+node *dict::getattr(const char *key)
 {
-    if (!key->is_string())
-        error("getattr with non-string");
-    if (key->string_value() == "get")
+    if (!strcmp(key, "get"))
         return new bound_method(this, new function_def(builtin_dict_get));
-    error("dict has no attribute %s", key->string_value().c_str());
+    error("dict has no attribute %s", key);
 }
 
-node *set::__getattr__(node *key)
+node *set::getattr(const char *key)
 {
-    if (!key->is_string())
-        error("getattr with non-string");
-    if (key->string_value() == "add")
+    if (!strcmp(key, "add"))
         return new bound_method(this, new function_def(builtin_set_add));
-    error("set has no attribute %s", key->string_value().c_str());
+    error("set has no attribute %s", key);
 }
 
-node *string_const::__getattr__(node *key)
+node *string_const::getattr(const char *key)
 {
-    if (!key->is_string())
-        error("getattr with non-string");
-    if (key->string_value() == "__class__")
+    if (!strcmp(key, "__class__"))
         return &builtin_class_str;
-    error("str has no attribute %s", key->string_value().c_str());
+    error("str has no attribute %s", key);
 }
 
 // This entire function is very stupidly implemented.
@@ -826,8 +838,8 @@ node *builtin_dict_get(context *ctx, node *args)
 
 node *builtin_fread(context *ctx, node *args)
 {
-    node *f = args->__getitem__(new int_const(0));
-    node *len = args->__getitem__(new int_const(1));
+    node *f = args->__getitem__(0);
+    node *len = args->__getitem__(1);
     if (!f->is_file() || !len->is_int_const())
         error("bad arguments to fread()");
     return ((file *)f)->read(len->int_value());
@@ -838,13 +850,13 @@ node *builtin_isinstance(context *ctx, node *args)
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
 
-    node *obj_class = obj->__getattr__(new string_const("__class__"));
+    node *obj_class = obj->getattr("__class__");
     return new bool_const(obj_class == arg_class);
 }
 
 node *builtin_len(context *ctx, node *args)
 {
-    return args->__getitem__(new int_const(0))->__len__();
+    return args->__getitem__(0)->__len__();
 }
 
 node *builtin_list_append(context *ctx, node *args)
@@ -859,8 +871,8 @@ node *builtin_list_append(context *ctx, node *args)
 
 node *builtin_open(context *ctx, node *args)
 {
-    node *path = args->__getitem__(new int_const(0));
-    node *mode = args->__getitem__(new int_const(1));
+    node *path = args->__getitem__(0);
+    node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
         error("bad arguments to open()");
     file *f = new file(path->string_value().c_str(), mode->string_value().c_str());
@@ -869,7 +881,7 @@ node *builtin_open(context *ctx, node *args)
 
 node *builtin_ord(context *ctx, node *args)
 {
-    node *arg = args->__getitem__(new int_const(0));
+    node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
     return new int_const((unsigned char)arg->string_value()[0]);
@@ -900,7 +912,7 @@ node *builtin_range(context *ctx, node *args)
 {
     list *new_list = new list();
     int64_t st;
-    int64_t end = args->__getitem__(new int_const(0))->int_value();
+    int64_t end = args->__getitem__(0)->int_value();
 
     for (st = 0; st < end; st++)
         new_list->append(new int_const(st));
