@@ -791,6 +791,14 @@ node *builtin_print(context *ctx, node *args)
     printf("%s\n", s->string_value().c_str());
 }
 
+node *builtin_print_nonl(context *ctx, node *args)
+{
+    node *s = args->__getitem__(0);
+    if (!s->is_string())
+        s = s->__str__();
+    printf("%s", s->string_value().c_str());
+}
+
 node *builtin_range(context *ctx, node *args)
 {
     list *new_list = new list();
@@ -824,6 +832,7 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("open", new function_def(builtin_open));
     ctx->store("ord", new function_def(builtin_ord));
     ctx->store("print", new function_def(builtin_print));
+    ctx->store("print_nonl", new function_def(builtin_print_nonl));
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
 
