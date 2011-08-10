@@ -38,6 +38,7 @@ typedef std::vector<node *> node_list;
 
 node *builtin_fread(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
+node *builtin_list_append(context *ctx, node *args);
 node *builtin_open(context *ctx, node *args);
 node *builtin_ord(context *ctx, node *args);
 node *builtin_print(context *ctx, node *args);
@@ -348,6 +349,10 @@ public:
         node_list::iterator f = items.begin() + this->index(rhs->int_value());
         items.erase(f);
     }
+    virtual node *__getitem__(int index)
+    {
+        return items[index];
+    }
     virtual node *__getitem__(node *rhs)
     {
         if (!rhs->is_int_const())
@@ -356,10 +361,6 @@ public:
             return NULL;
         }
         return this->__getitem__(rhs->int_value());
-    }
-    virtual node *__getitem__(int index)
-    {
-        return items[index];
     }
     virtual node *__len__()
     {
@@ -379,6 +380,7 @@ public:
             new_list->append(items[lo]);
         return new_list;
     }
+    virtual node *__getattr__(node *key);
 };
 
 class dict : public node
@@ -422,6 +424,7 @@ public:
             key = key->__hash__();
         items[key->int_value()] = node_pair(key, value);
     }
+    virtual node *__getattr__(node *key);
 };
 
 class set : public node
@@ -628,6 +631,22 @@ node *bool_const::__str__()
     return new string_const(std::string(this->value ? "True" : "False"));
 }
 
+node *list::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    if (key->string_value() == "append")
+        return new bound_method(this, new function_def(builtin_list_append));
+    error("list has no attribute %s", key->string_value().c_str());
+}
+
+node *dict::__getattr__(node *key)
+{
+    if (!key->is_string())
+        error("getattr with non-string");
+    error("dict has no attribute %s", key->string_value().c_str());
+}
+
 node *set::__getattr__(node *key)
 {
     if (!key->is_string())
@@ -649,6 +668,16 @@ node *builtin_fread(context *ctx, node *args)
 node *builtin_len(context *ctx, node *args)
 {
     return args->__getitem__(new int_const(0))->__len__();
+}
+
+node *builtin_list_append(context *ctx, node *args)
+{
+    node *self = args->__getitem__(0);
+    node *item = args->__getitem__(1);
+
+    ((list *)self)->append(item);
+
+    return &none_singleton;
 }
 
 node *builtin_open(context *ctx, node *args)
