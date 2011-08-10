@@ -1,4 +1,5 @@
 ################################################################################
+## 
 ## Pythonc--Python to C++ translator
 ## 
 ## Copyright 2011 Zach Wegner
@@ -17,6 +18,7 @@
 ## 
 ## You should have received a copy of the GNU General Public License
 ## along with Pythonc.  If not, see <http://www.gnu.org/licenses/>.
+## 
 ################################################################################
 
 import copy
