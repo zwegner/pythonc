@@ -449,6 +449,25 @@ class Assert(Node):
 """.format(expr=self.expr, lineno=self.lineno)
         return body
 
+class Arguments(Node):
+    def __init__(self, args, defaults):
+        self.args = args
+        self.defaults = defaults
+
+    def flatten(self, ctx):
+        new_def = [None] * (len(self.args) - len(self.defaults))
+        self.defaults = new_def + self.defaults
+        return self
+
+    def __str__(self):
+        arg_unpacking = []
+        for i, (arg, default) in enumerate(zip(self.args, self.defaults)):
+            if default:
+                arg_unpacking += [Store(arg, '(args->len() > %s ? args->__getitem__(%s) : %s)' % (i, i, default))]
+            else:
+                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i)]
+        return block_str(arg_unpacking)
+
 class FunctionDef(Node):
     def __init__(self, name, args, stmts, exp_name=None):
         self.name = name
@@ -463,10 +482,7 @@ class FunctionDef(Node):
 
     def __str__(self):
         stmts = block_str(self.stmts)
-        arg_unpacking = []
-        for i, arg in enumerate(self.args.args):
-            arg_unpacking += [Store(arg.arg, 'args->__getitem__(%s)' % i)]
-        arg_unpacking = block_str(arg_unpacking)
+        arg_unpacking = str(self.args)
         body = """
 node *{name}(context *parent_ctx, node *args) {{
     context *ctx = new context(parent_ctx);

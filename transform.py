@@ -326,10 +326,20 @@ class Transformer(ast.NodeTransformer):
         expr = self.flatten_node(node.test)
         return syntax.Assert(expr, node.lineno)
 
+    def visit_arguments(self, node):
+        assert not node.vararg
+        assert not node.kwarg
+
+        args = [a.arg for a in node.args]
+        defaults = self.flatten_list(node.defaults)
+        args = syntax.Arguments(args, defaults)
+        return args.flatten(self)
+
     def visit_FunctionDef(self, node):
+        args = self.visit(node.args)
         body = self.flatten_list(node.body)
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        fn = syntax.FunctionDef(node.name, node.args, body, exp_name).flatten(self)
+        fn = syntax.FunctionDef(node.name, args, body, exp_name).flatten(self)
         return fn
 
     def visit_ClassDef(self, node):
