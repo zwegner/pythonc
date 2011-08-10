@@ -36,6 +36,7 @@ typedef std::map<int64_t, node_pair> node_dict;
 typedef std::set<std::string> globals_set;
 typedef std::vector<node *> node_list;
 
+node *builtin_dict_get(context *ctx, node *args);
 node *builtin_fread(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
 node *builtin_list_append(context *ctx, node *args);
@@ -657,6 +658,8 @@ node *dict::__getattr__(node *key)
 {
     if (!key->is_string())
         error("getattr with non-string");
+    if (key->string_value() == "get")
+        return new bound_method(this, new function_def(builtin_dict_get));
     error("dict has no attribute %s", key->string_value().c_str());
 }
 
@@ -667,6 +670,20 @@ node *set::__getattr__(node *key)
     if (key->string_value() == "add")
         return new bound_method(this, new function_def(builtin_set_add));
     error("set has no attribute %s", key->string_value().c_str());
+}
+
+node *builtin_dict_get(context *ctx, node *args)
+{
+    if (args->__len__()->int_value() != 3) // just assume 3 args for now...
+        error("bad number of arguments to dict.get()");
+    node *self = args->__getitem__(0);
+    node *key = args->__getitem__(1);
+
+    node *value = ((dict *)self)->lookup(key);
+    if (!value)
+        value = args->__getitem__(2);
+
+    return value;
 }
 
 node *builtin_fread(context *ctx, node *args)
