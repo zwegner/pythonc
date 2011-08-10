@@ -876,6 +876,28 @@ node *builtin_set_add(context *ctx, node *args)
     return &none_singleton;
 }
 
+node *builtin_zip(context *ctx, node *args)
+{
+    if (args->len() != 2)
+        error("bad arguments to zip()");
+    node *list1 = args->__getitem__(0);
+    node *list2 = args->__getitem__(1);
+
+    if (!list1->is_list() || !list2->is_list() || list1->len() != list2->len())
+        error("bad arguments to zip()");
+
+    list *plist = new list();
+    for (int i = 0; i < list1->len(); i++)
+    {
+        list *pair = new list();
+        pair->append(list1->__getitem__(i));
+        pair->append(list2->__getitem__(i));
+        plist->append(pair);
+    }
+
+    return plist;
+}
+
 void init_context(context *ctx, int argc, char **argv)
 {
     ctx->store("fread", new function_def(builtin_fread));
@@ -886,6 +908,7 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("print_nonl", new function_def(builtin_print_nonl));
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
+    ctx->store("zip", new function_def(builtin_set));
 
     ctx->store("__name__", new string_const("__main__"));
     list *plist = new list();
