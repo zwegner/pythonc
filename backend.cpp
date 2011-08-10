@@ -42,6 +42,7 @@ typedef std::vector<node *> node_list;
 
 node *builtin_dict_get(context *ctx, node *args);
 node *builtin_fread(context *ctx, node *args);
+node *builtin_isinstance(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
 node *builtin_list_append(context *ctx, node *args);
 node *builtin_open(context *ctx, node *args);
@@ -610,6 +611,8 @@ public:
         node *init = this->load("__init__");
         node *obj = new object();
 
+        obj->__setattr__(new string_const("__class__"), this);
+
         // Create bound methods
         for (node_dict::iterator i = items.begin(); i != items.end(); i++)
             if (i->second.second->is_function())
@@ -796,6 +799,15 @@ node *builtin_fread(context *ctx, node *args)
     return ((file *)f)->read(len->int_value());
 }
 
+node *builtin_isinstance(context *ctx, node *args)
+{
+    node *obj = args->__getitem__(0);
+    node *arg_class = args->__getitem__(1);
+
+    node *obj_class = obj->__getattr__(new string_const("__class__"));
+    return new bool_const(obj_class == arg_class);
+}
+
 node *builtin_len(context *ctx, node *args)
 {
     return args->__getitem__(new int_const(0))->__len__();
@@ -902,6 +914,7 @@ void init_context(context *ctx, int argc, char **argv)
 {
     ctx->store("fread", new function_def(builtin_fread));
     ctx->store("len", new function_def(builtin_len));
+    ctx->store("isinstance", new function_def(builtin_isinstance));
     ctx->store("open", new function_def(builtin_open));
     ctx->store("ord", new function_def(builtin_ord));
     ctx->store("print", new function_def(builtin_print));
