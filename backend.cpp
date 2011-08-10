@@ -289,6 +289,7 @@ public:
     STRING_OP(ge, >=)
 
     virtual node *__mod__(node *rhs);
+    virtual node *__mul__(node *rhs);
 
     // FNV-1a algorithm
     virtual node *__getitem__(node *rhs)
@@ -727,6 +728,16 @@ node *string_const::__mod__(node *rhs)
             new_string << *c;
     }
     return new string_const(new_string.str());
+}
+
+node *string_const::__mul__(node *rhs)
+{
+    if (!rhs->is_int_const() || rhs->int_value() <= 0)
+        error("bad argument to str.mul");
+    std::string new_string;
+    for (int i = 0; i < rhs->int_value(); i++)
+        new_string += this->value;
+    return new string_const(new_string);
 }
 
 node *builtin_dict_get(context *ctx, node *args)
