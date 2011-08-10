@@ -307,6 +307,19 @@ public:
     {
         return new int_const(value.length());
     }
+    virtual node *__slice__(node *start, node *end, node *step)
+    {
+        if ((!start->is_none() && !start->is_int_const()) ||
+            (!end->is_none() && !end->is_int_const()) ||
+            (!step->is_none() && !step->is_int_const()))
+            error("slice error");
+        int64_t lo = start->is_none() ? 0 : start->int_value();
+        int64_t hi = end->is_none() ? value.length() : end->int_value();
+        int64_t st = step->is_none() ? 1 : step->int_value();
+        if (st != 1)
+            error("slice step != 1 not supported for string");
+        return new string_const(this->value.substr(lo, hi - lo + 1));
+    }
     virtual node *__str__() { return this; }
 };
 
