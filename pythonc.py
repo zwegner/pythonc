@@ -12,5 +12,5 @@ path = sys.argv[1]
 base = os.path.splitext(path)[0]
 
 subprocess.check_call(['python', 'transform.py', path, '%s.cpp' % base])
-subprocess.check_call(['c++', '%s.cpp' % base, '-o', base])
+subprocess.check_call(['c++', '-g', '%s.cpp' % base, '-o', base])
 subprocess.check_call(['./%s' % base] + sys.argv[2:])

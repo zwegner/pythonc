@@ -732,7 +732,7 @@ node *string_const::__mod__(node *rhs)
 
 node *string_const::__mul__(node *rhs)
 {
-    if (!rhs->is_int_const() || rhs->int_value() <= 0)
+    if (!rhs->is_int_const() || rhs->int_value() < 0)
         error("bad argument to str.mul");
     std::string new_string;
     for (int i = 0; i < rhs->int_value(); i++)
@@ -798,10 +798,15 @@ node *builtin_ord(context *ctx, node *args)
 
 node *builtin_print(context *ctx, node *args)
 {
-    node *s = args->__getitem__(new int_const(0));
-    if (!s->is_string())
-        s = s->__str__();
-    printf("%s\n", s->string_value().c_str());
+    std::string new_string;
+    for (int i = 0; i < args->__len__()->int_value(); i++)
+    {
+        node *s = args->__getitem__(i);
+        if (!s->is_string())
+            s = s->__str__();
+        new_string += s->string_value();
+    }
+    printf("%s\n", new_string.c_str());
 }
 
 node *builtin_print_nonl(context *ctx, node *args)
