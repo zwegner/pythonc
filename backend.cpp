@@ -54,6 +54,7 @@ node *builtin_range(context *ctx, node *args);
 node *builtin_set(context *ctx, node *args);
 node *builtin_set_add(context *ctx, node *args);
 node *builtin_sorted(context *ctx, node *args);
+node *builtin_str_join(context *ctx, node *args);
 node *builtin_str_startswith(context *ctx, node *args);
 node *builtin_zip(context *ctx, node *args);
 
@@ -113,6 +114,7 @@ public:
     node *__not__();
     node *__is__(node *rhs);
     node *__isnot__(node *rhs);
+    node *__str__();
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
@@ -123,12 +125,12 @@ public:
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
     virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
-    virtual node *__str__() { error("str unimplemented"); return NULL; }
 
     // unwrapped versions
     virtual int len() { error("len unimplemented"); return 0; }
     virtual node *getattr(const char *rhs) { error("getattr unimplemented"); return NULL; }
     virtual int64_t hash() { error("hash unimplemented"); return 0; }
+    virtual std::string str() { error("str unimplemented"); return NULL; }
 };
 
 class context
@@ -214,7 +216,7 @@ public:
     virtual bool is_bool() { return true; }
     virtual bool bool_value() { return this->value; }
 
-    virtual node *__str__();
+    virtual std::string str();
 };
 
 class int_const : public node
@@ -269,7 +271,7 @@ public:
 
     virtual node *getattr(const char *key);
 
-    virtual node *__str__();
+    virtual std::string str();
 };
 
 class string_const : public node
@@ -344,7 +346,7 @@ public:
             error("slice step != 1 not supported for string");
         return new string_const(this->value.substr(lo, hi - lo + 1));
     }
-    virtual node *__str__() { return this; }
+    virtual std::string str() { return this->value; }
 };
 
 class list : public node
@@ -469,7 +471,7 @@ public:
         node *old_key = key;
         node *value = this->lookup(key);
         if (value == NULL)
-            error("cannot find '%s' in dict", old_key->__str__()->string_value().c_str());
+            error("cannot find '%s' in dict", old_key->str().c_str());
         return value;
     }
     virtual int len()
@@ -511,11 +513,6 @@ public:
     virtual int len()
     {
         return this->items.len();
-    }
-    virtual node *__str__()
-    {
-        std::string r = "{}";
-        return new string_const(r);
     }
     virtual node *getattr(const char *key);
 };
@@ -712,6 +709,11 @@ node *node::__isnot__(node *rhs)
     return new bool_const(this != rhs);
 }
 
+node *node::__str__()
+{
+    return new string_const(this->str());
+}
+
 node *int_const::getattr(const char *key)
 {
     if (!strcmp(key, "__class__"))
@@ -719,16 +721,16 @@ node *int_const::getattr(const char *key)
     error("int has no attribute %s", key);
 }
 
-node *int_const::__str__()
+std::string int_const::str()
 {
     char buf[32];
     sprintf(buf, "%lld", this->value);
-    return new string_const(std::string(buf));
+    return std::string(buf);
 }
 
-node *bool_const::__str__()
+std::string bool_const::str()
 {
-    return new string_const(std::string(this->value ? "True" : "False"));
+    return std::string(this->value ? "True" : "False");
 }
 
 node *list::getattr(const char *key)
@@ -758,6 +760,8 @@ node *string_const::getattr(const char *key)
 {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
+    else if (!strcmp(key, "join"))
+        return new bound_method(this, new function_def(builtin_str_join));
     else if (!strcmp(key, "startswith"))
         return new bound_method(this, new function_def(builtin_str_startswith));
     error("str has no attribute %s", key);
@@ -796,7 +800,7 @@ node *string_const::__mod__(node *rhs)
             {
                 *fmt++ = 's';
                 *fmt = 0;
-                sprintf(buf, fmt_buf, arg->__str__()->string_value().c_str());
+                sprintf(buf, fmt_buf, arg->str().c_str());
             }
             else if (*c == 'd' || *c == 'i')
             {
@@ -919,9 +923,7 @@ node *builtin_print(context *ctx, node *args)
     for (int i = 0; i < args->len(); i++)
     {
         node *s = args->__getitem__(i);
-        if (!s->is_string())
-            s = s->__str__();
-        new_string += s->string_value();
+        new_string += s->str();
     }
     printf("%s\n", new_string.c_str());
 }
@@ -929,9 +931,7 @@ node *builtin_print(context *ctx, node *args)
 node *builtin_print_nonl(context *ctx, node *args)
 {
     node *s = args->__getitem__(0);
-    if (!s->is_string())
-        s = s->__str__();
-    printf("%s", s->string_value().c_str());
+    printf("%s", s->str().c_str());
 }
 
 node *builtin_range(context *ctx, node *args)
@@ -975,12 +975,30 @@ node *builtin_sorted(context *ctx, node *args)
     return new list(new_list);
 }
 
+node *builtin_str_join(context *ctx, node *args)
+{
+    node *self = args->__getitem__(0);
+    node *item = args->__getitem__(1);
+    if (!self->is_string() || !item->is_list())
+        error("bad arguments to str.join()");
+
+    list *joined = (list *)item;
+    std::string s;
+    for (node_list::iterator i = joined->begin(); i != joined->end(); i++)
+    {
+        s += (*i)->str();
+        if (i + 1 != joined->end())
+            s += self->string_value();
+    }
+    return new string_const(s);
+}
+
 node *builtin_str_startswith(context *ctx, node *args)
 {
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
     if (!self->is_string() || !prefix->is_string())
-        error("bad arguments to std.startswith()");
+        error("bad arguments to str.startswith()");
 
     std::string s1 = self->string_value();
     std::string s2 = prefix->string_value();
