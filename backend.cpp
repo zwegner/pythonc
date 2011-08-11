@@ -54,6 +54,7 @@ node *builtin_range(context *ctx, node *args);
 node *builtin_set(context *ctx, node *args);
 node *builtin_set_add(context *ctx, node *args);
 node *builtin_sorted(context *ctx, node *args);
+node *builtin_str_startswith(context *ctx, node *args);
 node *builtin_zip(context *ctx, node *args);
 
 class node
@@ -756,6 +757,8 @@ node *string_const::getattr(const char *key)
 {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
+    else if (!strcmp(key, "startswith"))
+        return new bound_method(this, new function_def(builtin_str_startswith));
     error("str has no attribute %s", key);
 }
 
@@ -969,6 +972,18 @@ node *builtin_sorted(context *ctx, node *args)
     std::stable_sort(new_list.begin(), new_list.end());
 
     return new list(new_list);
+}
+
+node *builtin_str_startswith(context *ctx, node *args)
+{
+    node *self = args->__getitem__(0);
+    node *prefix = args->__getitem__(1);
+    if (!self->is_string() || !prefix->is_string())
+        error("bad arguments to std.startswith()");
+
+    std::string s1 = self->string_value();
+    std::string s2 = prefix->string_value();
+    return new bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
 node *builtin_zip(context *ctx, node *args)
