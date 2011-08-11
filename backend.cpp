@@ -70,7 +70,14 @@ node *builtin_zip(context *ctx, node *args);
 
 class node
 {
+private:
+    const char *node_type;
+
 public:
+    node(const char *type)
+    {
+        this->node_type = type;
+    }
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
     virtual bool is_file() { return false; }
@@ -80,13 +87,13 @@ public:
     virtual bool is_none() { return false; }
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
-    virtual bool bool_value() { error("bool_value unimplemented"); return false; }
-    virtual int64_t int_value() { error("int_value unimplemented"); return 0; }
-    virtual std::string string_value() { error("string_value unimplemented"); return NULL; }
-    virtual node_list *list_value() { error("list_value unimplemented"); return NULL; }
+    virtual bool bool_value() { error("bool_value unimplemented for %s", node_type); return false; }
+    virtual int64_t int_value() { error("int_value unimplemented for %s", node_type); return 0; }
+    virtual std::string string_value() { error("string_value unimplemented for %s", node_type); return NULL; }
+    virtual node_list *list_value() { error("list_value unimplemented for %s", node_type); return NULL; }
 
 #define UNIMP_OP(NAME) \
-    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented"); return NULL; }
+    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", node_type); return NULL; }
 
     UNIMP_OP(add)
     UNIMP_OP(and)
@@ -112,7 +119,7 @@ public:
     UNIMP_OP(contains)
 
 #define UNIMP_UNOP(NAME) \
-    virtual node *__##NAME##__() { error(#NAME " unimplemented"); return NULL; }
+    virtual node *__##NAME##__() { error(#NAME " unimplemented for %s", node_type); return NULL; }
 
     UNIMP_UNOP(invert)
     UNIMP_UNOP(pos)
@@ -128,19 +135,19 @@ public:
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
-    virtual node *__call__(context *ctx, node *args) { error("call unimplemented"); return NULL; }
-    virtual void __delitem__(node *rhs) { error("delitem unimplemented"); }
-    virtual node *__getitem__(node *rhs) { error("getitem unimplemented"); return NULL; }
-    virtual node *__getitem__(int index) { error("getitem unimplemented"); return NULL; }
-    virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented"); }
-    virtual void __setitem__(node *key, node *value) { error("setitem unimplemented"); }
-    virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented"); return NULL; }
+    virtual node *__call__(context *ctx, node *args) { error("call unimplemented for %s", node_type); return NULL; }
+    virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", node_type); }
+    virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", node_type); return NULL; }
+    virtual node *__getitem__(int index) { error("getitem unimplemented for %s", node_type); return NULL; }
+    virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented for %s", node_type); }
+    virtual void __setitem__(node *key, node *value) { error("setitem unimplemented for %s", node_type); }
+    virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", node_type); return NULL; }
 
     // unwrapped versions
-    virtual int len() { error("len unimplemented"); return 0; }
-    virtual node *getattr(const char *rhs) { error("getattr unimplemented"); return NULL; }
-    virtual int64_t hash() { error("hash unimplemented"); return 0; }
-    virtual std::string str() { error("str unimplemented"); return NULL; }
+    virtual int len() { error("len unimplemented for %s", node_type); return 0; }
+    virtual node *getattr(const char *rhs) { error("getattr unimplemented (%s) for %s", rhs, node_type); return NULL; }
+    virtual int64_t hash() { error("hash unimplemented for %s", node_type); return 0; }
+    virtual std::string str() { error("str unimplemented for %s", node_type); return NULL; }
 };
 
 class context
@@ -205,7 +212,7 @@ class none_const : public node
 {
 public:
     // For some reason this causes errors without an argument to the constructor...
-    none_const(int value)
+    none_const(int value) : node("none")
     {
     }
 
@@ -218,7 +225,7 @@ private:
     int64_t value;
 
 public:
-    int_const(int64_t value)
+    int_const(int64_t value) : node("int")
     {
         this->value = value;
     }
@@ -273,7 +280,7 @@ private:
     bool value;
 
 public:
-    bool_const(bool value)
+    bool_const(bool value) : node("bool")
     {
         this->value = value;
     }
@@ -317,7 +324,7 @@ private:
     std::string value;
 
 public:
-    string_const(std::string value)
+    string_const(std::string value) : node("str")
     {
         this->value = value;
     }
@@ -392,10 +399,10 @@ private:
     node_list items;
 
 public:
-    list()
+    list() : node("list")
     {
     }
-    list(node_list &l) : items(l)
+    list(node_list &l) : items(l), node("list")
     {
     }
     void append(node *obj)
@@ -488,7 +495,7 @@ private:
     node_dict items;
 
 public:
-    dict()
+    dict() : node("dict")
     {
     }
     node *lookup(node *key)
@@ -542,7 +549,7 @@ private:
     dict items;
 
 public:
-    set()
+    set() : node("set")
     {
     }
 
@@ -569,7 +576,8 @@ private:
     dict items;
 
 public:
-    object() {}
+    object() : node("object")
+    {}
 
     virtual node *getattr(const char *key)
     {
@@ -587,7 +595,7 @@ private:
     FILE *f;
 
 public:
-    file(const char *path, const char *mode)
+    file(const char *path, const char *mode) : node("file")
     {
         f = fopen(path, mode);
         if (!f)
@@ -614,7 +622,7 @@ private:
     node *function;
 
 public:
-    bound_method(node *self, node *function)
+    bound_method(node *self, node *function) : node("bound_method")
     {
         this->self = self;
         this->function = function;
@@ -637,7 +645,7 @@ private:
     fptr base_function;
 
 public:
-    function_def(fptr base_function)
+    function_def(fptr base_function) : node("function")
     {
         this->base_function = base_function;
     }
@@ -657,7 +665,7 @@ private:
     dict items;
 
 public:
-    class_def(std::string name, void (*creator)(class_def *))
+    class_def(std::string name, void (*creator)(class_def *)) : node("class")
     {
         this->name = name;
         creator(this);
