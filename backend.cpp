@@ -18,6 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -29,7 +30,16 @@
 #include <string>
 #include <vector>
 
-#define error(...) do { printf(__VA_ARGS__); puts(""); exit(1); } while(0)
+void error(const char *msg, ...)
+{
+    va_list va;
+    va_start(va, msg);
+    vprintf(msg, va);
+    va_end(va);
+    puts("");
+    fflush(stdout);
+    exit(1);
+}
 
 class node;
 class context;
