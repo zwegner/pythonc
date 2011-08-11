@@ -448,6 +448,13 @@ public:
     {
         return this->items.size();
     }
+    virtual void __setitem__(node *key, node *value)
+    {
+        if (!key->is_int_const())
+            error("error in list.setitem");
+        int64_t index = key->int_value();
+        items[index] = value;
+    }
     virtual node *__slice__(node *start, node *end, node *step)
     {
         if ((!start->is_none() && !start->is_int_const()) ||
