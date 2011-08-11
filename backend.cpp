@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 #include <map>
 #include <set>
 #include <sstream>
@@ -52,6 +53,8 @@ node *builtin_print(context *ctx, node *args);
 node *builtin_range(context *ctx, node *args);
 node *builtin_set(context *ctx, node *args);
 node *builtin_set_add(context *ctx, node *args);
+node *builtin_sorted(context *ctx, node *args);
+node *builtin_zip(context *ctx, node *args);
 
 class node
 {
@@ -350,6 +353,9 @@ private:
 
 public:
     list()
+    {
+    }
+    list(node_list &l) : items(l)
     {
     }
     void append(node *obj)
@@ -950,6 +956,21 @@ node *builtin_set_add(context *ctx, node *args)
     return &none_singleton;
 }
 
+node *builtin_sorted(context *ctx, node *args)
+{
+    node *item = args->__getitem__(0);
+    if (!item->is_list())
+        error("cannot call sorted on non-list");
+    list *plist = (list *)item;
+    // sigh, I hate c++
+    node_list new_list;
+    new_list.resize(plist->len());
+    std::copy(plist->begin(), plist->end(), new_list.begin());
+    std::stable_sort(new_list.begin(), new_list.end());
+
+    return new list(new_list);
+}
+
 node *builtin_zip(context *ctx, node *args)
 {
     if (args->len() != 2)
@@ -983,6 +1004,7 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("print_nonl", new function_def(builtin_print_nonl));
     ctx->store("range", new function_def(builtin_range));
     ctx->store("set", new function_def(builtin_set));
+    ctx->store("sorted", new function_def(builtin_sorted));
     ctx->store("zip", new function_def(builtin_zip));
 
     ctx->store("int", &builtin_class_int);
