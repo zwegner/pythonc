@@ -430,12 +430,11 @@ while (test_truth({test}))
 class Return(Node):
     def __init__(self, value):
         self.value = value
+        if self.value is None:
+            self.value = NoneConst()
 
     def __str__(self):
-        if self.value is not None:
-            return 'return %s' % self.value
-        else:
-            return 'return'
+        return 'return %s' % self.value
 
 class Assert(Node):
     def __init__(self, expr, lineno):
