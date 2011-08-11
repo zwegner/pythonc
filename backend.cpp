@@ -48,6 +48,7 @@ class string_const;
 typedef std::pair<node *, node *> node_pair;
 typedef std::map<const char *, node *> symbol_table;
 typedef std::map<int64_t, node_pair> node_dict;
+typedef std::map<int64_t, node *> node_set;
 typedef std::set<std::string> globals_set;
 typedef std::vector<node *> node_list;
 
@@ -232,6 +233,7 @@ public:
 
     virtual bool is_int_const() { return true; }
     virtual int64_t int_value() { return this->value; }
+    virtual bool bool_value() { return this->value != 0; }
 
 #define INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) \
@@ -506,9 +508,8 @@ public:
         else
             hashkey = key->hash();
         node_dict::const_iterator v = this->items.find(hashkey);
-        if (v == this->items.end())
+        if (v == this->items.end() || !v->second.first->__eq__(key)->bool_value())
             return NULL;
-        // XXX: check equality of keys
         return v->second.second;
     }
     node_dict::iterator begin() { return items.begin(); }
@@ -560,37 +561,54 @@ public:
 class set : public node
 {
 private:
-    dict items;
+    node_set items;
 
 public:
     set() : node("set")
     {
     }
 
+    node *lookup(node *key)
+    {
+        int64_t hashkey;
+        if (key->is_int_const())
+            hashkey = key->int_value();
+        else
+            hashkey = key->hash();
+        node_set::const_iterator v = this->items.find(hashkey);
+        if (v == this->items.end() || !v->second->__eq__(key)->bool_value())
+            return NULL;
+        return v->second;
+    }
     void add(node *key)
     {
-        items.__setitem__(key, (node *)1); // XXX HACK: just something non-NULL
+        int64_t hashkey;
+        if (key->is_int_const())
+            hashkey = key->int_value();
+        else
+            hashkey = key->hash();
+        items[hashkey] = key;
     }
 
     virtual bool is_set() { return true; }
     virtual node *__contains__(node *key)
     {
-        return new bool_const(items.lookup(key) != NULL);
+        return new bool_const(this->lookup(key) != NULL);
     }
     virtual int len()
     {
-        return this->items.len();
+        return this->items.size();
     }
     virtual std::string str()
     {
         std::string new_string = "{";
         bool first = true;
-        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++)
+        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
         {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second.first->str();
+            new_string += i->second->str();
         }
         new_string += "}";
         return new_string;
