@@ -945,6 +945,20 @@ node *builtin_range(context *ctx, node *args)
     return new_list;
 }
 
+node *builtin_reversed(context *ctx, node *args)
+{
+    node *item = args->__getitem__(0);
+    if (!item->is_list())
+        error("cannot call reversed on non-list");
+    list *plist = (list *)item;
+    // sigh, I hate c++
+    node_list new_list;
+    new_list.resize(plist->len());
+    std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
+
+    return new list(new_list);
+}
+
 node *builtin_set(context *ctx, node *args)
 {
     return new set();
@@ -1037,6 +1051,7 @@ void init_context(context *ctx, int argc, char **argv)
     ctx->store("print", new function_def(builtin_print));
     ctx->store("print_nonl", new function_def(builtin_print_nonl));
     ctx->store("range", new function_def(builtin_range));
+    ctx->store("reversed", new function_def(builtin_reversed));
     ctx->store("set", new function_def(builtin_set));
     ctx->store("sorted", new function_def(builtin_sorted));
     ctx->store("zip", new function_def(builtin_zip));
