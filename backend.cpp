@@ -202,23 +202,6 @@ public:
     virtual bool is_none() { return true; }
 };
 
-class bool_const : public node
-{
-private:
-    bool value;
-
-public:
-    bool_const(bool value)
-    {
-        this->value = value;
-    }
-
-    virtual bool is_bool() { return true; }
-    virtual bool bool_value() { return this->value; }
-
-    virtual std::string str();
-};
-
 class int_const : public node
 {
 private:
@@ -236,9 +219,9 @@ public:
 #define INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) \
     { \
-        if (rhs->is_int_const()) \
+        if (rhs->is_int_const() || rhs->is_bool()) \
             return new int_const(this->int_value() OP rhs->int_value()); \
-        error(#NAME " unimplemented"); \
+        error(#NAME " error in int"); \
         return NULL; \
     }
     INT_OP(add, +)
@@ -270,6 +253,50 @@ public:
     INT_UNOP(neg, -)
 
     virtual node *getattr(const char *key);
+
+    virtual std::string str();
+};
+
+class bool_const : public node
+{
+private:
+    bool value;
+
+public:
+    bool_const(bool value)
+    {
+        this->value = value;
+    }
+
+    virtual bool is_bool() { return true; }
+    virtual bool bool_value() { return this->value; }
+    virtual int64_t int_value() { return (int64_t)this->value; }
+
+#define BOOL_OP(NAME, OP) \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        if (rhs->is_int_const() || rhs->is_bool()) \
+            return new int_const(this->int_value() OP rhs->int_value()); \
+        error(#NAME " error in bool"); \
+        return NULL; \
+    }
+    BOOL_OP(add, +)
+    BOOL_OP(and, &)
+    BOOL_OP(floordiv, /)
+    BOOL_OP(lshift, <<)
+    BOOL_OP(mod, %)
+    BOOL_OP(mul, *)
+    BOOL_OP(or, |)
+    BOOL_OP(rshift, >>)
+    BOOL_OP(sub, -)
+    BOOL_OP(xor, ^)
+
+    BOOL_OP(eq, ==)
+    BOOL_OP(ne, !=)
+    BOOL_OP(lt, <)
+    BOOL_OP(le, <=)
+    BOOL_OP(gt, >)
+    BOOL_OP(ge, >=)
 
     virtual std::string str();
 };
