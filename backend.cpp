@@ -368,7 +368,7 @@ public:
     virtual int64_t hash()
     {
         int64_t hashkey = 14695981039346656037ull;
-        for (const char *c = this->value.c_str(); *c; c++)
+        for (std::string::iterator c = this->value.begin(); c != this->value.end(); c++)
         {
             hashkey ^= *c;
             hashkey *= 1099511628211ll;
