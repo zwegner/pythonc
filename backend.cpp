@@ -540,6 +540,20 @@ public:
             hashkey = key->hash();
         items[hashkey] = node_pair(key, value);
     }
+    virtual std::string str()
+    {
+        std::string new_string = "{";
+        bool first = true;
+        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++)
+        {
+            if (!first)
+                new_string += ", ";
+            first = false;
+            new_string += i->second.first->str() + ": " + i->second.second->str();
+        }
+        new_string += "}";
+        return new_string;
+    }
     virtual node *getattr(const char *key);
 };
 
