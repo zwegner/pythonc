@@ -41,6 +41,7 @@ typedef std::set<std::string> globals_set;
 typedef std::vector<node *> node_list;
 
 node *builtin_dict_get(context *ctx, node *args);
+node *builtin_dict_keys(context *ctx, node *args);
 node *builtin_fread(context *ctx, node *args);
 node *builtin_isinstance(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
@@ -733,6 +734,8 @@ node *dict::getattr(const char *key)
 {
     if (!strcmp(key, "get"))
         return new bound_method(this, new function_def(builtin_dict_get));
+    else if (!strcmp(key, "keys"))
+        return new bound_method(this, new function_def(builtin_dict_keys));
     error("dict has no attribute %s", key);
 }
 
@@ -834,6 +837,19 @@ node *builtin_dict_get(context *ctx, node *args)
         value = args->__getitem__(2);
 
     return value;
+}
+
+node *builtin_dict_keys(context *ctx, node *args)
+{
+    if (args->len() != 1)
+        error("bad number of arguments to dict.keys()");
+    dict *self = (dict *)args->__getitem__(0);
+
+    list *plist = new list();
+    for (node_dict::iterator i = self->begin(); i != self->end(); i++)
+        plist->append(i->second.first);
+
+    return plist;
 }
 
 node *builtin_fread(context *ctx, node *args)
