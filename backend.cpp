@@ -669,14 +669,15 @@ class_def builtin_class_str("str", _str__create_);
 
 bool test_truth(node *expr)
 {
-    if (expr->is_bool())
+    if (expr->is_none())
+        return false;
+    else if (expr->is_bool())
         return expr->bool_value();
-    if (expr->is_int_const())
+    else if (expr->is_int_const())
         return expr->int_value() != 0;
-    if (expr->is_string() || expr->is_list() || expr->is_dict() || expr->is_set())
+    else if (expr->is_string() || expr->is_list() || expr->is_dict() || expr->is_set())
         return expr->len() != 0;
-    error("cannot determine truth value of expr");
-    return false;
+    return true;
 }
 
 node *node::__getattr__(node *key)
