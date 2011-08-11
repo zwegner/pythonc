@@ -381,6 +381,8 @@ public:
     virtual bool is_list() { return true; }
     virtual node_list *list_value() { return &items; }
 
+    virtual node *__add__(node *rhs);
+
     virtual node *__contains__(node *key)
     {
         bool found = false;
@@ -731,6 +733,16 @@ std::string int_const::str()
 std::string bool_const::str()
 {
     return std::string(this->value ? "True" : "False");
+}
+
+node *list::__add__(node *rhs)
+{
+    if (!rhs->is_list())
+        error("list add error");
+    node_list *plist = rhs->list_value();
+    for (node_list::iterator i = plist->begin(); i != plist->end(); i++)
+        this->append(*i);
+    return &none_singleton;
 }
 
 node *list::getattr(const char *key)
