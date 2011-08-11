@@ -791,10 +791,13 @@ node *list::__add__(node *rhs)
 {
     if (!rhs->is_list())
         error("list add error");
-    node_list *plist = rhs->list_value();
-    for (node_list::iterator i = plist->begin(); i != plist->end(); i++)
-        this->append(*i);
-    return &none_singleton;
+    list *plist = new list();
+    node_list *rhs_list = rhs->list_value();
+    for (node_list::iterator i = this->begin(); i != this->end(); i++)
+        plist->append(*i);
+    for (node_list::iterator i = rhs_list->begin(); i != rhs_list->end(); i++)
+        plist->append(*i);
+    return plist;
 }
 
 node *list::getattr(const char *key)
