@@ -58,6 +58,7 @@ node *builtin_fread(context *ctx, node *args);
 node *builtin_isinstance(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
 node *builtin_list_append(context *ctx, node *args);
+node *builtin_list_index(context *ctx, node *args);
 node *builtin_open(context *ctx, node *args);
 node *builtin_ord(context *ctx, node *args);
 node *builtin_print(context *ctx, node *args);
@@ -856,6 +857,8 @@ node *list::getattr(const char *key)
 {
     if (!strcmp(key, "append"))
         return new bound_method(this, new function_def(builtin_list_append));
+    else if (!strcmp(key, "index"))
+        return new bound_method(this, new function_def(builtin_list_index));
     error("list has no attribute %s", key);
 }
 
@@ -1017,6 +1020,20 @@ node *builtin_list_append(context *ctx, node *args)
 
     ((list *)self)->append(item);
 
+    return &none_singleton;
+}
+
+node *builtin_list_index(context *ctx, node *args)
+{
+    if (args->len() != 2)
+        error("bad number of arguments to list.index()");
+    node *self = args->__getitem__(0);
+    node *key = args->__getitem__(1);
+
+    for (int i = 0; i < self->len(); i++)
+        if (self->__getitem__(i)->__eq__(key)->bool_value())
+            return new int_const(i);
+    error("item not found in list");
     return &none_singleton;
 }
 
