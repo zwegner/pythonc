@@ -1058,11 +1058,26 @@ node *builtin_print_nonl(context *ctx, node *args)
 node *builtin_range(context *ctx, node *args)
 {
     list *new_list = new list();
-    int64_t st;
-    int64_t end = args->__getitem__(0)->int_value();
+    int64_t start = 0, end, step = 1;
 
-    for (st = 0; st < end; st++)
-        new_list->append(new int_const(st));
+    if (args->len() == 1)
+        end = args->__getitem__(0)->int_value();
+    else if (args->len() == 2)
+    {
+        start = args->__getitem__(0)->int_value();
+        end = args->__getitem__(1)->int_value();
+    }
+    else if (args->len() == 3)
+    {
+        start = args->__getitem__(0)->int_value();
+        end = args->__getitem__(1)->int_value();
+        step = args->__getitem__(2)->int_value();
+    }
+    else
+        error("too many arguments to range()");
+
+    for (int64_t s = start; step > 0 ? (s < end) : (s > end); s += step)
+        new_list->append(new int_const(s));
     return new_list;
 }
 
