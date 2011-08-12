@@ -640,6 +640,10 @@ public:
     {
         items.__setitem__(key, value);
     }
+    virtual node *__eq__(node *rhs)
+    {
+        return new bool_const(this == rhs);
+    }
 };
 
 class file : public node
