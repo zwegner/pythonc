@@ -59,6 +59,7 @@ node *builtin_isinstance(context *ctx, node *args);
 node *builtin_len(context *ctx, node *args);
 node *builtin_list_append(context *ctx, node *args);
 node *builtin_list_index(context *ctx, node *args);
+node *builtin_list_pop(context *ctx, node *args);
 node *builtin_open(context *ctx, node *args);
 node *builtin_ord(context *ctx, node *args);
 node *builtin_print(context *ctx, node *args);
@@ -421,6 +422,13 @@ public:
     void prepend(node *obj)
     {
         items.insert(items.begin(), obj);
+    }
+    node *pop()
+    {
+        // would be nice if STL wasn't stupid, and this was one line...
+        node *popped = items.back();
+        items.pop_back();
+        return popped;
     }
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
@@ -863,6 +871,8 @@ node *list::getattr(const char *key)
         return new bound_method(this, new function_def(builtin_list_append));
     else if (!strcmp(key, "index"))
         return new bound_method(this, new function_def(builtin_list_index));
+    else if (!strcmp(key, "pop"))
+        return new bound_method(this, new function_def(builtin_list_pop));
     error("list has no attribute %s", key);
 }
 
@@ -1039,6 +1049,13 @@ node *builtin_list_index(context *ctx, node *args)
             return new int_const(i);
     error("item not found in list");
     return &none_singleton;
+}
+
+node *builtin_list_pop(context *ctx, node *args)
+{
+    list *self = (list *)args->__getitem__(0);
+
+    return self->pop();
 }
 
 node *builtin_open(context *ctx, node *args)
