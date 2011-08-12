@@ -66,6 +66,7 @@ node *builtin_set(context *ctx, node *args);
 node *builtin_set_add(context *ctx, node *args);
 node *builtin_sorted(context *ctx, node *args);
 node *builtin_str_join(context *ctx, node *args);
+node *builtin_str_upper(context *ctx, node *args);
 node *builtin_str_startswith(context *ctx, node *args);
 node *builtin_zip(context *ctx, node *args);
 
@@ -334,6 +335,9 @@ public:
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
 
+    std::string::iterator begin() { return value.begin(); }
+    std::string::iterator end() { return value.end(); }
+
 #define STRING_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) \
     { \
@@ -368,7 +372,7 @@ public:
     virtual int64_t hash()
     {
         int64_t hashkey = 14695981039346656037ull;
-        for (std::string::iterator c = this->value.begin(); c != this->value.end(); c++)
+        for (std::string::iterator c = this->begin(); c != this->end(); c++)
         {
             hashkey ^= *c;
             hashkey *= 1099511628211ll;
@@ -875,6 +879,8 @@ node *string_const::getattr(const char *key)
         return &builtin_class_str;
     else if (!strcmp(key, "join"))
         return new bound_method(this, new function_def(builtin_str_join));
+    else if (!strcmp(key, "upper"))
+        return new bound_method(this, new function_def(builtin_str_upper));
     else if (!strcmp(key, "startswith"))
         return new bound_method(this, new function_def(builtin_str_startswith));
     error("str has no attribute %s", key);
@@ -1118,6 +1124,20 @@ node *builtin_str_join(context *ctx, node *args)
             s += self->string_value();
     }
     return new string_const(s);
+}
+
+node *builtin_str_upper(context *ctx, node *args)
+{
+    node *self = args->__getitem__(0);
+    if (!self->is_string())
+        error("bad argument to str.upper()");
+    string_const *str = (string_const *)self;
+
+    std::string new_string;
+    for (std::string::iterator c = str->begin(); c != str->end(); c++)
+        new_string += toupper(*c);
+
+    return new string_const(new_string);
 }
 
 node *builtin_str_startswith(context *ctx, node *args)
