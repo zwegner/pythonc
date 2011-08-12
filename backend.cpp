@@ -219,6 +219,8 @@ public:
     }
 
     virtual bool is_none() { return true; }
+
+    virtual int64_t hash() { return 0; }
 };
 
 class int_const : public node
@@ -454,9 +456,9 @@ public:
         node_list::iterator f = items.begin() + this->index(rhs->int_value());
         items.erase(f);
     }
-    virtual node *__getitem__(int index)
+    virtual node *__getitem__(int idx)
     {
-        return this->items[index];
+        return this->items[this->index(idx)];
     }
     virtual node *__getitem__(node *rhs)
     {
@@ -475,8 +477,8 @@ public:
     {
         if (!key->is_int_const())
             error("error in list.setitem");
-        int64_t index = key->int_value();
-        items[index] = value;
+        int64_t idx = key->int_value();
+        items[this->index(idx)] = value;
     }
     virtual node *__slice__(node *start, node *end, node *step)
     {
