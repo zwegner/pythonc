@@ -246,10 +246,7 @@ public:
 
 #define INT_OP(NAME, OP) \
     virtual int_t _##NAME(node *rhs) { \
-        if (rhs->is_int_const() || rhs->is_bool()) \
-            return this->int_value() OP rhs->int_value(); \
-        error(#NAME " error in int"); \
-        return 0; \
+        return this->int_value() OP rhs->int_value(); \
     } \
     virtual node *__##NAME##__(node *rhs) { \
         return new(allocator) int_const(this->_##NAME(rhs)); \
@@ -267,10 +264,7 @@ public:
 
 #define CMP_OP(NAME, OP) \
     virtual bool _##NAME(node *rhs) { \
-        if (rhs->is_int_const() || rhs->is_bool()) \
-            return this->int_value() OP rhs->int_value(); \
-        error(#NAME " error in int"); \
-        return 0; \
+        return this->int_value() OP rhs->int_value(); \
     } \
     virtual node *__##NAME##__(node *rhs) { \
         return create_bool_const(this->_##NAME(rhs)); \
