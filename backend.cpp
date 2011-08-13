@@ -223,6 +223,7 @@ public:
     virtual bool is_none() { return true; }
 
     virtual int64_t hash() { return 0; }
+    virtual std::string str() { return std::string("None"); }
 };
 
 class int_const : public node
