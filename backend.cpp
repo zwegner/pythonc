@@ -117,12 +117,16 @@ public:
     UNIMP_OP(truediv)
     UNIMP_OP(xor)
 
-    UNIMP_OP(eq)
-    UNIMP_OP(ne)
-    UNIMP_OP(lt)
-    UNIMP_OP(le)
-    UNIMP_OP(gt)
-    UNIMP_OP(ge)
+#define UNIMP_CMP_OP(NAME) \
+    virtual bool _##NAME(node *rhs) { error(#NAME " unimplemented for %s", node_type); return false; } \
+    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", node_type); return NULL; }
+
+    UNIMP_CMP_OP(eq)
+    UNIMP_CMP_OP(ne)
+    UNIMP_CMP_OP(lt)
+    UNIMP_CMP_OP(le)
+    UNIMP_CMP_OP(gt)
+    UNIMP_CMP_OP(ge)
 
     UNIMP_OP(contains)
 
@@ -247,12 +251,16 @@ public:
     virtual bool bool_value() { return this->value != 0; }
 
 #define INT_OP(NAME, OP) \
-    virtual node *__##NAME##__(node *rhs) \
+    virtual int64_t _##NAME(node *rhs) \
     { \
         if (rhs->is_int_const() || rhs->is_bool()) \
-            return new int_const(this->int_value() OP rhs->int_value()); \
+            return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in int"); \
-        return NULL; \
+        return 0; \
+    } \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        return new int_const(this->_##NAME(rhs)); \
     }
     INT_OP(add, +)
     INT_OP(and, &)
@@ -265,12 +273,25 @@ public:
     INT_OP(sub, -)
     INT_OP(xor, ^)
 
-    INT_OP(eq, ==)
-    INT_OP(ne, !=)
-    INT_OP(lt, <)
-    INT_OP(le, <=)
-    INT_OP(gt, >)
-    INT_OP(ge, >=)
+#define CMP_OP(NAME, OP) \
+    virtual bool _##NAME(node *rhs) \
+    { \
+        if (rhs->is_int_const() || rhs->is_bool()) \
+            return this->int_value() OP rhs->int_value(); \
+        error(#NAME " error in int"); \
+        return 0; \
+    } \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        return new int_const(this->_##NAME(rhs)); \
+    }
+
+    CMP_OP(eq, ==)
+    CMP_OP(ne, !=)
+    CMP_OP(lt, <)
+    CMP_OP(le, <=)
+    CMP_OP(gt, >)
+    CMP_OP(ge, >=)
 
 #define INT_UNOP(NAME, OP) \
     virtual node *__##NAME##__() \
@@ -349,12 +370,16 @@ public:
     std::string::iterator end() { return value.end(); }
 
 #define STRING_OP(NAME, OP) \
-    virtual node *__##NAME##__(node *rhs) \
+    virtual bool _##NAME(node *rhs) \
     { \
         if (rhs->is_string()) \
-            return new bool_const(this->string_value() OP rhs->string_value()); \
+            return this->string_value() OP rhs->string_value(); \
         error(#NAME " unimplemented"); \
-        return NULL; \
+        return false; \
+    } \
+    virtual node *__##NAME##__(node *rhs) \
+    { \
+        return new bool_const(this->_##NAME(rhs)); \
     }
 
     STRING_OP(eq, ==)
@@ -1171,6 +1196,11 @@ node *builtin_set_add(context *ctx, list *args, dict *kwargs)
     return &none_singleton;
 }
 
+bool compare_nodes(node *lhs, node *rhs)
+{
+    return lhs->_lt(rhs);
+}
+
 node *builtin_sorted(context *ctx, list *args, dict *kwargs)
 {
     node *item = args->__getitem__(0);
@@ -1181,7 +1211,7 @@ node *builtin_sorted(context *ctx, list *args, dict *kwargs)
     node_list new_list;
     new_list.resize(plist->len());
     std::copy(plist->begin(), plist->end(), new_list.begin());
-    std::stable_sort(new_list.begin(), new_list.end());
+    std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
 
     return new list(new_list);
 }
