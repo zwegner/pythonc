@@ -4,13 +4,23 @@ import os
 import subprocess
 import sys
 
-if len(sys.argv) < 2:
-    print('usage: %s <input.py> [args...]' % sys.argv[0])
-    sys.exit(1)
+def usage():
+    print('usage: %s [-O] <input.py> [args...]' % sys.argv[0])
+    exit(1)
 
-path = sys.argv[1]
+args = sys.argv[1:]
+
+gcc_flags = ['-g']
+if args and args[0] == '-O':
+    gcc_flags = ['-O3']
+    args = args[1:]
+
+if not args:
+    usage()
+
+path = args[0]
 base = os.path.splitext(path)[0]
 
 subprocess.check_call(['python3', 'transform.py', path, '%s.cpp' % base])
-subprocess.check_call(['c++', '-g', '%s.cpp' % base, '-o', base])
-subprocess.check_call(['./%s' % base] + sys.argv[2:])
+subprocess.check_call(['c++'] + gcc_flags + ['%s.cpp' % base, '-o', base])
+subprocess.check_call(['./%s' % base] + args[1:])
