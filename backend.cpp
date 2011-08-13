@@ -51,10 +51,10 @@ class context;
 class string_const;
 
 typedef std::pair<node *, node *> node_pair;
-typedef std::map<const char *, node *> symbol_table;
-typedef std::map<int64_t, node_pair> node_dict;
-typedef std::map<int64_t, node *> node_set;
-typedef std::set<std::string> globals_set;
+typedef std::map<const char *, node *, std::less<const char *>, alloc<std::pair<const char *, node *> > > symbol_table;
+typedef std::map<int64_t, node_pair, std::less<int64_t>, alloc<std::pair<int64_t, node *> > > node_dict;
+typedef std::map<int64_t, node *, std::less<int64_t>, alloc<std::pair<int64_t, node *> > > node_set;
+typedef std::set<std::string, std::less<std::string>, alloc<std::string> > globals_set;
 typedef std::vector<node *, alloc<node *> > node_list;
 
 node *builtin_dict_get(context *ctx, list *args, dict *kwargs);

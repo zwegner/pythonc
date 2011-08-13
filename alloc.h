@@ -24,7 +24,7 @@
 class arena_block {
 public:
     unsigned char data[ARENA_BLOCK_SIZE];
-    void *curr;
+    unsigned char *curr;
     arena_block *next;
     arena_block() {
         this->curr = this->data;
@@ -35,12 +35,12 @@ public:
             printf("unable to allocate memory!");
             exit(1);
         }
-        void *b = this->curr;
+        unsigned char *b = this->curr;
         this->curr += bytes;
-        return b;
+        return (void *)b;
     }
     uint64_t bytes_left() {
-        return ARENA_BLOCK_SIZE - ((unsigned char *)this->curr - this->data);
+        return ARENA_BLOCK_SIZE - (this->curr - this->data);
     }
 };
 
