@@ -20,11 +20,12 @@
 
 #include <stddef.h>
 
-#define ARENA_BLOCK_SIZE (1<<15)
-#define ARENA_DATA_SIZE (ARENA_BLOCK_SIZE - 2 * sizeof(void *))
+template <int block_size>
 class arena_block {
 public:
-    unsigned char data[ARENA_DATA_SIZE];
+    static const int capacity = block_size - 2 * sizeof(void *);
+
+    unsigned char data[capacity];
     unsigned char *curr;
     arena_block *next;
     arena_block() {
@@ -41,24 +42,25 @@ public:
         return (void *)b;
     }
     uint64_t bytes_left() {
-        return ARENA_DATA_SIZE - (this->curr - this->data);
+        return capacity - (this->curr - this->data);
     }
 };
 
+#define BLOCK_SIZE (4096)
 class arena {
 private:
-    arena_block *head;
+    arena_block<BLOCK_SIZE> *head;
 
 public:
     arena() {
-        this->head = new arena_block();
+        this->head = new arena_block<BLOCK_SIZE>();
     }
 
     void *allocate(int64_t bytes) {
-        if (bytes > ARENA_DATA_SIZE)
+        if (bytes > this->head->capacity)
             return malloc(bytes);
         if (this->head->bytes_left() < bytes) {
-            arena_block *nblock = new arena_block();
+            arena_block<BLOCK_SIZE> *nblock = new arena_block<BLOCK_SIZE>();
             nblock->next = this->head;
             this->head = nblock;
         }
