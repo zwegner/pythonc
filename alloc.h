@@ -20,10 +20,11 @@
 
 #include <stddef.h>
 
-#define ARENA_BLOCK_SIZE (4096)
+#define ARENA_BLOCK_SIZE (1<<15)
+#define ARENA_DATA_SIZE (ARENA_BLOCK_SIZE - 2 * sizeof(void *))
 class arena_block {
 public:
-    unsigned char data[ARENA_BLOCK_SIZE];
+    unsigned char data[ARENA_DATA_SIZE];
     unsigned char *curr;
     arena_block *next;
     arena_block() {
@@ -32,7 +33,7 @@ public:
     void *get_bytes(uint64_t bytes) {
         // Should only happen if allocation is bigger than block size
         if (bytes > this->bytes_left()) {
-            printf("unable to allocate memory!");
+            printf("unable to allocate %llu bytes of memory!", bytes);
             exit(1);
         }
         unsigned char *b = this->curr;
@@ -40,7 +41,7 @@ public:
         return (void *)b;
     }
     uint64_t bytes_left() {
-        return ARENA_BLOCK_SIZE - (this->curr - this->data);
+        return ARENA_DATA_SIZE - (this->curr - this->data);
     }
 };
 
@@ -54,6 +55,8 @@ public:
     }
 
     void *allocate(int64_t bytes) {
+        if (bytes > ARENA_DATA_SIZE)
+            return malloc(bytes);
         if (this->head->bytes_left() < bytes) {
             arena_block *nblock = new arena_block();
             nblock->next = this->head;

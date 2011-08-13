@@ -289,8 +289,8 @@ public:
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
 
+    virtual int64_t hash() { return this->value; }
     virtual node *getattr(const char *key);
-
     virtual std::string str();
 };
 
@@ -340,6 +340,7 @@ public:
     BOOL_OP(gt, >)
     BOOL_OP(ge, >=)
 
+    virtual int64_t hash() { return (int64_t)this->value; }
     virtual std::string str();
 };
 
@@ -382,7 +383,6 @@ public:
 
     virtual node *getattr(const char *key);
 
-    // FNV-1a algorithm
     virtual node *__getitem__(node *rhs) {
         if (!rhs->is_int_const()) {
             error("getitem unimplemented");
@@ -390,6 +390,7 @@ public:
         }
         return new string_const(value.substr(rhs->int_value(), 1));
     }
+    // FNV-1a algorithm
     virtual int64_t hash() {
         int64_t hashkey = 14695981039346656037ull;
         for (std::string::iterator c = this->begin(); c != this->end(); c++) {
