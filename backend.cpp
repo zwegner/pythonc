@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+#include "alloc.h"
+
 void error(const char *msg, ...) {
     va_list va;
     va_start(va, msg);
@@ -53,7 +55,7 @@ typedef std::map<const char *, node *> symbol_table;
 typedef std::map<int64_t, node_pair> node_dict;
 typedef std::map<int64_t, node *> node_set;
 typedef std::set<std::string> globals_set;
-typedef std::vector<node *> node_list;
+typedef std::vector<node *, alloc<node *> > node_list;
 
 node *builtin_dict_get(context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *ctx, list *args, dict *kwargs);
