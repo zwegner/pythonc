@@ -305,22 +305,30 @@ public:
     virtual bool bool_value() { return this->value; }
     virtual int64_t int_value() { return (int64_t)this->value; }
 
-#define BOOL_OP(NAME, OP) \
+#define BOOL_AS_INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
             return new int_const(this->int_value() OP rhs->int_value()); \
         error(#NAME " error in bool"); \
         return NULL; \
     }
-    BOOL_OP(add, +)
+    BOOL_AS_INT_OP(add, +)
+    BOOL_AS_INT_OP(floordiv, /)
+    BOOL_AS_INT_OP(lshift, <<)
+    BOOL_AS_INT_OP(mod, %)
+    BOOL_AS_INT_OP(mul, *)
+    BOOL_AS_INT_OP(rshift, >>)
+    BOOL_AS_INT_OP(sub, -)
+
+#define BOOL_OP(NAME, OP) \
+    virtual node *__##NAME##__(node *rhs) { \
+        if (rhs->is_int_const() || rhs->is_bool()) \
+            return create_bool_const(this->int_value() OP rhs->int_value()); \
+        error(#NAME " error in bool"); \
+        return NULL; \
+    }
     BOOL_OP(and, &)
-    BOOL_OP(floordiv, /)
-    BOOL_OP(lshift, <<)
-    BOOL_OP(mod, %)
-    BOOL_OP(mul, *)
     BOOL_OP(or, |)
-    BOOL_OP(rshift, >>)
-    BOOL_OP(sub, -)
     BOOL_OP(xor, ^)
 
     BOOL_OP(eq, ==)
