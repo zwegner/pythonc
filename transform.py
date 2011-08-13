@@ -246,8 +246,14 @@ class Transformer(ast.NodeTransformer):
             # XXX HACK: doesn't modify in place
             binop = syntax.BinaryOp(op, syntax.Load(target), value)
             return [syntax.Store(target, binop)]
+        elif isinstance(node.target, ast.Attribute):
+            l = self.flatten_node(node.target.value)
+            attr_name = syntax.StringConst(node.target.attr)
+            attr = syntax.Attribute(l, attr_name)
+            binop = syntax.BinaryOp(op, attr, value)
+            return [syntax.StoreAttr(l, attr_name, binop)]
         else:
-            return None
+            assert False
 
     def visit_Delete(self, node):
         assert len(node.targets) == 1
