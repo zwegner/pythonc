@@ -207,11 +207,20 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Call(self, node):
         fn = self.flatten_node(node.func)
-        args = syntax.List([self.flatten_node(a) for a in node.args])
-        args = args.flatten(self)
-        keys = [syntax.StringConst(i.arg) for i in node.keywords]
-        values = [self.flatten_node(i.value) for i in node.keywords]
-        kwargs = syntax.Dict(keys, values)
+
+        if node.starargs:
+            assert not node.args
+            assert not node.kwargs
+            args = self.flatten_node(node.starargs)
+            kwargs = syntax.Dict([], [])
+        else:
+            args = syntax.List([self.flatten_node(a) for a in node.args])
+            args = args.flatten(self)
+
+            keys = [syntax.StringConst(i.arg) for i in node.keywords]
+            values = [self.flatten_node(i.value) for i in node.keywords]
+            kwargs = syntax.Dict(keys, values)
+
         kwargs = kwargs.flatten(self)
         return syntax.Call(fn, args, kwargs)
 
