@@ -18,11 +18,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#define __STDC_FORMAT_MACROS
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <algorithm>
 #include <map>
 #include <set>
@@ -214,7 +216,7 @@ public:
     {
         for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
             if (i->second->is_int_const())
-                printf("symbol['%s'] = int(%i);\n", i->first, i->second->int_value());
+                printf("symbol['%s'] = int(%" PRId64 ");\n", i->first, i->second->int_value());
             else
                 printf("symbol['%s'] = %p;\n", i->first, i->second);
     }
@@ -880,7 +882,7 @@ node *int_const::getattr(const char *key)
 std::string int_const::str()
 {
     char buf[32];
-    sprintf(buf, "%lld", this->value);
+    sprintf(buf, "%" PRId64, this->value);
     return std::string(buf);
 }
 
