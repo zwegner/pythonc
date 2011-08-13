@@ -32,8 +32,7 @@
 #include <string>
 #include <vector>
 
-void error(const char *msg, ...)
-{
+void error(const char *msg, ...) {
     va_list va;
     va_start(va, msg);
     vprintf(msg, va);
@@ -78,14 +77,12 @@ node *builtin_str_upper(context *ctx, list *args, dict *kwargs);
 node *builtin_str_startswith(context *ctx, list *args, dict *kwargs);
 node *builtin_zip(context *ctx, list *args, dict *kwargs);
 
-class node
-{
+class node {
 private:
     const char *node_type;
 
 public:
-    node(const char *type)
-    {
+    node(const char *type) {
         this->node_type = type;
     }
     virtual bool is_bool() { return false; }
@@ -164,8 +161,7 @@ public:
     virtual std::string str() { error("str unimplemented for %s", node_type); return NULL; }
 };
 
-class context
-{
+class context {
 private:
     symbol_table symbols;
     context *parent_ctx;
@@ -173,34 +169,29 @@ private:
     globals_set globals;
 
 public:
-    context()
-    {
+    context() {
         this->parent_ctx = NULL;
         this->globals_ctx = NULL;
     }
 
-    context(context *parent_ctx)
-    {
+    context(context *parent_ctx) {
         this->parent_ctx = parent_ctx;
         this->globals_ctx = parent_ctx;
         while (this->globals_ctx->parent_ctx)
             this->globals_ctx = this->globals_ctx->parent_ctx;
     }
 
-    void store(const char *name, node *obj)
-    {
+    void store(const char *name, node *obj) {
         if (this->globals.find(std::string(name)) != this->globals.end())
             this->globals_ctx->store(name, obj);
         else
             this->symbols[name] = obj;
     }
-    node *load(const char *name)
-    {
+    node *load(const char *name) {
         if (this->globals.find(std::string(name)) != this->globals.end())
             return this->globals_ctx->load(name);
         symbol_table::const_iterator v = this->symbols.find(name);
-        if (v == this->symbols.end())
-        {
+        if (v == this->symbols.end()) {
             if (this->parent_ctx)
                 return this->parent_ctx->load(name);
             else
@@ -208,12 +199,10 @@ public:
         }
         return v->second;
     }
-    void set_global(const char *name)
-    {
+    void set_global(const char *name) {
         this->globals.insert(name);
     }
-    void dump()
-    {
+    void dump() {
         for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
             if (i->second->is_int_const())
                 printf("symbol['%s'] = int(%" PRId64 ");\n", i->first, i->second->int_value());
@@ -222,12 +211,10 @@ public:
     }
 };
 
-class none_const : public node
-{
+class none_const : public node {
 public:
     // For some reason this causes errors without an argument to the constructor...
-    none_const(int value) : node("none")
-    {
+    none_const(int value) : node("none") {
     }
 
     virtual bool is_none() { return true; }
@@ -237,14 +224,12 @@ public:
     virtual std::string str() { return std::string("None"); }
 };
 
-class int_const : public node
-{
+class int_const : public node {
 private:
     int64_t value;
 
 public:
-    int_const(int64_t value) : node("int")
-    {
+    int_const(int64_t value) : node("int") {
         this->value = value;
     }
 
@@ -253,15 +238,13 @@ public:
     virtual bool bool_value() { return this->value != 0; }
 
 #define INT_OP(NAME, OP) \
-    virtual int64_t _##NAME(node *rhs) \
-    { \
+    virtual int64_t _##NAME(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
             return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in int"); \
         return 0; \
     } \
-    virtual node *__##NAME##__(node *rhs) \
-    { \
+    virtual node *__##NAME##__(node *rhs) { \
         return new int_const(this->_##NAME(rhs)); \
     }
     INT_OP(add, +)
@@ -276,15 +259,13 @@ public:
     INT_OP(xor, ^)
 
 #define CMP_OP(NAME, OP) \
-    virtual bool _##NAME(node *rhs) \
-    { \
+    virtual bool _##NAME(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
             return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in int"); \
         return 0; \
     } \
-    virtual node *__##NAME##__(node *rhs) \
-    { \
+    virtual node *__##NAME##__(node *rhs) { \
         return new int_const(this->_##NAME(rhs)); \
     }
 
@@ -296,8 +277,7 @@ public:
     CMP_OP(ge, >=)
 
 #define INT_UNOP(NAME, OP) \
-    virtual node *__##NAME##__() \
-    { \
+    virtual node *__##NAME##__() { \
         return new int_const(OP this->int_value()); \
     }
     INT_UNOP(invert, ~)
@@ -310,14 +290,12 @@ public:
     virtual std::string str();
 };
 
-class bool_const : public node
-{
+class bool_const : public node {
 private:
     bool value;
 
 public:
-    bool_const(bool value) : node("bool")
-    {
+    bool_const(bool value) : node("bool") {
         this->value = value;
     }
 
@@ -326,8 +304,7 @@ public:
     virtual int64_t int_value() { return (int64_t)this->value; }
 
 #define BOOL_OP(NAME, OP) \
-    virtual node *__##NAME##__(node *rhs) \
-    { \
+    virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
             return new int_const(this->int_value() OP rhs->int_value()); \
         error(#NAME " error in bool"); \
@@ -354,14 +331,12 @@ public:
     virtual std::string str();
 };
 
-class string_const : public node
-{
+class string_const : public node {
 private:
     std::string value;
 
 public:
-    string_const(std::string value) : node("str")
-    {
+    string_const(std::string value) : node("str") {
         this->value = value;
     }
 
@@ -372,15 +347,13 @@ public:
     std::string::iterator end() { return value.end(); }
 
 #define STRING_OP(NAME, OP) \
-    virtual bool _##NAME(node *rhs) \
-    { \
+    virtual bool _##NAME(node *rhs) { \
         if (rhs->is_string()) \
             return this->string_value() OP rhs->string_value(); \
         error(#NAME " unimplemented"); \
         return false; \
     } \
-    virtual node *__##NAME##__(node *rhs) \
-    { \
+    virtual node *__##NAME##__(node *rhs) { \
         return new bool_const(this->_##NAME(rhs)); \
     }
 
@@ -397,31 +370,25 @@ public:
     virtual node *getattr(const char *key);
 
     // FNV-1a algorithm
-    virtual node *__getitem__(node *rhs)
-    {
-        if (!rhs->is_int_const())
-        {
+    virtual node *__getitem__(node *rhs) {
+        if (!rhs->is_int_const()) {
             error("getitem unimplemented");
             return NULL;
         }
         return new string_const(value.substr(rhs->int_value(), 1));
     }
-    virtual int64_t hash()
-    {
+    virtual int64_t hash() {
         int64_t hashkey = 14695981039346656037ull;
-        for (std::string::iterator c = this->begin(); c != this->end(); c++)
-        {
+        for (std::string::iterator c = this->begin(); c != this->end(); c++) {
             hashkey ^= *c;
             hashkey *= 1099511628211ll;
         }
         return hashkey;
     }
-    virtual int len()
-    {
+    virtual int len() {
         return value.length();
     }
-    virtual node *__slice__(node *start, node *end, node *step)
-    {
+    virtual node *__slice__(node *start, node *end, node *step) {
         if ((!start->is_none() && !start->is_int_const()) ||
             (!end->is_none() && !end->is_int_const()) ||
             (!step->is_none() && !step->is_int_const()))
@@ -436,28 +403,22 @@ public:
     virtual std::string str() { return this->value; }
 };
 
-class list : public node
-{
+class list : public node {
 private:
     node_list items;
 
 public:
-    list() : node("list")
-    {
+    list() : node("list") {
     }
-    list(node_list &l) : items(l), node("list")
-    {
+    list(node_list &l) : items(l), node("list") {
     }
-    void append(node *obj)
-    {
+    void append(node *obj) {
         items.push_back(obj);
     }
-    void prepend(node *obj)
-    {
+    void prepend(node *obj) {
         items.insert(items.begin(), obj);
     }
-    node *pop()
-    {
+    node *pop() {
         // would be nice if STL wasn't stupid, and this was one line...
         node *popped = items.back();
         items.pop_back();
@@ -465,8 +426,7 @@ public:
     }
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
-    int64_t index(int64_t base)
-    {
+    int64_t index(int64_t base) {
         if (base < 0)
             base = items.size() + base;
         return base;
@@ -478,53 +438,43 @@ public:
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
 
-    virtual node *__contains__(node *key)
-    {
+    virtual node *__contains__(node *key) {
         bool found = false;
         for (int i = 0; i < this->items.size(); i++)
-            if (this->items[i]->__eq__(key)->bool_value())
-            {
+            if (this->items[i]->__eq__(key)->bool_value()) {
                 found = true;
                 break;
             }
         return new bool_const(found);
     }
-    virtual void __delitem__(node *rhs)
-    {
-        if (!rhs->is_int_const())
-        {
+    virtual void __delitem__(node *rhs) {
+        if (!rhs->is_int_const()) {
             error("delitem unimplemented");
             return;
         }
         node_list::iterator f = items.begin() + this->index(rhs->int_value());
         items.erase(f);
     }
-    virtual node *__getitem__(int idx)
-    {
+    virtual node *__getitem__(int idx) {
         return this->items[this->index(idx)];
     }
-    virtual node *__getitem__(node *rhs)
-    {
-        if (!rhs->is_int_const())
-        {
+    virtual node *__getitem__(node *rhs) {
+        if (!rhs->is_int_const()) {
             error("getitem unimplemented");
             return NULL;
         }
         return this->__getitem__(rhs->int_value());
     }
-    virtual int len()
-    {
+    virtual int len() {
         return this->items.size();
     }
-    virtual void __setitem__(node *key, node *value)
-    {
+    virtual void __setitem__(node *key, node *value) {
         if (!key->is_int_const())
             error("error in list.setitem");
         int64_t idx = key->int_value();
         items[this->index(idx)] = value;
     }
-    virtual node *__slice__(node *start, node *end, node *step)
-    {
+    virtual node *__slice__(node *start, node *end, node *step) {
         if ((!start->is_none() && !start->is_int_const()) ||
             (!end->is_none() && !end->is_int_const()) ||
             (!step->is_none() && !step->is_int_const()))
@@ -540,17 +490,14 @@ public:
     virtual node *getattr(const char *key);
 };
 
-class dict : public node
-{
+class dict : public node {
 private:
     node_dict items;
 
 public:
-    dict() : node("dict")
-    {
+    dict() : node("dict") {
     }
-    node *lookup(node *key)
-    {
+    node *lookup(node *key) {
         int64_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
@@ -565,24 +512,20 @@ public:
     node_dict::iterator end() { return items.end(); }
 
     virtual bool is_dict() { return true; }
-    virtual node *__contains__(node *key)
-    {
+    virtual node *__contains__(node *key) {
         return new bool_const(this->lookup(key) != NULL);
     }
-    virtual node *__getitem__(node *key)
-    {
+    virtual node *__getitem__(node *key) {
         node *old_key = key;
         node *value = this->lookup(key);
         if (value == NULL)
             error("cannot find '%s' in dict", old_key->str().c_str());
         return value;
     }
-    virtual int len()
-    {
+    virtual int len() {
         return this->items.size();
     }
-    virtual void __setitem__(node *key, node *value)
-    {
+    virtual void __setitem__(node *key, node *value) {
         int64_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
@@ -590,12 +533,10 @@ public:
             hashkey = key->hash();
         items[hashkey] = node_pair(key, value);
     }
-    virtual std::string str()
-    {
+    virtual std::string str() {
         std::string new_string = "{";
         bool first = true;
-        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++)
-        {
+        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -607,18 +548,15 @@ public:
     virtual node *getattr(const char *key);
 };
 
-class set : public node
-{
+class set : public node {
 private:
     node_set items;
 
 public:
-    set() : node("set")
-    {
+    set() : node("set") {
     }
 
-    node *lookup(node *key)
-    {
+    node *lookup(node *key) {
         int64_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
@@ -629,8 +567,7 @@ public:
             return NULL;
         return v->second;
     }
-    void add(node *key)
-    {
+    void add(node *key) {
         int64_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
@@ -640,20 +577,16 @@ public:
     }
 
     virtual bool is_set() { return true; }
-    virtual node *__contains__(node *key)
-    {
+    virtual node *__contains__(node *key) {
         return new bool_const(this->lookup(key) != NULL);
     }
-    virtual int len()
-    {
+    virtual int len() {
         return this->items.size();
     }
-    virtual std::string str()
-    {
+    virtual std::string str() {
         std::string new_string = "{";
         bool first = true;
-        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
-        {
+        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -665,8 +598,7 @@ public:
     virtual node *getattr(const char *key);
 };
 
-class object : public node
-{
+class object : public node {
 private:
     dict items;
 
@@ -674,35 +606,29 @@ public:
     object() : node("object")
     {}
 
-    virtual node *getattr(const char *key)
-    {
+    virtual node *getattr(const char *key) {
         return items.__getitem__(new string_const(key));
     }
-    virtual void __setattr__(node *key, node *value)
-    {
+    virtual void __setattr__(node *key, node *value) {
         items.__setitem__(key, value);
     }
-    virtual node *__eq__(node *rhs)
-    {
+    virtual node *__eq__(node *rhs) {
         return new bool_const(this == rhs);
     }
 };
 
-class file : public node
-{
+class file : public node {
 private:
     FILE *f;
 
 public:
-    file(const char *path, const char *mode) : node("file")
-    {
+    file(const char *path, const char *mode) : node("file") {
         f = fopen(path, mode);
         if (!f)
             error("%s: file not found", path);
     }
 
-    node *read(int len)
-    {
+    node *read(int len) {
         static char buf[64*1024];
         fread(buf, len, 1, this->f);
         std::string s(buf, len);
@@ -714,23 +640,20 @@ public:
 
 typedef node *(*fptr)(context *parent_ctx, list *args, dict *kwargs);
 
-class bound_method : public node
-{
+class bound_method : public node {
 private:
     node *self;
     node *function;
 
 public:
-    bound_method(node *self, node *function) : node("bound_method")
-    {
+    bound_method(node *self, node *function) : node("bound_method") {
         this->self = self;
         this->function = function;
     }
 
     virtual bool is_function() { return true; } // XXX is it?
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs)
-    {
+    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
         if (!args->is_list())
             error("call with non-list args?");
         ((list *)args)->prepend(this->self);
@@ -738,48 +661,40 @@ public:
     }
 };
 
-class function_def : public node
-{
+class function_def : public node {
 private:
     fptr base_function;
 
 public:
-    function_def(fptr base_function) : node("function")
-    {
+    function_def(fptr base_function) : node("function") {
         this->base_function = base_function;
     }
 
     virtual bool is_function() { return true; }
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs)
-    {
+    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
         return this->base_function(ctx, args, kwargs);
     }
 };
 
-class class_def : public node
-{
+class class_def : public node {
 private:
     std::string name;
     dict items;
 
 public:
-    class_def(std::string name, void (*creator)(class_def *)) : node("class")
-    {
+    class_def(std::string name, void (*creator)(class_def *)) : node("class") {
         this->name = name;
         creator(this);
     }
-    node *load(const char *name)
-    {
+    node *load(const char *name) {
         return items.__getitem__(new string_const(name));
     }
-    void store(const char *name, node *value)
-    {
+    void store(const char *name, node *value) {
         items.__setitem__(new string_const(name), value);
     }
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs)
-    {
+    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
         node *init = this->load("__init__");
         node *obj = new object();
 
@@ -795,8 +710,7 @@ public:
         init->__call__(call_ctx, args, kwargs);
         return obj;
     }
-    virtual node *getattr(const char *attr)
-    {
+    virtual node *getattr(const char *attr) {
         return this->load(attr);
     }
 };
@@ -806,19 +720,16 @@ bool_const bool_singleton_False(false);
 none_const none_singleton(0);
 
 // Silly builtin classes
-void _int__create_(class_def *ctx)
-{
+void _int__create_(class_def *ctx) {
 }
 
-void _str__create_(class_def *ctx)
-{
+void _str__create_(class_def *ctx) {
 }
 
 class_def builtin_class_int("int", _int__create_);
 class_def builtin_class_str("str", _str__create_);
 
-bool test_truth(node *expr)
-{
+bool test_truth(node *expr) {
     if (expr->is_none())
         return false;
     else if (expr->is_bool())
@@ -830,69 +741,57 @@ bool test_truth(node *expr)
     return true;
 }
 
-node *node::__getattr__(node *key)
-{
+node *node::__getattr__(node *key) {
     if (!key->is_string())
         error("getattr with non-string");
     return this->getattr(key->string_value().c_str());
 }
 
-node *node::__hash__()
-{
+node *node::__hash__() {
     return new int_const(this->hash());
 }
 
-node *node::__len__()
-{
+node *node::__len__() {
     return new int_const(this->len());
 }
 
-node *node::__not__()
-{
+node *node::__not__() {
     return new bool_const(!test_truth(this));
 }
 
-node *node::__is__(node *rhs)
-{
+node *node::__is__(node *rhs) {
     return new bool_const(this == rhs);
 }
 
-node *node::__isnot__(node *rhs)
-{
+node *node::__isnot__(node *rhs) {
     return new bool_const(this != rhs);
 }
 
-node *node::__str__()
-{
+node *node::__str__() {
     return new string_const(this->str());
 }
 
-node *none_const::__eq__(node *rhs)
-{
+node *none_const::__eq__(node *rhs) {
     return new bool_const(this == rhs);
 }
 
-node *int_const::getattr(const char *key)
-{
+node *int_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_int;
     error("int has no attribute %s", key);
 }
 
-std::string int_const::str()
-{
+std::string int_const::str() {
     char buf[32];
     sprintf(buf, "%" PRId64, this->value);
     return std::string(buf);
 }
 
-std::string bool_const::str()
-{
+std::string bool_const::str() {
     return std::string(this->value ? "True" : "False");
 }
 
-node *list::__add__(node *rhs)
-{
+node *list::__add__(node *rhs) {
     if (!rhs->is_list())
         error("list add error");
     list *plist = new list();
@@ -904,8 +803,7 @@ node *list::__add__(node *rhs)
     return plist;
 }
 
-node *list::__mul__(node *rhs)
-{
+node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
     list *plist = new list();
@@ -915,8 +813,7 @@ node *list::__mul__(node *rhs)
     return plist;
 }
 
-node *list::getattr(const char *key)
-{
+node *list::getattr(const char *key) {
     if (!strcmp(key, "append"))
         return new bound_method(this, new function_def(builtin_list_append));
     else if (!strcmp(key, "index"))
@@ -926,8 +823,7 @@ node *list::getattr(const char *key)
     error("list has no attribute %s", key);
 }
 
-node *dict::getattr(const char *key)
-{
+node *dict::getattr(const char *key) {
     if (!strcmp(key, "get"))
         return new bound_method(this, new function_def(builtin_dict_get));
     else if (!strcmp(key, "keys"))
@@ -935,15 +831,13 @@ node *dict::getattr(const char *key)
     error("dict has no attribute %s", key);
 }
 
-node *set::getattr(const char *key)
-{
+node *set::getattr(const char *key) {
     if (!strcmp(key, "add"))
         return new bound_method(this, new function_def(builtin_set_add));
     error("set has no attribute %s", key);
 }
 
-node *string_const::getattr(const char *key)
-{
+node *string_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
     else if (!strcmp(key, "join"))
@@ -956,21 +850,17 @@ node *string_const::getattr(const char *key)
 }
 
 // This entire function is very stupidly implemented.
-node *string_const::__mod__(node *rhs)
-{
+node *string_const::__mod__(node *rhs) {
     std::ostringstream new_string;
     // HACK for now...
-    if (!rhs->is_list())
-    {
+    if (!rhs->is_list()) {
         list *l = new list();
         l->append(rhs);
         rhs = l;
     }
     int args = 0;
-    for (const char *c = value.c_str(); *c; c++)
-    {
-        if (*c == '%')
-        {
+    for (const char *c = value.c_str(); *c; c++) {
+        if (*c == '%') {
             char fmt_buf[64], buf[64];
             char *fmt = fmt_buf;
             *fmt++ = '%';
@@ -984,20 +874,17 @@ node *string_const::__mod__(node *rhs)
             if (args >= rhs->len())
                 error("not enough arguments for string format");
             node *arg = rhs->__getitem__(args++);
-            if (*c == 's')
-            {
+            if (*c == 's') {
                 *fmt++ = 's';
                 *fmt = 0;
                 sprintf(buf, fmt_buf, arg->str().c_str());
             }
-            else if (*c == 'd' || *c == 'i' || *c == 'X')
-            {
+            else if (*c == 'd' || *c == 'i' || *c == 'X') {
                 *fmt++ = *c;
                 *fmt = 0;
                 sprintf(buf, fmt_buf, arg->int_value());
             }
-            else if (*c == 'c')
-            {
+            else if (*c == 'c') {
                 *fmt++ = 'c';
                 *fmt = 0;
                 int char_value;
@@ -1017,8 +904,7 @@ node *string_const::__mod__(node *rhs)
     return new string_const(new_string.str());
 }
 
-node *string_const::__mul__(node *rhs)
-{
+node *string_const::__mul__(node *rhs) {
     if (!rhs->is_int_const() || rhs->int_value() < 0)
         error("bad argument to str.mul");
     std::string new_string;
@@ -1027,8 +913,7 @@ node *string_const::__mul__(node *rhs)
     return new string_const(new_string);
 }
 
-node *builtin_dict_get(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_dict_get(context *ctx, list *args, dict *kwargs) {
     if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
     node *self = args->__getitem__(0);
@@ -1041,8 +926,7 @@ node *builtin_dict_get(context *ctx, list *args, dict *kwargs)
     return value;
 }
 
-node *builtin_dict_keys(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_dict_keys(context *ctx, list *args, dict *kwargs) {
     if (args->len() != 1)
         error("bad number of arguments to dict.keys()");
     dict *self = (dict *)args->__getitem__(0);
@@ -1054,8 +938,7 @@ node *builtin_dict_keys(context *ctx, list *args, dict *kwargs)
     return plist;
 }
 
-node *builtin_fread(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_fread(context *ctx, list *args, dict *kwargs) {
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
     if (!f->is_file() || !len->is_int_const())
@@ -1063,8 +946,7 @@ node *builtin_fread(context *ctx, list *args, dict *kwargs)
     return ((file *)f)->read(len->int_value());
 }
 
-node *builtin_isinstance(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_isinstance(context *ctx, list *args, dict *kwargs) {
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
 
@@ -1072,13 +954,11 @@ node *builtin_isinstance(context *ctx, list *args, dict *kwargs)
     return new bool_const(obj_class == arg_class);
 }
 
-node *builtin_len(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_len(context *ctx, list *args, dict *kwargs) {
     return args->__getitem__(0)->__len__();
 }
 
-node *builtin_list_append(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_list_append(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1087,8 +967,7 @@ node *builtin_list_append(context *ctx, list *args, dict *kwargs)
     return &none_singleton;
 }
 
-node *builtin_list_index(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
     if (args->len() != 2)
         error("bad number of arguments to list.index()");
     node *self = args->__getitem__(0);
@@ -1101,15 +980,13 @@ node *builtin_list_index(context *ctx, list *args, dict *kwargs)
     return &none_singleton;
 }
 
-node *builtin_list_pop(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_list_pop(context *ctx, list *args, dict *kwargs) {
     list *self = (list *)args->__getitem__(0);
 
     return self->pop();
 }
 
-node *builtin_open(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_open(context *ctx, list *args, dict *kwargs) {
     node *path = args->__getitem__(0);
     node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
@@ -1118,45 +995,38 @@ node *builtin_open(context *ctx, list *args, dict *kwargs)
     return f;
 }
 
-node *builtin_ord(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_ord(context *ctx, list *args, dict *kwargs) {
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
     return new int_const((unsigned char)arg->string_value()[0]);
 }
 
-node *builtin_print(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_print(context *ctx, list *args, dict *kwargs) {
     std::string new_string;
-    for (int i = 0; i < args->len(); i++)
-    {
+    for (int i = 0; i < args->len(); i++) {
         node *s = args->__getitem__(i);
         new_string += s->str();
     }
     printf("%s\n", new_string.c_str());
 }
 
-node *builtin_print_nonl(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_print_nonl(context *ctx, list *args, dict *kwargs) {
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
 }
 
-node *builtin_range(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_range(context *ctx, list *args, dict *kwargs) {
     list *new_list = new list();
     int64_t start = 0, end, step = 1;
 
     if (args->len() == 1)
         end = args->__getitem__(0)->int_value();
-    else if (args->len() == 2)
-    {
+    else if (args->len() == 2) {
         start = args->__getitem__(0)->int_value();
         end = args->__getitem__(1)->int_value();
     }
-    else if (args->len() == 3)
-    {
+    else if (args->len() == 3) {
         start = args->__getitem__(0)->int_value();
         end = args->__getitem__(1)->int_value();
         step = args->__getitem__(2)->int_value();
@@ -1169,8 +1039,7 @@ node *builtin_range(context *ctx, list *args, dict *kwargs)
     return new_list;
 }
 
-node *builtin_reversed(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_reversed(context *ctx, list *args, dict *kwargs) {
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call reversed on non-list");
@@ -1183,13 +1052,11 @@ node *builtin_reversed(context *ctx, list *args, dict *kwargs)
     return new list(new_list);
 }
 
-node *builtin_set(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_set(context *ctx, list *args, dict *kwargs) {
     return new set();
 }
 
-node *builtin_set_add(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_set_add(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1198,13 +1065,11 @@ node *builtin_set_add(context *ctx, list *args, dict *kwargs)
     return &none_singleton;
 }
 
-bool compare_nodes(node *lhs, node *rhs)
-{
+bool compare_nodes(node *lhs, node *rhs) {
     return lhs->_lt(rhs);
 }
 
-node *builtin_sorted(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_sorted(context *ctx, list *args, dict *kwargs) {
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call sorted on non-list");
@@ -1218,8 +1083,7 @@ node *builtin_sorted(context *ctx, list *args, dict *kwargs)
     return new list(new_list);
 }
 
-node *builtin_str_join(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_str_join(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
     if (!self->is_string() || !item->is_list())
@@ -1227,8 +1091,7 @@ node *builtin_str_join(context *ctx, list *args, dict *kwargs)
 
     list *joined = (list *)item;
     std::string s;
-    for (node_list::iterator i = joined->begin(); i != joined->end(); i++)
-    {
+    for (node_list::iterator i = joined->begin(); i != joined->end(); i++) {
         s += (*i)->str();
         if (i + 1 != joined->end())
             s += self->string_value();
@@ -1236,8 +1099,7 @@ node *builtin_str_join(context *ctx, list *args, dict *kwargs)
     return new string_const(s);
 }
 
-node *builtin_str_upper(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_str_upper(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     if (!self->is_string())
         error("bad argument to str.upper()");
@@ -1250,8 +1112,7 @@ node *builtin_str_upper(context *ctx, list *args, dict *kwargs)
     return new string_const(new_string);
 }
 
-node *builtin_str_startswith(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_str_startswith(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
     if (!self->is_string() || !prefix->is_string())
@@ -1262,8 +1123,7 @@ node *builtin_str_startswith(context *ctx, list *args, dict *kwargs)
     return new bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
-node *builtin_zip(context *ctx, list *args, dict *kwargs)
-{
+node *builtin_zip(context *ctx, list *args, dict *kwargs) {
     if (args->len() != 2)
         error("bad arguments to zip()");
     node *list1 = args->__getitem__(0);
@@ -1273,8 +1133,7 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs)
         error("bad arguments to zip()");
 
     list *plist = new list();
-    for (int i = 0; i < list1->len(); i++)
-    {
+    for (int i = 0; i < list1->len(); i++) {
         list *pair = new list();
         pair->append(list1->__getitem__(i));
         pair->append(list2->__getitem__(i));
@@ -1284,8 +1143,7 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs)
     return plist;
 }
 
-void init_context(context *ctx, int argc, char **argv)
-{
+void init_context(context *ctx, int argc, char **argv) {
     ctx->store("fread", new function_def(builtin_fread));
     ctx->store("len", new function_def(builtin_len));
     ctx->store("isinstance", new function_def(builtin_isinstance));
