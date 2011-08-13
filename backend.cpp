@@ -50,10 +50,12 @@ class list;
 class context;
 class string_const;
 
+typedef int64_t int_t;
+
 typedef std::pair<node *, node *> node_pair;
 typedef std::map<const char *, node *, std::less<const char *>, alloc<std::pair<const char *, node *> > > symbol_table;
-typedef std::map<int64_t, node_pair, std::less<int64_t>, alloc<std::pair<int64_t, node *> > > node_dict;
-typedef std::map<int64_t, node *, std::less<int64_t>, alloc<std::pair<int64_t, node *> > > node_set;
+typedef std::map<int_t, node_pair, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_dict;
+typedef std::map<int_t, node *, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_set;
 typedef std::set<std::string, std::less<std::string>, alloc<std::string> > globals_set;
 typedef std::vector<node *, alloc<node *> > node_list;
 
@@ -99,7 +101,7 @@ public:
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
     virtual bool bool_value() { error("bool_value unimplemented for %s", node_type); return false; }
-    virtual int64_t int_value() { error("int_value unimplemented for %s", node_type); return 0; }
+    virtual int_t int_value() { error("int_value unimplemented for %s", node_type); return 0; }
     virtual std::string string_value() { error("string_value unimplemented for %s", node_type); return NULL; }
     virtual node_list *list_value() { error("list_value unimplemented for %s", node_type); return NULL; }
 
@@ -159,9 +161,9 @@ public:
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", node_type); return NULL; }
 
     // unwrapped versions
-    virtual int len() { error("len unimplemented for %s", node_type); return 0; }
+    virtual int_t len() { error("len unimplemented for %s", node_type); return 0; }
     virtual node *getattr(const char *rhs) { error("getattr unimplemented (%s) for %s", rhs, node_type); return NULL; }
-    virtual int64_t hash() { error("hash unimplemented for %s", node_type); return 0; }
+    virtual int_t hash() { error("hash unimplemented for %s", node_type); return 0; }
     virtual std::string str() { error("str unimplemented for %s", node_type); return NULL; }
 };
 
@@ -218,31 +220,31 @@ public:
 class none_const : public node {
 public:
     // For some reason this causes errors without an argument to the constructor...
-    none_const(int value) : node("none") {
+    none_const(int_t value) : node("none") {
     }
 
     virtual bool is_none() { return true; }
 
     virtual node *__eq__(node *rhs);
-    virtual int64_t hash() { return 0; }
+    virtual int_t hash() { return 0; }
     virtual std::string str() { return std::string("None"); }
 };
 
 class int_const : public node {
 private:
-    int64_t value;
+    int_t value;
 
 public:
-    int_const(int64_t value) : node("int") {
+    int_const(int_t value) : node("int") {
         this->value = value;
     }
 
     virtual bool is_int_const() { return true; }
-    virtual int64_t int_value() { return this->value; }
+    virtual int_t int_value() { return this->value; }
     virtual bool bool_value() { return this->value != 0; }
 
 #define INT_OP(NAME, OP) \
-    virtual int64_t _##NAME(node *rhs) { \
+    virtual int_t _##NAME(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
             return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in int"); \
@@ -289,7 +291,7 @@ public:
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
 
-    virtual int64_t hash() { return this->value; }
+    virtual int_t hash() { return this->value; }
     virtual node *getattr(const char *key);
     virtual std::string str();
 };
@@ -305,7 +307,7 @@ public:
 
     virtual bool is_bool() { return true; }
     virtual bool bool_value() { return this->value; }
-    virtual int64_t int_value() { return (int64_t)this->value; }
+    virtual int_t int_value() { return (int_t)this->value; }
 
 #define BOOL_AS_INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
@@ -340,7 +342,7 @@ public:
     BOOL_OP(gt, >)
     BOOL_OP(ge, >=)
 
-    virtual int64_t hash() { return (int64_t)this->value; }
+    virtual int_t hash() { return (int_t)this->value; }
     virtual std::string str();
 };
 
@@ -391,15 +393,15 @@ public:
         return new(allocator) string_const(value.substr(rhs->int_value(), 1));
     }
     // FNV-1a algorithm
-    virtual int64_t hash() {
-        int64_t hashkey = 14695981039346656037ull;
+    virtual int_t hash() {
+        int_t hashkey = 14695981039346656037ull;
         for (std::string::iterator c = this->begin(); c != this->end(); c++) {
             hashkey ^= *c;
             hashkey *= 1099511628211ll;
         }
         return hashkey;
     }
-    virtual int len() {
+    virtual int_t len() {
         return value.length();
     }
     virtual node *__slice__(node *start, node *end, node *step) {
@@ -407,9 +409,9 @@ public:
             (!end->is_none() && !end->is_int_const()) ||
             (!step->is_none() && !step->is_int_const()))
             error("slice error");
-        int64_t lo = start->is_none() ? 0 : start->int_value();
-        int64_t hi = end->is_none() ? value.length() : end->int_value();
-        int64_t st = step->is_none() ? 1 : step->int_value();
+        int_t lo = start->is_none() ? 0 : start->int_value();
+        int_t hi = end->is_none() ? value.length() : end->int_value();
+        int_t st = step->is_none() ? 1 : step->int_value();
         if (st != 1)
             error("slice step != 1 not supported for string");
         return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
@@ -440,7 +442,7 @@ public:
     }
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
-    int64_t index(int64_t base) {
+    int_t index(int_t base) {
         if (base < 0)
             base = items.size() + base;
         return base;
@@ -454,7 +456,7 @@ public:
 
     virtual node *__contains__(node *key) {
         bool found = false;
-        for (int i = 0; i < this->items.size(); i++)
+        for (int_t i = 0; i < this->items.size(); i++)
             if (this->items[i]->__eq__(key)->bool_value()) {
                 found = true;
                 break;
@@ -479,13 +481,13 @@ public:
         }
         return this->__getitem__(rhs->int_value());
     }
-    virtual int len() {
+    virtual int_t len() {
         return this->items.size();
     }
     virtual void __setitem__(node *key, node *value) {
         if (!key->is_int_const())
             error("error in list.setitem");
-        int64_t idx = key->int_value();
+        int_t idx = key->int_value();
         items[this->index(idx)] = value;
     }
     virtual node *__slice__(node *start, node *end, node *step) {
@@ -493,9 +495,9 @@ public:
             (!end->is_none() && !end->is_int_const()) ||
             (!step->is_none() && !step->is_int_const()))
             error("slice error");
-        int64_t lo = start->is_none() ? 0 : start->int_value();
-        int64_t hi = end->is_none() ? items.size() : end->int_value();
-        int64_t st = step->is_none() ? 1 : step->int_value();
+        int_t lo = start->is_none() ? 0 : start->int_value();
+        int_t hi = end->is_none() ? items.size() : end->int_value();
+        int_t st = step->is_none() ? 1 : step->int_value();
         list *new_list = new(allocator) list();
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
             new_list->append(items[lo]);
@@ -512,7 +514,7 @@ public:
     dict() : node("dict") {
     }
     node *lookup(node *key) {
-        int64_t hashkey;
+        int_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
         else
@@ -536,11 +538,11 @@ public:
             error("cannot find '%s' in dict", old_key->str().c_str());
         return value;
     }
-    virtual int len() {
+    virtual int_t len() {
         return this->items.size();
     }
     virtual void __setitem__(node *key, node *value) {
-        int64_t hashkey;
+        int_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
         else
@@ -571,7 +573,7 @@ public:
     }
 
     node *lookup(node *key) {
-        int64_t hashkey;
+        int_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
         else
@@ -582,7 +584,7 @@ public:
         return v->second;
     }
     void add(node *key) {
-        int64_t hashkey;
+        int_t hashkey;
         if (key->is_int_const())
             hashkey = key->int_value();
         else
@@ -594,7 +596,7 @@ public:
     virtual node *__contains__(node *key) {
         return create_bool_const(this->lookup(key) != NULL);
     }
-    virtual int len() {
+    virtual int_t len() {
         return this->items.size();
     }
     virtual std::string str() {
@@ -642,7 +644,7 @@ public:
             error("%s: file not found", path);
     }
 
-    node *read(int len) {
+    node *read(int_t len) {
         static char buf[64*1024];
         fread(buf, len, 1, this->f);
         std::string s(buf, len);
@@ -825,7 +827,7 @@ node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
     list *plist = new(allocator) list();
-    for (int x = rhs->int_value(); x > 0; x--)
+    for (int_t x = rhs->int_value(); x > 0; x--)
         for (node_list::iterator i = this->begin(); i != this->end(); i++)
             plist->append(*i);
     return plist;
@@ -876,7 +878,7 @@ node *string_const::__mod__(node *rhs) {
         l->append(rhs);
         rhs = l;
     }
-    int args = 0;
+    int_t args = 0;
     for (const char *c = value.c_str(); *c; c++) {
         if (*c == '%') {
             char fmt_buf[64], buf[64];
@@ -905,7 +907,7 @@ node *string_const::__mod__(node *rhs) {
             else if (*c == 'c') {
                 *fmt++ = 'c';
                 *fmt = 0;
-                int char_value;
+                int_t char_value;
                 if (arg->is_string())
                     char_value = (unsigned char)arg->string_value()[0];
                 else
@@ -933,7 +935,7 @@ node *string_const::__mul__(node *rhs) {
     if (!rhs->is_int_const() || rhs->int_value() < 0)
         error("bad argument to str.mul");
     std::string new_string;
-    for (int i = 0; i < rhs->int_value(); i++)
+    for (int_t i = 0; i < rhs->int_value(); i++)
         new_string += this->value;
     return new(allocator) string_const(new_string);
 }
@@ -998,7 +1000,7 @@ node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
 
-    for (int i = 0; i < self->len(); i++)
+    for (int_t i = 0; i < self->len(); i++)
         if (self->__getitem__(i)->__eq__(key)->bool_value())
             return new(allocator) int_const(i);
     error("item not found in list");
@@ -1029,7 +1031,7 @@ node *builtin_ord(context *ctx, list *args, dict *kwargs) {
 
 node *builtin_print(context *ctx, list *args, dict *kwargs) {
     std::string new_string;
-    for (int i = 0; i < args->len(); i++) {
+    for (int_t i = 0; i < args->len(); i++) {
         if (i)
             new_string += " ";
         node *s = args->__getitem__(i);
@@ -1045,7 +1047,7 @@ node *builtin_print_nonl(context *ctx, list *args, dict *kwargs) {
 
 node *builtin_range(context *ctx, list *args, dict *kwargs) {
     list *new_list = new(allocator) list();
-    int64_t start = 0, end, step = 1;
+    int_t start = 0, end, step = 1;
 
     if (args->len() == 1)
         end = args->__getitem__(0)->int_value();
@@ -1061,7 +1063,7 @@ node *builtin_range(context *ctx, list *args, dict *kwargs) {
     else
         error("too many arguments to range()");
 
-    for (int64_t s = start; step > 0 ? (s < end) : (s > end); s += step)
+    for (int_t s = start; step > 0 ? (s < end) : (s > end); s += step)
         new_list->append(new(allocator) int_const(s));
     return new_list;
 }
@@ -1160,7 +1162,7 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
         error("bad arguments to zip()");
 
     list *plist = new(allocator) list();
-    for (int i = 0; i < list1->len(); i++) {
+    for (int_t i = 0; i < list1->len(); i++) {
         list *pair = new(allocator) list();
         pair->append(list1->__getitem__(i));
         pair->append(list2->__getitem__(i));
@@ -1170,7 +1172,7 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
     return plist;
 }
 
-void init_context(context *ctx, int argc, char **argv) {
+void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("fread", new(allocator) function_def(builtin_fread));
     ctx->store("len", new(allocator) function_def(builtin_len));
     ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
@@ -1189,7 +1191,7 @@ void init_context(context *ctx, int argc, char **argv) {
 
     ctx->store("__name__", new(allocator) string_const("__main__"));
     list *plist = new(allocator) list();
-    for (int a = 0; a < argc; a++)
+    for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
     ctx->store("__args__", plist);
 }
