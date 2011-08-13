@@ -101,7 +101,7 @@ class Ref(Node):
         self.args = args
 
     def __str__(self):
-        return '(new %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
+        return '(new(allocator) %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
 
 class UnaryOp(Node):
     def __init__(self, op, rhs):
@@ -489,7 +489,7 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *parent_ctx, list *args, dict *kwargs) {{
-    context *ctx = new context(parent_ctx);
+    context *ctx = new(allocator) context(parent_ctx);
 {arg_unpacking}
 {stmts}
     return &none_singleton;

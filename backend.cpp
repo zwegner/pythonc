@@ -249,7 +249,7 @@ public:
         return 0; \
     } \
     virtual node *__##NAME##__(node *rhs) { \
-        return new int_const(this->_##NAME(rhs)); \
+        return new(allocator) int_const(this->_##NAME(rhs)); \
     }
     INT_OP(add, +)
     INT_OP(and, &)
@@ -282,7 +282,7 @@ public:
 
 #define INT_UNOP(NAME, OP) \
     virtual node *__##NAME##__() { \
-        return new int_const(OP this->int_value()); \
+        return new(allocator) int_const(OP this->int_value()); \
     }
     INT_UNOP(invert, ~)
     INT_UNOP(not, !)
@@ -310,7 +310,7 @@ public:
 #define BOOL_AS_INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
-            return new int_const(this->int_value() OP rhs->int_value()); \
+            return new(allocator) int_const(this->int_value() OP rhs->int_value()); \
         error(#NAME " error in bool"); \
         return NULL; \
     }
@@ -388,7 +388,7 @@ public:
             error("getitem unimplemented");
             return NULL;
         }
-        return new string_const(value.substr(rhs->int_value(), 1));
+        return new(allocator) string_const(value.substr(rhs->int_value(), 1));
     }
     // FNV-1a algorithm
     virtual int64_t hash() {
@@ -412,7 +412,7 @@ public:
         int64_t st = step->is_none() ? 1 : step->int_value();
         if (st != 1)
             error("slice step != 1 not supported for string");
-        return new string_const(this->value.substr(lo, hi - lo + 1));
+        return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
     }
     virtual std::string str() { return this->value; }
 };
@@ -496,7 +496,7 @@ public:
         int64_t lo = start->is_none() ? 0 : start->int_value();
         int64_t hi = end->is_none() ? items.size() : end->int_value();
         int64_t st = step->is_none() ? 1 : step->int_value();
-        list *new_list = new list();
+        list *new_list = new(allocator) list();
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
             new_list->append(items[lo]);
         return new_list;
@@ -621,7 +621,7 @@ public:
     {}
 
     virtual node *getattr(const char *key) {
-        return items.__getitem__(new string_const(key));
+        return items.__getitem__(new(allocator) string_const(key));
     }
     virtual void __setattr__(node *key, node *value) {
         items.__setitem__(key, value);
@@ -646,7 +646,7 @@ public:
         static char buf[64*1024];
         fread(buf, len, 1, this->f);
         std::string s(buf, len);
-        return new string_const(s);
+        return new(allocator) string_const(s);
     }
 
     virtual bool is_file() { return true; }
@@ -702,25 +702,25 @@ public:
         creator(this);
     }
     node *load(const char *name) {
-        return items.__getitem__(new string_const(name));
+        return items.__getitem__(new(allocator) string_const(name));
     }
     void store(const char *name, node *value) {
-        items.__setitem__(new string_const(name), value);
+        items.__setitem__(new(allocator) string_const(name), value);
     }
 
     virtual node *__call__(context *ctx, list *args, dict *kwargs) {
         node *init = this->load("__init__");
-        node *obj = new object();
+        node *obj = new(allocator) object();
 
-        obj->__setattr__(new string_const("__class__"), this);
+        obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
         for (node_dict::iterator i = items.begin(); i != items.end(); i++)
             if (i->second.second->is_function())
-                obj->__setattr__(i->second.first, new bound_method(obj, i->second.second));
+                obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
 
         ((list *)args)->prepend(obj);
-        context *call_ctx = new context(ctx);
+        context *call_ctx = new(allocator) context(ctx);
         init->__call__(call_ctx, args, kwargs);
         return obj;
     }
@@ -766,11 +766,11 @@ node *node::__getattr__(node *key) {
 }
 
 node *node::__hash__() {
-    return new int_const(this->hash());
+    return new(allocator) int_const(this->hash());
 }
 
 node *node::__len__() {
-    return new int_const(this->len());
+    return new(allocator) int_const(this->len());
 }
 
 node *node::__not__() {
@@ -786,7 +786,7 @@ node *node::__isnot__(node *rhs) {
 }
 
 node *node::__str__() {
-    return new string_const(this->str());
+    return new(allocator) string_const(this->str());
 }
 
 node *none_const::__eq__(node *rhs) {
@@ -812,7 +812,7 @@ std::string bool_const::str() {
 node *list::__add__(node *rhs) {
     if (!rhs->is_list())
         error("list add error");
-    list *plist = new list();
+    list *plist = new(allocator) list();
     node_list *rhs_list = rhs->list_value();
     for (node_list::iterator i = this->begin(); i != this->end(); i++)
         plist->append(*i);
@@ -824,7 +824,7 @@ node *list::__add__(node *rhs) {
 node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
-    list *plist = new list();
+    list *plist = new(allocator) list();
     for (int x = rhs->int_value(); x > 0; x--)
         for (node_list::iterator i = this->begin(); i != this->end(); i++)
             plist->append(*i);
@@ -833,25 +833,25 @@ node *list::__mul__(node *rhs) {
 
 node *list::getattr(const char *key) {
     if (!strcmp(key, "append"))
-        return new bound_method(this, new function_def(builtin_list_append));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_append));
     else if (!strcmp(key, "index"))
-        return new bound_method(this, new function_def(builtin_list_index));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_index));
     else if (!strcmp(key, "pop"))
-        return new bound_method(this, new function_def(builtin_list_pop));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_pop));
     error("list has no attribute %s", key);
 }
 
 node *dict::getattr(const char *key) {
     if (!strcmp(key, "get"))
-        return new bound_method(this, new function_def(builtin_dict_get));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_dict_get));
     else if (!strcmp(key, "keys"))
-        return new bound_method(this, new function_def(builtin_dict_keys));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_dict_keys));
     error("dict has no attribute %s", key);
 }
 
 node *set::getattr(const char *key) {
     if (!strcmp(key, "add"))
-        return new bound_method(this, new function_def(builtin_set_add));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_set_add));
     error("set has no attribute %s", key);
 }
 
@@ -859,11 +859,11 @@ node *string_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
     else if (!strcmp(key, "join"))
-        return new bound_method(this, new function_def(builtin_str_join));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_join));
     else if (!strcmp(key, "upper"))
-        return new bound_method(this, new function_def(builtin_str_upper));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_upper));
     else if (!strcmp(key, "startswith"))
-        return new bound_method(this, new function_def(builtin_str_startswith));
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_startswith));
     error("str has no attribute %s", key);
 }
 
@@ -872,7 +872,7 @@ node *string_const::__mod__(node *rhs) {
     std::ostringstream new_string;
     // HACK for now...
     if (!rhs->is_list()) {
-        list *l = new list();
+        list *l = new(allocator) list();
         l->append(rhs);
         rhs = l;
     }
@@ -919,14 +919,14 @@ node *string_const::__mod__(node *rhs) {
         else
             new_string << *c;
     }
-    return new string_const(new_string.str());
+    return new(allocator) string_const(new_string.str());
 }
 
 node *string_const::__add__(node *rhs) {
     if (!rhs->is_string())
         error("bad argument to str.add");
     std::string new_string = this->value + rhs->string_value();
-    return new string_const(new_string);
+    return new(allocator) string_const(new_string);
 }
 
 node *string_const::__mul__(node *rhs) {
@@ -935,7 +935,7 @@ node *string_const::__mul__(node *rhs) {
     std::string new_string;
     for (int i = 0; i < rhs->int_value(); i++)
         new_string += this->value;
-    return new string_const(new_string);
+    return new(allocator) string_const(new_string);
 }
 
 node *builtin_dict_get(context *ctx, list *args, dict *kwargs) {
@@ -956,7 +956,7 @@ node *builtin_dict_keys(context *ctx, list *args, dict *kwargs) {
         error("bad number of arguments to dict.keys()");
     dict *self = (dict *)args->__getitem__(0);
 
-    list *plist = new list();
+    list *plist = new(allocator) list();
     for (node_dict::iterator i = self->begin(); i != self->end(); i++)
         plist->append(i->second.first);
 
@@ -1000,7 +1000,7 @@ node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
 
     for (int i = 0; i < self->len(); i++)
         if (self->__getitem__(i)->__eq__(key)->bool_value())
-            return new int_const(i);
+            return new(allocator) int_const(i);
     error("item not found in list");
     return &none_singleton;
 }
@@ -1016,7 +1016,7 @@ node *builtin_open(context *ctx, list *args, dict *kwargs) {
     node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
         error("bad arguments to open()");
-    file *f = new file(path->string_value().c_str(), mode->string_value().c_str());
+    file *f = new(allocator) file(path->string_value().c_str(), mode->string_value().c_str());
     return f;
 }
 
@@ -1024,7 +1024,7 @@ node *builtin_ord(context *ctx, list *args, dict *kwargs) {
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
-    return new int_const((unsigned char)arg->string_value()[0]);
+    return new(allocator) int_const((unsigned char)arg->string_value()[0]);
 }
 
 node *builtin_print(context *ctx, list *args, dict *kwargs) {
@@ -1044,7 +1044,7 @@ node *builtin_print_nonl(context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_range(context *ctx, list *args, dict *kwargs) {
-    list *new_list = new list();
+    list *new_list = new(allocator) list();
     int64_t start = 0, end, step = 1;
 
     if (args->len() == 1)
@@ -1062,7 +1062,7 @@ node *builtin_range(context *ctx, list *args, dict *kwargs) {
         error("too many arguments to range()");
 
     for (int64_t s = start; step > 0 ? (s < end) : (s > end); s += step)
-        new_list->append(new int_const(s));
+        new_list->append(new(allocator) int_const(s));
     return new_list;
 }
 
@@ -1076,11 +1076,11 @@ node *builtin_reversed(context *ctx, list *args, dict *kwargs) {
     new_list.resize(plist->len());
     std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
 
-    return new list(new_list);
+    return new(allocator) list(new_list);
 }
 
 node *builtin_set(context *ctx, list *args, dict *kwargs) {
-    return new set();
+    return new(allocator) set();
 }
 
 node *builtin_set_add(context *ctx, list *args, dict *kwargs) {
@@ -1107,7 +1107,7 @@ node *builtin_sorted(context *ctx, list *args, dict *kwargs) {
     std::copy(plist->begin(), plist->end(), new_list.begin());
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
 
-    return new list(new_list);
+    return new(allocator) list(new_list);
 }
 
 node *builtin_str_join(context *ctx, list *args, dict *kwargs) {
@@ -1123,7 +1123,7 @@ node *builtin_str_join(context *ctx, list *args, dict *kwargs) {
         if (i + 1 != joined->end())
             s += self->string_value();
     }
-    return new string_const(s);
+    return new(allocator) string_const(s);
 }
 
 node *builtin_str_upper(context *ctx, list *args, dict *kwargs) {
@@ -1136,7 +1136,7 @@ node *builtin_str_upper(context *ctx, list *args, dict *kwargs) {
     for (std::string::iterator c = str->begin(); c != str->end(); c++)
         new_string += toupper(*c);
 
-    return new string_const(new_string);
+    return new(allocator) string_const(new_string);
 }
 
 node *builtin_str_startswith(context *ctx, list *args, dict *kwargs) {
@@ -1159,9 +1159,9 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
     if (!list1->is_list() || !list2->is_list() || list1->len() != list2->len())
         error("bad arguments to zip()");
 
-    list *plist = new list();
+    list *plist = new(allocator) list();
     for (int i = 0; i < list1->len(); i++) {
-        list *pair = new list();
+        list *pair = new(allocator) list();
         pair->append(list1->__getitem__(i));
         pair->append(list2->__getitem__(i));
         plist->append(pair);
@@ -1171,25 +1171,25 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
 }
 
 void init_context(context *ctx, int argc, char **argv) {
-    ctx->store("fread", new function_def(builtin_fread));
-    ctx->store("len", new function_def(builtin_len));
-    ctx->store("isinstance", new function_def(builtin_isinstance));
-    ctx->store("open", new function_def(builtin_open));
-    ctx->store("ord", new function_def(builtin_ord));
-    ctx->store("print", new function_def(builtin_print));
-    ctx->store("print_nonl", new function_def(builtin_print_nonl));
-    ctx->store("range", new function_def(builtin_range));
-    ctx->store("reversed", new function_def(builtin_reversed));
-    ctx->store("set", new function_def(builtin_set));
-    ctx->store("sorted", new function_def(builtin_sorted));
-    ctx->store("zip", new function_def(builtin_zip));
+    ctx->store("fread", new(allocator) function_def(builtin_fread));
+    ctx->store("len", new(allocator) function_def(builtin_len));
+    ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
+    ctx->store("open", new(allocator) function_def(builtin_open));
+    ctx->store("ord", new(allocator) function_def(builtin_ord));
+    ctx->store("print", new(allocator) function_def(builtin_print));
+    ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
+    ctx->store("range", new(allocator) function_def(builtin_range));
+    ctx->store("reversed", new(allocator) function_def(builtin_reversed));
+    ctx->store("set", new(allocator) function_def(builtin_set));
+    ctx->store("sorted", new(allocator) function_def(builtin_sorted));
+    ctx->store("zip", new(allocator) function_def(builtin_zip));
 
     ctx->store("int", &builtin_class_int);
     ctx->store("str", &builtin_class_str);
 
-    ctx->store("__name__", new string_const("__main__"));
-    list *plist = new list();
+    ctx->store("__name__", new(allocator) string_const("__main__"));
+    list *plist = new(allocator) list();
     for (int a = 0; a < argc; a++)
-        plist->append(new string_const(argv[a]));
+        plist->append(new(allocator) string_const(argv[a]));
     ctx->store("__args__", plist);
 }

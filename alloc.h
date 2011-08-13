@@ -66,6 +66,8 @@ public:
     }
 };
 
+arena allocator[1];
+
 template <class T>
 class alloc;
 
@@ -82,9 +84,6 @@ public:
 
 template <class T>
 class alloc {
-private:
-    static arena a;
-
 public:
     typedef T value_type;
     typedef T *pointer;
@@ -108,7 +107,7 @@ public:
     const T* address(const T &x) const { return &x; }
 
     T *allocate(size_t bytes, alloc<void>::const_pointer hint=0) {
-        return (T *)a.allocate(bytes * sizeof(T));
+        return (T *)allocator->allocate(bytes * sizeof(T));
     }
     void deallocate(T *p, size_t n) {
         // XXX would be nice :)
@@ -121,8 +120,6 @@ public:
     void destroy(T *p) { p->~T(); }
 };
 
-template <typename T> arena alloc<T>::a;
-
 template <typename T, typename U>
 bool operator==(const alloc<T>&, const alloc<U>) {
     return true;
@@ -131,4 +128,8 @@ bool operator==(const alloc<T>&, const alloc<U>) {
 template <typename T, typename U>
 bool operator!=(const alloc<T>&, const alloc<U>) {
     return false;
+}
+
+void *operator new(size_t bytes, arena *a) {
+    return a->allocate(bytes);
 }
