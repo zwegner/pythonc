@@ -1019,6 +1019,8 @@ node *builtin_ord(context *ctx, list *args, dict *kwargs) {
 node *builtin_print(context *ctx, list *args, dict *kwargs) {
     std::string new_string;
     for (int i = 0; i < args->len(); i++) {
+        if (i)
+            new_string += " ";
         node *s = args->__getitem__(i);
         new_string += s->str();
     }
