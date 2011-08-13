@@ -265,7 +265,7 @@ class IfExp(Node):
     def __str__(self):
         true_stmts = block_str(self.true_stmts)
         false_stmts = block_str(self.false_stmts)
-        body =  """if (test_truth({expr})) {{
+        body =  """if ({expr}->bool_value()) {{
     {true_stmts}
     {temp} = {true_expr};
 }} else {{
@@ -291,7 +291,7 @@ class BoolOp(Node):
 
     def __str__(self):
         rhs_stmts = block_str(self.rhs_stmts)
-        body =  """if ({op}test_truth({lhs_expr})) {{
+        body =  """if ({op}{lhs_expr}->bool_value()) {{
     {rhs_stmts}
     {temp} = {rhs_expr};
 }}
@@ -319,7 +319,7 @@ class If(Node):
 
     def __str__(self):
         stmts = block_str(self.stmts)
-        body =  """if (test_truth({expr})) {{
+        body =  """if ({expr}->bool_value()) {{
 {stmts}
 }}
 """.format(expr=self.expr, stmts=stmts)
@@ -423,7 +423,7 @@ class While(Node):
         stmts = block_str(self.stmts)
         body = """
 {test_stmts}
-while (test_truth({test}))
+while ({test}->bool_value())
 {{
 {stmts}
 {dup_test_stmts}
@@ -446,7 +446,7 @@ class Assert(Node):
         self.lineno = lineno
 
     def __str__(self):
-        body =  """if (!test_truth({expr})) {{
+        body =  """if (!{expr}->bool_value()) {{
     error("assert failed at line {lineno}");
 }}
 """.format(expr=self.expr, lineno=self.lineno)

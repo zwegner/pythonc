@@ -224,6 +224,7 @@ public:
     }
 
     virtual bool is_none() { return true; }
+    virtual bool bool_value() { return false; }
 
     virtual node *__eq__(node *rhs);
     virtual int_t hash() { return 0; }
@@ -329,11 +330,14 @@ public:
     BOOL_AS_INT_OP(xor, ^)
 
 #define BOOL_OP(NAME, OP) \
-    virtual node *__##NAME##__(node *rhs) { \
+    virtual bool _##NAME(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
-            return create_bool_const(this->int_value() OP rhs->int_value()); \
+            return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in bool"); \
-        return NULL; \
+        return false; \
+    } \
+    virtual node *__##NAME##__(node *rhs) { \
+        return create_bool_const(this->_##NAME(rhs)); \
     }
     BOOL_OP(eq, ==)
     BOOL_OP(ne, !=)
@@ -357,6 +361,7 @@ public:
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
+    virtual bool bool_value() { return this->len() != 0; }
 
     std::string::iterator begin() { return value.begin(); }
     std::string::iterator end() { return value.end(); }
@@ -450,6 +455,7 @@ public:
 
     virtual bool is_list() { return true; }
     virtual node_list *list_value() { return &items; }
+    virtual bool bool_value() { return this->len() != 0; }
 
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
@@ -457,7 +463,7 @@ public:
     virtual node *__contains__(node *key) {
         bool found = false;
         for (int_t i = 0; i < this->items.size(); i++)
-            if (this->items[i]->__eq__(key)->bool_value()) {
+            if (this->items[i]->_eq(key)) {
                 found = true;
                 break;
             }
@@ -520,7 +526,7 @@ public:
         else
             hashkey = key->hash();
         node_dict::const_iterator v = this->items.find(hashkey);
-        if (v == this->items.end() || !v->second.first->__eq__(key)->bool_value())
+        if (v == this->items.end() || !v->second.first->_eq(key))
             return NULL;
         return v->second.second;
     }
@@ -528,6 +534,8 @@ public:
     node_dict::iterator end() { return items.end(); }
 
     virtual bool is_dict() { return true; }
+    virtual bool bool_value() { return this->len() != 0; }
+
     virtual node *__contains__(node *key) {
         return create_bool_const(this->lookup(key) != NULL);
     }
@@ -579,7 +587,7 @@ public:
         else
             hashkey = key->hash();
         node_set::const_iterator v = this->items.find(hashkey);
-        if (v == this->items.end() || !v->second->__eq__(key)->bool_value())
+        if (v == this->items.end() || !v->second->_eq(key))
             return NULL;
         return v->second;
     }
@@ -593,6 +601,8 @@ public:
     }
 
     virtual bool is_set() { return true; }
+    virtual bool bool_value() { return this->len() != 0; }
+
     virtual node *__contains__(node *key) {
         return create_bool_const(this->lookup(key) != NULL);
     }
@@ -622,14 +632,19 @@ public:
     object() : node("object")
     {}
 
+    virtual bool bool_value() { return true; }
+
     virtual node *getattr(const char *key) {
         return items.__getitem__(new(allocator) string_const(key));
     }
     virtual void __setattr__(node *key, node *value) {
         items.__setitem__(key, value);
     }
+    virtual bool _eq(node *rhs) {
+        return this == rhs;
+    }
     virtual node *__eq__(node *rhs) {
-        return create_bool_const(this == rhs);
+        return create_bool_const(this->_eq(rhs));
     }
 };
 
@@ -749,18 +764,6 @@ void _str__create_(class_def *ctx) {
 class_def builtin_class_int("int", _int__create_);
 class_def builtin_class_str("str", _str__create_);
 
-bool test_truth(node *expr) {
-    if (expr->is_none())
-        return false;
-    else if (expr->is_bool())
-        return expr->bool_value();
-    else if (expr->is_int_const())
-        return expr->int_value() != 0;
-    else if (expr->is_string() || expr->is_list() || expr->is_dict() || expr->is_set())
-        return expr->len() != 0;
-    return true;
-}
-
 node *node::__getattr__(node *key) {
     if (!key->is_string())
         error("getattr with non-string");
@@ -776,7 +779,7 @@ node *node::__len__() {
 }
 
 node *node::__not__() {
-    return create_bool_const(!test_truth(this));
+    return create_bool_const(!this->bool_value());
 }
 
 node *node::__is__(node *rhs) {
@@ -1001,7 +1004,7 @@ node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
     node *key = args->__getitem__(1);
 
     for (int_t i = 0; i < self->len(); i++)
-        if (self->__getitem__(i)->__eq__(key)->bool_value())
+        if (self->__getitem__(i)->_eq(key))
             return new(allocator) int_const(i);
     error("item not found in list");
     return &none_singleton;
