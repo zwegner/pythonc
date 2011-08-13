@@ -322,6 +322,10 @@ public:
     BOOL_AS_INT_OP(rshift, >>)
     BOOL_AS_INT_OP(sub, -)
 
+    BOOL_AS_INT_OP(and, &)
+    BOOL_AS_INT_OP(or, |)
+    BOOL_AS_INT_OP(xor, ^)
+
 #define BOOL_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
@@ -329,10 +333,6 @@ public:
         error(#NAME " error in bool"); \
         return NULL; \
     }
-    BOOL_OP(and, &)
-    BOOL_OP(or, |)
-    BOOL_OP(xor, ^)
-
     BOOL_OP(eq, ==)
     BOOL_OP(ne, !=)
     BOOL_OP(lt, <)
