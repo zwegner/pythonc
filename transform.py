@@ -209,7 +209,11 @@ class Transformer(ast.NodeTransformer):
         fn = self.flatten_node(node.func)
         args = syntax.List([self.flatten_node(a) for a in node.args])
         args = args.flatten(self)
-        return syntax.Call(fn, args)
+        keys = [syntax.StringConst(i.arg) for i in node.keywords]
+        values = [self.flatten_node(i.value) for i in node.keywords]
+        kwargs = syntax.Dict(keys, values)
+        kwargs = kwargs.flatten(self)
+        return syntax.Call(fn, args, kwargs)
 
     def visit_Assign(self, node):
         assert len(node.targets) == 1

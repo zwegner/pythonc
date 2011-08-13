@@ -238,12 +238,13 @@ class Attribute(Node):
         return '%s->__getattr__(%s)' % (self.expr, self.attr)
 
 class Call(Node):
-    def __init__(self, func, args):
+    def __init__(self, func, args, kwargs):
         self.func = func
         self.args = args
+        self.kwargs = kwargs
 
     def __str__(self):
-        return '%s->__call__(ctx, %s)' % (self.func, self.args)
+        return '%s->__call__(ctx, %s, %s)' % (self.func, self.args, self.kwargs)
 
 class IfExp(Node):
     def __init__(self, expr, true_stmts, true_expr, false_stmts, false_expr):
@@ -456,13 +457,14 @@ class Arguments(Node):
     def flatten(self, ctx):
         new_def = [None] * (len(self.args) - len(self.defaults))
         self.defaults = new_def + self.defaults
+        self.name_strings = [StringConst(a) for a in self.args]
         return self
 
     def __str__(self):
         arg_unpacking = []
-        for i, (arg, default) in enumerate(zip(self.args, self.defaults)):
+        for i, (arg, default, name) in enumerate(zip(self.args, self.defaults, self.name_strings)):
             if default:
-                arg_unpacking += [Store(arg, '(args->len() > %s ? args->__getitem__(%s) : %s)' % (i, i, default))]
+                arg_unpacking += [Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) : (args->len() > %s ? args->__getitem__(%s) : %s)' % (name, name, i, i, default))]
             else:
                 arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i)]
         return block_str(arg_unpacking)
@@ -483,7 +485,7 @@ class FunctionDef(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = str(self.args)
         body = """
-node *{name}(context *parent_ctx, node *args) {{
+node *{name}(context *parent_ctx, list *args, dict *kwargs) {{
     context *ctx = new context(parent_ctx);
 {arg_unpacking}
 {stmts}

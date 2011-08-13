@@ -42,6 +42,8 @@ void error(const char *msg, ...)
 }
 
 class node;
+class dict;
+class list;
 class context;
 class string_const;
 
@@ -52,25 +54,27 @@ typedef std::map<int64_t, node *> node_set;
 typedef std::set<std::string> globals_set;
 typedef std::vector<node *> node_list;
 
-node *builtin_dict_get(context *ctx, node *args);
-node *builtin_dict_keys(context *ctx, node *args);
-node *builtin_fread(context *ctx, node *args);
-node *builtin_isinstance(context *ctx, node *args);
-node *builtin_len(context *ctx, node *args);
-node *builtin_list_append(context *ctx, node *args);
-node *builtin_list_index(context *ctx, node *args);
-node *builtin_list_pop(context *ctx, node *args);
-node *builtin_open(context *ctx, node *args);
-node *builtin_ord(context *ctx, node *args);
-node *builtin_print(context *ctx, node *args);
-node *builtin_range(context *ctx, node *args);
-node *builtin_set(context *ctx, node *args);
-node *builtin_set_add(context *ctx, node *args);
-node *builtin_sorted(context *ctx, node *args);
-node *builtin_str_join(context *ctx, node *args);
-node *builtin_str_upper(context *ctx, node *args);
-node *builtin_str_startswith(context *ctx, node *args);
-node *builtin_zip(context *ctx, node *args);
+node *builtin_dict_get(context *ctx, list *args, dict *kwargs);
+node *builtin_dict_keys(context *ctx, list *args, dict *kwargs);
+node *builtin_fread(context *ctx, list *args, dict *kwargs);
+node *builtin_isinstance(context *ctx, list *args, dict *kwargs);
+node *builtin_len(context *ctx, list *args, dict *kwargs);
+node *builtin_list_append(context *ctx, list *args, dict *kwargs);
+node *builtin_list_index(context *ctx, list *args, dict *kwargs);
+node *builtin_list_pop(context *ctx, list *args, dict *kwargs);
+node *builtin_open(context *ctx, list *args, dict *kwargs);
+node *builtin_ord(context *ctx, list *args, dict *kwargs);
+node *builtin_print(context *ctx, list *args, dict *kwargs);
+node *builtin_print_nonl(context *ctx, list *args, dict *kwargs);
+node *builtin_range(context *ctx, list *args, dict *kwargs);
+node *builtin_reversed(context *ctx, list *args, dict *kwargs);
+node *builtin_set(context *ctx, list *args, dict *kwargs);
+node *builtin_set_add(context *ctx, list *args, dict *kwargs);
+node *builtin_sorted(context *ctx, list *args, dict *kwargs);
+node *builtin_str_join(context *ctx, list *args, dict *kwargs);
+node *builtin_str_upper(context *ctx, list *args, dict *kwargs);
+node *builtin_str_startswith(context *ctx, list *args, dict *kwargs);
+node *builtin_zip(context *ctx, list *args, dict *kwargs);
 
 class node
 {
@@ -139,7 +143,7 @@ public:
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
-    virtual node *__call__(context *ctx, node *args) { error("call unimplemented for %s", node_type); return NULL; }
+    virtual node *__call__(context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", node_type); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", node_type); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", node_type); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented for %s", node_type); return NULL; }
@@ -679,7 +683,7 @@ public:
     virtual bool is_file() { return true; }
 };
 
-typedef node *(*fptr)(context *parent_ctx, node *args);
+typedef node *(*fptr)(context *parent_ctx, list *args, dict *kwargs);
 
 class bound_method : public node
 {
@@ -696,12 +700,12 @@ public:
 
     virtual bool is_function() { return true; } // XXX is it?
 
-    virtual node *__call__(context *ctx, node *args)
+    virtual node *__call__(context *ctx, list *args, dict *kwargs)
     {
         if (!args->is_list())
             error("call with non-list args?");
         ((list *)args)->prepend(this->self);
-        return this->function->__call__(ctx, args);
+        return this->function->__call__(ctx, args, kwargs);
     }
 };
 
@@ -718,9 +722,9 @@ public:
 
     virtual bool is_function() { return true; }
 
-    virtual node *__call__(context *ctx, node *args)
+    virtual node *__call__(context *ctx, list *args, dict *kwargs)
     {
-        return this->base_function(ctx, args);
+        return this->base_function(ctx, args, kwargs);
     }
 };
 
@@ -745,7 +749,7 @@ public:
         items.__setitem__(new string_const(name), value);
     }
 
-    virtual node *__call__(context *ctx, node *args)
+    virtual node *__call__(context *ctx, list *args, dict *kwargs)
     {
         node *init = this->load("__init__");
         node *obj = new object();
@@ -759,7 +763,7 @@ public:
 
         ((list *)args)->prepend(obj);
         context *call_ctx = new context(ctx);
-        init->__call__(call_ctx, args);
+        init->__call__(call_ctx, args, kwargs);
         return obj;
     }
     virtual node *getattr(const char *attr)
@@ -978,7 +982,7 @@ node *string_const::__mul__(node *rhs)
     return new string_const(new_string);
 }
 
-node *builtin_dict_get(context *ctx, node *args)
+node *builtin_dict_get(context *ctx, list *args, dict *kwargs)
 {
     if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
@@ -992,7 +996,7 @@ node *builtin_dict_get(context *ctx, node *args)
     return value;
 }
 
-node *builtin_dict_keys(context *ctx, node *args)
+node *builtin_dict_keys(context *ctx, list *args, dict *kwargs)
 {
     if (args->len() != 1)
         error("bad number of arguments to dict.keys()");
@@ -1005,7 +1009,7 @@ node *builtin_dict_keys(context *ctx, node *args)
     return plist;
 }
 
-node *builtin_fread(context *ctx, node *args)
+node *builtin_fread(context *ctx, list *args, dict *kwargs)
 {
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
@@ -1014,7 +1018,7 @@ node *builtin_fread(context *ctx, node *args)
     return ((file *)f)->read(len->int_value());
 }
 
-node *builtin_isinstance(context *ctx, node *args)
+node *builtin_isinstance(context *ctx, list *args, dict *kwargs)
 {
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
@@ -1023,12 +1027,12 @@ node *builtin_isinstance(context *ctx, node *args)
     return new bool_const(obj_class == arg_class);
 }
 
-node *builtin_len(context *ctx, node *args)
+node *builtin_len(context *ctx, list *args, dict *kwargs)
 {
     return args->__getitem__(0)->__len__();
 }
 
-node *builtin_list_append(context *ctx, node *args)
+node *builtin_list_append(context *ctx, list *args, dict *kwargs)
 {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1038,7 +1042,7 @@ node *builtin_list_append(context *ctx, node *args)
     return &none_singleton;
 }
 
-node *builtin_list_index(context *ctx, node *args)
+node *builtin_list_index(context *ctx, list *args, dict *kwargs)
 {
     if (args->len() != 2)
         error("bad number of arguments to list.index()");
@@ -1052,14 +1056,14 @@ node *builtin_list_index(context *ctx, node *args)
     return &none_singleton;
 }
 
-node *builtin_list_pop(context *ctx, node *args)
+node *builtin_list_pop(context *ctx, list *args, dict *kwargs)
 {
     list *self = (list *)args->__getitem__(0);
 
     return self->pop();
 }
 
-node *builtin_open(context *ctx, node *args)
+node *builtin_open(context *ctx, list *args, dict *kwargs)
 {
     node *path = args->__getitem__(0);
     node *mode = args->__getitem__(1);
@@ -1069,7 +1073,7 @@ node *builtin_open(context *ctx, node *args)
     return f;
 }
 
-node *builtin_ord(context *ctx, node *args)
+node *builtin_ord(context *ctx, list *args, dict *kwargs)
 {
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
@@ -1077,7 +1081,7 @@ node *builtin_ord(context *ctx, node *args)
     return new int_const((unsigned char)arg->string_value()[0]);
 }
 
-node *builtin_print(context *ctx, node *args)
+node *builtin_print(context *ctx, list *args, dict *kwargs)
 {
     std::string new_string;
     for (int i = 0; i < args->len(); i++)
@@ -1088,13 +1092,13 @@ node *builtin_print(context *ctx, node *args)
     printf("%s\n", new_string.c_str());
 }
 
-node *builtin_print_nonl(context *ctx, node *args)
+node *builtin_print_nonl(context *ctx, list *args, dict *kwargs)
 {
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
 }
 
-node *builtin_range(context *ctx, node *args)
+node *builtin_range(context *ctx, list *args, dict *kwargs)
 {
     list *new_list = new list();
     int64_t start = 0, end, step = 1;
@@ -1120,7 +1124,7 @@ node *builtin_range(context *ctx, node *args)
     return new_list;
 }
 
-node *builtin_reversed(context *ctx, node *args)
+node *builtin_reversed(context *ctx, list *args, dict *kwargs)
 {
     node *item = args->__getitem__(0);
     if (!item->is_list())
@@ -1134,12 +1138,12 @@ node *builtin_reversed(context *ctx, node *args)
     return new list(new_list);
 }
 
-node *builtin_set(context *ctx, node *args)
+node *builtin_set(context *ctx, list *args, dict *kwargs)
 {
     return new set();
 }
 
-node *builtin_set_add(context *ctx, node *args)
+node *builtin_set_add(context *ctx, list *args, dict *kwargs)
 {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1149,7 +1153,7 @@ node *builtin_set_add(context *ctx, node *args)
     return &none_singleton;
 }
 
-node *builtin_sorted(context *ctx, node *args)
+node *builtin_sorted(context *ctx, list *args, dict *kwargs)
 {
     node *item = args->__getitem__(0);
     if (!item->is_list())
@@ -1164,7 +1168,7 @@ node *builtin_sorted(context *ctx, node *args)
     return new list(new_list);
 }
 
-node *builtin_str_join(context *ctx, node *args)
+node *builtin_str_join(context *ctx, list *args, dict *kwargs)
 {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1182,7 +1186,7 @@ node *builtin_str_join(context *ctx, node *args)
     return new string_const(s);
 }
 
-node *builtin_str_upper(context *ctx, node *args)
+node *builtin_str_upper(context *ctx, list *args, dict *kwargs)
 {
     node *self = args->__getitem__(0);
     if (!self->is_string())
@@ -1196,7 +1200,7 @@ node *builtin_str_upper(context *ctx, node *args)
     return new string_const(new_string);
 }
 
-node *builtin_str_startswith(context *ctx, node *args)
+node *builtin_str_startswith(context *ctx, list *args, dict *kwargs)
 {
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
@@ -1208,7 +1212,7 @@ node *builtin_str_startswith(context *ctx, node *args)
     return new bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
-node *builtin_zip(context *ctx, node *args)
+node *builtin_zip(context *ctx, list *args, dict *kwargs)
 {
     if (args->len() != 2)
         error("bad arguments to zip()");
