@@ -449,6 +449,7 @@ public:
     virtual node_list *list_value() { return &items; }
 
     virtual node *__add__(node *rhs);
+    virtual node *__mul__(node *rhs);
 
     virtual node *__contains__(node *key)
     {
@@ -873,6 +874,17 @@ node *list::__add__(node *rhs)
         plist->append(*i);
     for (node_list::iterator i = rhs_list->begin(); i != rhs_list->end(); i++)
         plist->append(*i);
+    return plist;
+}
+
+node *list::__mul__(node *rhs)
+{
+    if (!rhs->is_int_const())
+        error("list mul error");
+    list *plist = new list();
+    for (int x = rhs->int_value(); x > 0; x--)
+        for (node_list::iterator i = this->begin(); i != this->end(); i++)
+            plist->append(*i);
     return plist;
 }
 
