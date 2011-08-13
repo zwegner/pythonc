@@ -39,11 +39,14 @@ def register_string(value):
     all_strings[value] = len(all_strings)
     return all_strings[value]
 
+def int_name(i):
+    return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
+
 def export_consts(f):
     global all_ints, all_strings
 
     for i in all_ints:
-        f.write('int_const int_singleton_%s(%sll);\n' % (i, i))
+        f.write('int_const %s(%sll);\n' % (int_name(i), i))
 
     for k, v in all_strings.items():
         f.write('string_const string_singleton_%s("%s");\n' % (v, repr(k)[1:-1]))
@@ -72,7 +75,7 @@ class IntConst(Node):
         register_int(value)
 
     def __str__(self):
-        return '&int_singleton_%s' % self.value
+        return '&%s' % int_name(self.value)
 
 class StringConst(Node):
     def __init__(self, value):
