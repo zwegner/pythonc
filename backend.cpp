@@ -365,6 +365,7 @@ public:
     STRING_OP(ge, >=)
 
     virtual node *__mod__(node *rhs);
+    virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
 
     virtual node *getattr(const char *key);
@@ -902,6 +903,13 @@ node *string_const::__mod__(node *rhs) {
             new_string << *c;
     }
     return new string_const(new_string.str());
+}
+
+node *string_const::__add__(node *rhs) {
+    if (!rhs->is_string())
+        error("bad argument to str.add");
+    std::string new_string = this->value + rhs->string_value();
+    return new string_const(new_string);
 }
 
 node *string_const::__mul__(node *rhs) {
