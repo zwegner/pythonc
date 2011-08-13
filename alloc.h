@@ -33,7 +33,7 @@ public:
     void *get_bytes(uint64_t bytes) {
         // Should only happen if allocation is bigger than block size
         if (bytes > this->bytes_left()) {
-            printf("unable to allocate %llu bytes of memory!", bytes);
+            printf("unable to allocate %" PRIu64 " bytes of memory!", bytes);
             exit(1);
         }
         unsigned char *b = this->curr;
