@@ -646,8 +646,8 @@ public:
 
     node *read(int_t len) {
         static char buf[64*1024];
-        fread(buf, len, 1, this->f);
-        std::string s(buf, len);
+        size_t ret = fread(buf, 1, len, this->f);
+        std::string s(buf, ret);
         return new(allocator) string_const(s);
     }
 
