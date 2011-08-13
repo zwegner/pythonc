@@ -77,6 +77,8 @@ node *builtin_str_upper(context *ctx, list *args, dict *kwargs);
 node *builtin_str_startswith(context *ctx, list *args, dict *kwargs);
 node *builtin_zip(context *ctx, list *args, dict *kwargs);
 
+inline node *create_bool_const(bool b);
+
 class node {
 private:
     const char *node_type;
@@ -266,7 +268,7 @@ public:
         return 0; \
     } \
     virtual node *__##NAME##__(node *rhs) { \
-        return new int_const(this->_##NAME(rhs)); \
+        return create_bool_const(this->_##NAME(rhs)); \
     }
 
     CMP_OP(eq, ==)
@@ -354,7 +356,7 @@ public:
         return false; \
     } \
     virtual node *__##NAME##__(node *rhs) { \
-        return new bool_const(this->_##NAME(rhs)); \
+        return create_bool_const(this->_##NAME(rhs)); \
     }
 
     STRING_OP(eq, ==)
@@ -446,7 +448,7 @@ public:
                 found = true;
                 break;
             }
-        return new bool_const(found);
+        return create_bool_const(found);
     }
     virtual void __delitem__(node *rhs) {
         if (!rhs->is_int_const()) {
@@ -514,7 +516,7 @@ public:
 
     virtual bool is_dict() { return true; }
     virtual node *__contains__(node *key) {
-        return new bool_const(this->lookup(key) != NULL);
+        return create_bool_const(this->lookup(key) != NULL);
     }
     virtual node *__getitem__(node *key) {
         node *old_key = key;
@@ -579,7 +581,7 @@ public:
 
     virtual bool is_set() { return true; }
     virtual node *__contains__(node *key) {
-        return new bool_const(this->lookup(key) != NULL);
+        return create_bool_const(this->lookup(key) != NULL);
     }
     virtual int len() {
         return this->items.size();
@@ -614,7 +616,7 @@ public:
         items.__setitem__(key, value);
     }
     virtual node *__eq__(node *rhs) {
-        return new bool_const(this == rhs);
+        return create_bool_const(this == rhs);
     }
 };
 
@@ -720,6 +722,10 @@ bool_const bool_singleton_True(true);
 bool_const bool_singleton_False(false);
 none_const none_singleton(0);
 
+inline node *create_bool_const(bool b) {
+    return b ? &bool_singleton_True : &bool_singleton_False;
+}
+
 // Silly builtin classes
 void _int__create_(class_def *ctx) {
 }
@@ -757,15 +763,15 @@ node *node::__len__() {
 }
 
 node *node::__not__() {
-    return new bool_const(!test_truth(this));
+    return create_bool_const(!test_truth(this));
 }
 
 node *node::__is__(node *rhs) {
-    return new bool_const(this == rhs);
+    return create_bool_const(this == rhs);
 }
 
 node *node::__isnot__(node *rhs) {
-    return new bool_const(this != rhs);
+    return create_bool_const(this != rhs);
 }
 
 node *node::__str__() {
@@ -773,7 +779,7 @@ node *node::__str__() {
 }
 
 node *none_const::__eq__(node *rhs) {
-    return new bool_const(this == rhs);
+    return create_bool_const(this == rhs);
 }
 
 node *int_const::getattr(const char *key) {
@@ -959,7 +965,7 @@ node *builtin_isinstance(context *ctx, list *args, dict *kwargs) {
     node *arg_class = args->__getitem__(1);
 
     node *obj_class = obj->getattr("__class__");
-    return new bool_const(obj_class == arg_class);
+    return create_bool_const(obj_class == arg_class);
 }
 
 node *builtin_len(context *ctx, list *args, dict *kwargs) {
@@ -1128,7 +1134,7 @@ node *builtin_str_startswith(context *ctx, list *args, dict *kwargs) {
 
     std::string s1 = self->string_value();
     std::string s2 = prefix->string_value();
-    return new bool_const(s1.compare(0, s2.size(), s2) == 0);
+    return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
 node *builtin_zip(context *ctx, list *args, dict *kwargs) {
