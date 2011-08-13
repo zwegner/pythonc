@@ -226,6 +226,7 @@ public:
 
     virtual bool is_none() { return true; }
 
+    virtual node *__eq__(node *rhs);
     virtual int64_t hash() { return 0; }
     virtual std::string str() { return std::string("None"); }
 };
@@ -836,6 +837,11 @@ node *node::__isnot__(node *rhs)
 node *node::__str__()
 {
     return new string_const(this->str());
+}
+
+node *none_const::__eq__(node *rhs)
+{
+    return new bool_const(this == rhs);
 }
 
 node *int_const::getattr(const char *key)
