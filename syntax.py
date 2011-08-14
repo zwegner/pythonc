@@ -402,6 +402,7 @@ class For(Node):
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
+    collect_garbage(ctx);
 }}
 """.format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
@@ -426,6 +427,7 @@ class While(Node):
 while ({test}->bool_value())
 {{
 {stmts}
+    collect_garbage(ctx);
 {dup_test_stmts}
 }}
 """.format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test, stmts=stmts)
