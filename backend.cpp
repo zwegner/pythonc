@@ -83,14 +83,24 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
+static node *all_nodes_list;
+
 class node {
 private:
     const char *node_type;
 
 public:
+    bool live;
+    node *next_node;
+
     node(const char *type) {
         this->node_type = type;
+        this->next_node = all_nodes_list;
+        all_nodes_list = this;
     }
+
+    virtual void mark_live() { this->live = true; }
+
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
     virtual bool is_file() { return false; }
@@ -185,6 +195,13 @@ public:
         this->globals_ctx = parent_ctx;
         while (this->globals_ctx->parent_ctx)
             this->globals_ctx = this->globals_ctx->parent_ctx;
+    }
+
+    void mark_live() {
+        for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
+            i->second->mark_live();
+        if (this->parent_ctx)
+            this->parent_ctx->mark_live();
     }
 
     void store(const char *name, node *obj) {
@@ -427,6 +444,13 @@ public:
     }
     list(node_list &l) : items(l), node("list") {
     }
+
+    virtual void mark_live() {
+        this->live = true;
+        for (int_t i = 0; i < this->items.size(); i++)
+            this->items[i]->mark_live();
+    }
+
     void append(node *obj) {
         items.push_back(obj);
     }
@@ -513,6 +537,15 @@ private:
 public:
     dict() : node("dict") {
     }
+
+    virtual void mark_live() {
+        this->live = true;
+        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
+            i->second.first->mark_live();
+            i->second.second->mark_live();
+        }
+    }
+
     node *lookup(node *key) {
         int_t hashkey;
         if (key->is_int_const())
@@ -574,6 +607,12 @@ public:
     set() : node("set") {
     }
 
+    virtual void mark_live() {
+        this->live = true;
+        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
+            i->second->mark_live();
+    }
+
     node *lookup(node *key) {
         int_t hashkey;
         if (key->is_int_const())
@@ -626,6 +665,11 @@ public:
     object() : node("object")
     {}
 
+    virtual void mark_live() {
+        this->live = true;
+        this->items.mark_live();
+    }
+
     virtual bool bool_value() { return true; }
 
     virtual node *getattr(const char *key) {
@@ -676,6 +720,12 @@ public:
         this->function = function;
     }
 
+    virtual void mark_live() {
+        this->live = true;
+        this->self->mark_live();
+        this->function->mark_live();
+    }
+
     virtual bool is_function() { return true; } // XXX is it?
 
     virtual node *__call__(context *ctx, list *args, dict *kwargs) {
@@ -712,6 +762,12 @@ public:
         this->name = name;
         creator(this);
     }
+
+    virtual void mark_live() {
+        this->live = true;
+        this->items.mark_live();
+    }
+
     node *load(const char *name) {
         return items.__getitem__(new(allocator) string_const(name));
     }
@@ -1191,4 +1247,22 @@ void init_context(context *ctx, int_t argc, char **argv) {
     for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
     ctx->store("__args__", plist);
+}
+
+void collect_garbage(context *ctx) {
+    node *n = all_nodes_list;
+    while (n) {
+        n->live = false;
+        n = n->next_node;
+    }
+
+    ctx->mark_live();
+
+    while (n) {
+        node *next = n->next_node;
+        // XXX
+        if (!n->live)
+            ;
+        n = next;
+    }
 }
