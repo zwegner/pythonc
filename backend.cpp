@@ -58,27 +58,27 @@ typedef std::map<int_t, node_pair, std::less<int_t>, alloc<std::pair<int_t, node
 typedef std::map<int_t, node *, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_set;
 typedef std::vector<node *, alloc<node *> > node_list;
 
-node *builtin_dict_get(context *ctx, list *args, dict *kwargs);
-node *builtin_dict_keys(context *ctx, list *args, dict *kwargs);
-node *builtin_fread(context *ctx, list *args, dict *kwargs);
-node *builtin_isinstance(context *ctx, list *args, dict *kwargs);
-node *builtin_len(context *ctx, list *args, dict *kwargs);
-node *builtin_list_append(context *ctx, list *args, dict *kwargs);
-node *builtin_list_index(context *ctx, list *args, dict *kwargs);
-node *builtin_list_pop(context *ctx, list *args, dict *kwargs);
-node *builtin_open(context *ctx, list *args, dict *kwargs);
-node *builtin_ord(context *ctx, list *args, dict *kwargs);
-node *builtin_print(context *ctx, list *args, dict *kwargs);
-node *builtin_print_nonl(context *ctx, list *args, dict *kwargs);
-node *builtin_range(context *ctx, list *args, dict *kwargs);
-node *builtin_reversed(context *ctx, list *args, dict *kwargs);
-node *builtin_set(context *ctx, list *args, dict *kwargs);
-node *builtin_set_add(context *ctx, list *args, dict *kwargs);
-node *builtin_sorted(context *ctx, list *args, dict *kwargs);
-node *builtin_str_join(context *ctx, list *args, dict *kwargs);
-node *builtin_str_upper(context *ctx, list *args, dict *kwargs);
-node *builtin_str_startswith(context *ctx, list *args, dict *kwargs);
-node *builtin_zip(context *ctx, list *args, dict *kwargs);
+node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
@@ -173,7 +173,7 @@ public:
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", node_type); return NULL; }
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", node_type); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", node_type); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", node_type); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented for %s", node_type); return NULL; }
@@ -192,19 +192,13 @@ class context {
 private:
     symbol_table symbols;
     context *parent_ctx;
-    context *globals_ctx;
 
 public:
     context() {
         this->parent_ctx = NULL;
-        this->globals_ctx = NULL;
     }
-
     context(context *parent_ctx) {
         this->parent_ctx = parent_ctx;
-        this->globals_ctx = parent_ctx;
-        while (this->globals_ctx->parent_ctx)
-            this->globals_ctx = this->globals_ctx->parent_ctx;
     }
 
     void mark_live(bool free_ctx) {
@@ -215,22 +209,13 @@ public:
             this->parent_ctx->mark_live(false);
     }
 
-    void store(bool global, const char *name, node *obj) {
-        if (global && this->globals_ctx)
-            this->globals_ctx->store(false, name, obj);
-        else
-            this->symbols[name] = obj;
+    void store(const char *name, node *obj) {
+        this->symbols[name] = obj;
     }
-    node *load(bool global, const char *name) {
-        if (global && this->globals_ctx)
-            return this->globals_ctx->load(false, name);
+    node *load(const char *name) {
         symbol_table::const_iterator v = this->symbols.find(name);
-        if (v == this->symbols.end()) {
-            if (this->parent_ctx)
-                return this->parent_ctx->load(false, name);
-            else
-                error("cannot find '%s' in symbol table", name);
-        }
+        if (v == this->symbols.end())
+            error("cannot find '%s' in symbol table", name);
         return v->second;
     }
     void dump() {
@@ -768,7 +753,7 @@ public:
     virtual bool is_file() { return true; }
 };
 
-typedef node *(*fptr)(context *parent_ctx, list *args, dict *kwargs);
+typedef node *(*fptr)(context *globals, context *parent_ctx, list *args, dict *kwargs);
 
 class bound_method : public node {
 private:
@@ -793,11 +778,11 @@ public:
 
     virtual bool is_function() { return true; } // XXX is it?
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         if (!args->is_list())
             error("call with non-list args?");
         ((list *)args)->prepend(this->self);
-        return this->function->__call__(ctx, args, kwargs);
+        return this->function->__call__(globals, ctx, args, kwargs);
     }
 };
 
@@ -814,8 +799,8 @@ public:
 
     virtual bool is_function() { return true; }
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
-        return this->base_function(ctx, args, kwargs);
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        return this->base_function(globals, ctx, args, kwargs);
     }
 };
 
@@ -839,15 +824,15 @@ public:
         }
     }
 
-    node *load(bool global, const char *name) {
+    node *load(const char *name) {
         return items.__getitem__(new(allocator) string_const(name));
     }
-    void store(bool global, const char *name, node *value) {
+    void store(const char *name, node *value) {
         items.__setitem__(new(allocator) string_const(name), value);
     }
 
-    virtual node *__call__(context *ctx, list *args, dict *kwargs) {
-        node *init = this->load(false, "__init__");
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        node *init = this->load("__init__");
         node *obj = new(allocator) object();
 
         obj->__setattr__(new(allocator) string_const("__class__"), this);
@@ -859,11 +844,11 @@ public:
 
         ((list *)args)->prepend(obj);
         context *call_ctx = new(allocator) context(ctx);
-        init->__call__(call_ctx, args, kwargs);
+        init->__call__(globals, call_ctx, args, kwargs);
         return obj;
     }
     virtual node *getattr(const char *attr) {
-        return this->load(false, attr);
+        return this->load(attr);
     }
 };
 
@@ -1069,7 +1054,7 @@ node *string_const::__mul__(node *rhs) {
     return new(allocator) string_const(new_string);
 }
 
-node *builtin_dict_get(context *ctx, list *args, dict *kwargs) {
+node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
     node *self = args->__getitem__(0);
@@ -1082,7 +1067,7 @@ node *builtin_dict_get(context *ctx, list *args, dict *kwargs) {
     return value;
 }
 
-node *builtin_dict_keys(context *ctx, list *args, dict *kwargs) {
+node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 1)
         error("bad number of arguments to dict.keys()");
     dict *self = (dict *)args->__getitem__(0);
@@ -1094,7 +1079,7 @@ node *builtin_dict_keys(context *ctx, list *args, dict *kwargs) {
     return plist;
 }
 
-node *builtin_fread(context *ctx, list *args, dict *kwargs) {
+node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
     if (!f->is_file() || !len->is_int_const())
@@ -1102,7 +1087,7 @@ node *builtin_fread(context *ctx, list *args, dict *kwargs) {
     return ((file *)f)->read(len->int_value());
 }
 
-node *builtin_isinstance(context *ctx, list *args, dict *kwargs) {
+node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs) {
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
 
@@ -1110,11 +1095,11 @@ node *builtin_isinstance(context *ctx, list *args, dict *kwargs) {
     return create_bool_const(obj_class == arg_class);
 }
 
-node *builtin_len(context *ctx, list *args, dict *kwargs) {
+node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
     return args->__getitem__(0)->__len__();
 }
 
-node *builtin_list_append(context *ctx, list *args, dict *kwargs) {
+node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1123,7 +1108,7 @@ node *builtin_list_append(context *ctx, list *args, dict *kwargs) {
     return &none_singleton;
 }
 
-node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
+node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 2)
         error("bad number of arguments to list.index()");
     node *self = args->__getitem__(0);
@@ -1136,13 +1121,13 @@ node *builtin_list_index(context *ctx, list *args, dict *kwargs) {
     return &none_singleton;
 }
 
-node *builtin_list_pop(context *ctx, list *args, dict *kwargs) {
+node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs) {
     list *self = (list *)args->__getitem__(0);
 
     return self->pop();
 }
 
-node *builtin_open(context *ctx, list *args, dict *kwargs) {
+node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs) {
     node *path = args->__getitem__(0);
     node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
@@ -1151,14 +1136,14 @@ node *builtin_open(context *ctx, list *args, dict *kwargs) {
     return f;
 }
 
-node *builtin_ord(context *ctx, list *args, dict *kwargs) {
+node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs) {
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
     return new(allocator) int_const((unsigned char)arg->string_value()[0]);
 }
 
-node *builtin_print(context *ctx, list *args, dict *kwargs) {
+node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs) {
     std::string new_string;
     for (int_t i = 0; i < args->len(); i++) {
         if (i)
@@ -1170,13 +1155,13 @@ node *builtin_print(context *ctx, list *args, dict *kwargs) {
     return &none_singleton;
 }
 
-node *builtin_print_nonl(context *ctx, list *args, dict *kwargs) {
+node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs) {
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
     return &none_singleton;
 }
 
-node *builtin_range(context *ctx, list *args, dict *kwargs) {
+node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs) {
     list *new_list = new(allocator) list();
     int_t start = 0, end, step = 1;
 
@@ -1199,7 +1184,7 @@ node *builtin_range(context *ctx, list *args, dict *kwargs) {
     return new_list;
 }
 
-node *builtin_reversed(context *ctx, list *args, dict *kwargs) {
+node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs) {
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call reversed on non-list");
@@ -1212,11 +1197,11 @@ node *builtin_reversed(context *ctx, list *args, dict *kwargs) {
     return new(allocator) list(new_list);
 }
 
-node *builtin_set(context *ctx, list *args, dict *kwargs) {
+node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs) {
     return new(allocator) set();
 }
 
-node *builtin_set_add(context *ctx, list *args, dict *kwargs) {
+node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1229,7 +1214,7 @@ bool compare_nodes(node *lhs, node *rhs) {
     return lhs->_lt(rhs);
 }
 
-node *builtin_sorted(context *ctx, list *args, dict *kwargs) {
+node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs) {
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call sorted on non-list");
@@ -1243,7 +1228,7 @@ node *builtin_sorted(context *ctx, list *args, dict *kwargs) {
     return new(allocator) list(new_list);
 }
 
-node *builtin_str_join(context *ctx, list *args, dict *kwargs) {
+node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
     if (!self->is_string() || !item->is_list())
@@ -1259,7 +1244,7 @@ node *builtin_str_join(context *ctx, list *args, dict *kwargs) {
     return new(allocator) string_const(s);
 }
 
-node *builtin_str_upper(context *ctx, list *args, dict *kwargs) {
+node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     if (!self->is_string())
         error("bad argument to str.upper()");
@@ -1272,7 +1257,7 @@ node *builtin_str_upper(context *ctx, list *args, dict *kwargs) {
     return new(allocator) string_const(new_string);
 }
 
-node *builtin_str_startswith(context *ctx, list *args, dict *kwargs) {
+node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs) {
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
     if (!self->is_string() || !prefix->is_string())
@@ -1283,7 +1268,7 @@ node *builtin_str_startswith(context *ctx, list *args, dict *kwargs) {
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
-node *builtin_zip(context *ctx, list *args, dict *kwargs) {
+node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 2)
         error("bad arguments to zip()");
     node *list1 = args->__getitem__(0);
@@ -1304,27 +1289,27 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
 }
 
 void init_context(context *ctx, int_t argc, char **argv) {
-    ctx->store(true, "fread", new(allocator) function_def(builtin_fread));
-    ctx->store(true, "len", new(allocator) function_def(builtin_len));
-    ctx->store(true, "isinstance", new(allocator) function_def(builtin_isinstance));
-    ctx->store(true, "open", new(allocator) function_def(builtin_open));
-    ctx->store(true, "ord", new(allocator) function_def(builtin_ord));
-    ctx->store(true, "print", new(allocator) function_def(builtin_print));
-    ctx->store(true, "print_nonl", new(allocator) function_def(builtin_print_nonl));
-    ctx->store(true, "range", new(allocator) function_def(builtin_range));
-    ctx->store(true, "reversed", new(allocator) function_def(builtin_reversed));
-    ctx->store(true, "set", new(allocator) function_def(builtin_set));
-    ctx->store(true, "sorted", new(allocator) function_def(builtin_sorted));
-    ctx->store(true, "zip", new(allocator) function_def(builtin_zip));
+    ctx->store("fread", new(allocator) function_def(builtin_fread));
+    ctx->store("len", new(allocator) function_def(builtin_len));
+    ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
+    ctx->store("open", new(allocator) function_def(builtin_open));
+    ctx->store("ord", new(allocator) function_def(builtin_ord));
+    ctx->store("print", new(allocator) function_def(builtin_print));
+    ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
+    ctx->store("range", new(allocator) function_def(builtin_range));
+    ctx->store("reversed", new(allocator) function_def(builtin_reversed));
+    ctx->store("set", new(allocator) function_def(builtin_set));
+    ctx->store("sorted", new(allocator) function_def(builtin_sorted));
+    ctx->store("zip", new(allocator) function_def(builtin_zip));
 
-    ctx->store(true, "int", &builtin_class_int);
-    ctx->store(true, "str", &builtin_class_str);
+    ctx->store("int", &builtin_class_int);
+    ctx->store("str", &builtin_class_str);
 
-    ctx->store(true, "__name__", new(allocator) string_const("__main__"));
+    ctx->store("__name__", new(allocator) string_const("__main__"));
     list *plist = new(allocator) list();
     for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
-    ctx->store(true, "__args__", plist);
+    ctx->store("__args__", plist);
 }
 
 void collect_garbage(context *ctx, bool free_ctx) {

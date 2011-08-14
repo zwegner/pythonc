@@ -33,6 +33,8 @@ class Transformer(ast.NodeTransformer):
         self.functions = []
         self.in_class = False
         self.globals_set = set()
+        self.locals_set = None
+        self.all_vars_set = None
 
     def get_temp(self):
         self.temp_id += 1
@@ -70,7 +72,15 @@ class Transformer(ast.NodeTransformer):
         if isinstance(node, ast.Global):
             for name in node.names:
                 self.globals_set.add(name)
-        return [self.get_globals(i) for i in ast.iter_child_nodes(node)]
+        elif isinstance(node, ast.Name):
+            self.all_vars_set.add(node.id)
+            if isinstance(node.ctx, (ast.Store, ast.AugStore)):
+                self.locals_set.add(node.id)
+        elif isinstance(node, ast.arg):
+            self.all_vars_set.add(node.arg)
+            self.locals_set.add(node.arg)
+        for i in ast.iter_child_nodes(node):
+            self.get_globals(i)
 
     def generic_visit(self, node):
         print(node.lineno)
@@ -359,9 +369,15 @@ class Transformer(ast.NodeTransformer):
         return args.flatten(self)
 
     def visit_FunctionDef(self, node):
-        args = self.visit(node.args)
+        # Get bindings of all variables. Globals are the variables that have "global x"
+        # somewhere in the function, or are never written in the function.
         self.globals_set = set()
+        self.locals_set = set()
+        self.all_vars_set = set()
         self.get_globals(node)
+        self.globals_set |= self.all_vars_set - self.locals_set
+
+        args = self.visit(node.args)
         body = self.flatten_list(node.body)
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
         fn = syntax.FunctionDef(node.name, args, body, exp_name).flatten(self)
@@ -408,7 +424,7 @@ with open(sys.argv[2], 'w') as f:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
-    f.write('    context *ctx = new(allocator) context();\n')
+    f.write('    context *ctx = new(allocator) context(), *globals = ctx;\n')
     f.write('    init_context(ctx, argc, argv);\n')
 
     for stmt in node:

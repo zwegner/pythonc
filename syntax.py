@@ -126,8 +126,10 @@ class Load(Node):
         self.is_global = is_global
 
     def __str__(self):
-        return 'ctx->load(%s, "%s")' % ('true' if self.is_global else 'false',
-                self.name)
+        if self.is_global:
+            return 'globals->load("%s")' % self.name
+        else:
+            return 'ctx->load("%s")' % self.name
 
 class Store(Node):
     def __init__(self, name, expr, is_global):
@@ -136,7 +138,7 @@ class Store(Node):
         self.is_global = is_global
 
     def __str__(self):
-        return 'ctx->store(%s, "%s", %s)' % ('true' if self.is_global else 'false',
+        return '%s->store("%s", %s)' % ('globals' if self.is_global else 'ctx',
                 self.name, self.expr)
 
 class StoreAttr(Node):
@@ -244,7 +246,7 @@ class Call(Node):
         self.kwargs = kwargs
 
     def __str__(self):
-        return '%s->__call__(ctx, %s, %s)' % (self.func, self.args, self.kwargs)
+        return '%s->__call__(globals, ctx, %s, %s)' % (self.func, self.args, self.kwargs)
 
 class IfExp(Node):
     def __init__(self, expr, true_stmts, true_expr, false_stmts, false_expr):
@@ -493,7 +495,7 @@ class FunctionDef(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = str(self.args)
         body = """
-node *{name}(context *parent_ctx, list *args, dict *kwargs) {{
+node *{name}(context *globals, context *parent_ctx, list *args, dict *kwargs) {{
     context *ctx = new(allocator) context(parent_ctx);
 {arg_unpacking}
 {stmts}
