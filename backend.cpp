@@ -492,9 +492,11 @@ public:
     DEALLOCATE_FN(list)
 
     virtual void mark_live() {
-        this->live = true;
-        for (size_t i = 0; i < this->items.size(); i++)
-            this->items[i]->mark_live();
+        if (!this->live) {
+            this->live = true;
+            for (size_t i = 0; i < this->items.size(); i++)
+                this->items[i]->mark_live();
+        }
     }
 
     void append(node *obj) {
@@ -587,10 +589,12 @@ public:
     DEALLOCATE_FN(dict)
 
     virtual void mark_live() {
-        this->live = true;
-        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
-            i->second.first->mark_live();
-            i->second.second->mark_live();
+        if (!this->live) {
+            this->live = true;
+            for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
+                i->second.first->mark_live();
+                i->second.second->mark_live();
+            }
         }
     }
 
@@ -658,9 +662,11 @@ public:
     DEALLOCATE_FN(set)
 
     virtual void mark_live() {
-        this->live = true;
-        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
-            i->second->mark_live();
+        if (!this->live) {
+            this->live = true;
+            for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
+                i->second->mark_live();
+        }
     }
 
     node *lookup(node *key) {
@@ -718,8 +724,10 @@ public:
     DEALLOCATE_FN(object)
 
     virtual void mark_live() {
-        this->live = true;
-        this->items.mark_live();
+        if (!this->live) {
+            this->live = true;
+            this->items.mark_live();
+        }
     }
 
     virtual bool bool_value() { return true; }
@@ -777,9 +785,11 @@ public:
     DEALLOCATE_FN(bound_method)
 
     virtual void mark_live() {
-        this->live = true;
-        this->self->mark_live();
-        this->function->mark_live();
+        if (!this->live) {
+            this->live = true;
+            this->self->mark_live();
+            this->function->mark_live();
+        }
     }
 
     virtual bool is_function() { return true; } // XXX is it?
@@ -824,8 +834,10 @@ public:
     DEALLOCATE_FN(class_def)
 
     virtual void mark_live() {
-        this->live = true;
-        this->items.mark_live();
+        if (!this->live) {
+            this->live = true;
+            this->items.mark_live();
+        }
     }
 
     node *load(const char *name) {
