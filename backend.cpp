@@ -208,11 +208,12 @@ public:
             this->globals_ctx = this->globals_ctx->parent_ctx;
     }
 
-    void mark_live() {
-        for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
-            i->second->mark_live();
+    void mark_live(bool free_ctx) {
+        if (!free_ctx)
+            for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
+                i->second->mark_live();
         if (this->parent_ctx)
-            this->parent_ctx->mark_live();
+            this->parent_ctx->mark_live(false);
     }
 
     void store(const char *name, node *obj) {
@@ -1315,7 +1316,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("__args__", plist);
 }
 
-void collect_garbage(context *ctx) {
+void collect_garbage(context *ctx, bool free_ctx) {
     static int gc_tick = 0;
     if (++gc_tick > 1024) {
         gc_tick = 0;
@@ -1326,7 +1327,7 @@ void collect_garbage(context *ctx) {
             n = n->next_node;
         }
 
-        ctx->mark_live();
+        ctx->mark_live(free_ctx);
 
         n = all_nodes_list;
         node *last = NULL;
