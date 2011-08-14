@@ -474,14 +474,14 @@ private:
 public:
     list() : node("list") {
     }
-    list(node_list &l) : items(l), node("list") {
+    list(node_list &l) : node("list"), items(l) {
     }
 
     DEALLOCATE_FN
 
     virtual void mark_live() {
         this->live = true;
-        for (int_t i = 0; i < this->items.size(); i++)
+        for (size_t i = 0; i < this->items.size(); i++)
             this->items[i]->mark_live();
     }
 
@@ -514,7 +514,7 @@ public:
 
     virtual node *__contains__(node *key) {
         bool found = false;
-        for (int_t i = 0; i < this->items.size(); i++)
+        for (size_t i = 0; i < this->items.size(); i++)
             if (this->items[i]->_eq(key)) {
                 found = true;
                 break;
@@ -900,6 +900,7 @@ node *int_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_int;
     error("int has no attribute %s", key);
+    return NULL;
 }
 
 std::string int_const::str() {
@@ -942,6 +943,7 @@ node *list::getattr(const char *key) {
     else if (!strcmp(key, "pop"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_pop));
     error("list has no attribute %s", key);
+    return NULL;
 }
 
 node *dict::getattr(const char *key) {
@@ -950,12 +952,14 @@ node *dict::getattr(const char *key) {
     else if (!strcmp(key, "keys"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_dict_keys));
     error("dict has no attribute %s", key);
+    return NULL;
 }
 
 node *set::getattr(const char *key) {
     if (!strcmp(key, "add"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_set_add));
     error("set has no attribute %s", key);
+    return NULL;
 }
 
 node *string_const::getattr(const char *key) {
@@ -968,6 +972,7 @@ node *string_const::getattr(const char *key) {
     else if (!strcmp(key, "startswith"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_startswith));
     error("str has no attribute %s", key);
+    return NULL;
 }
 
 // This entire function is very stupidly implemented.
@@ -990,7 +995,7 @@ node *string_const::__mod__(node *rhs) {
             while (*c && isdigit(*c))
                 *fmt++ = *c++;
 
-            if (fmt - fmt_buf >= sizeof(buf))
+            if ((unsigned)(fmt - fmt_buf) >= sizeof(buf))
                 error("I do believe you've made a terrible mistake whilst formatting a string!");
             if (args >= rhs->len())
                 error("not enough arguments for string format");
@@ -1139,11 +1144,13 @@ node *builtin_print(context *ctx, list *args, dict *kwargs) {
         new_string += s->str();
     }
     printf("%s\n", new_string.c_str());
+    return &none_singleton;
 }
 
 node *builtin_print_nonl(context *ctx, list *args, dict *kwargs) {
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
+    return &none_singleton;
 }
 
 node *builtin_range(context *ctx, list *args, dict *kwargs) {

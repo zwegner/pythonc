@@ -26,7 +26,7 @@ typedef unsigned char byte;
 template <uint64_t block_size>
 class arena_block {
 public:
-    static const int capacity = block_size - 2 * sizeof(void *) - sizeof(int);
+    static const uint64_t capacity = block_size - 2 * sizeof(void *) - sizeof(int);
     arena_block *next;
     byte *curr;
     int ref_count;
@@ -34,8 +34,8 @@ public:
 
     arena_block() {
         // Ensure power-of-two block size, aligned address
-        assert((block_size & block_size - 1) == 0);
-        assert(((uint64_t)this & block_size - 1) == 0);
+        assert((block_size & (block_size - 1)) == 0);
+        assert(((uint64_t)this & (block_size - 1)) == 0);
         this->init();
     }
     void init() {
@@ -78,7 +78,7 @@ public:
         this->chunk_start = (byte *)malloc(CHUNK_SIZE);
         this->chunk_end = chunk_start + CHUNK_SIZE; 
         // Align the start of the chunk
-        this->chunk_start = (byte *)((uint64_t)this->chunk_start + BLOCK_SIZE - 1 & ~(BLOCK_SIZE - 1));
+        this->chunk_start = (byte *)(((uint64_t)this->chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
     }
 
     arena_block<BLOCK_SIZE> *new_block() {
