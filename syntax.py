@@ -121,19 +121,23 @@ class BinaryOp(Node):
         return '%s->%s(%s)' % (self.lhs, self.op, self.rhs)
 
 class Load(Node):
-    def __init__(self, name):
+    def __init__(self, name, is_global):
         self.name = name
+        self.is_global = is_global
 
     def __str__(self):
-        return 'ctx->load("%s")' % self.name
+        return 'ctx->load(%s, "%s")' % ('true' if self.is_global else 'false',
+                self.name)
 
 class Store(Node):
-    def __init__(self, name, expr):
+    def __init__(self, name, expr, is_global):
         self.name = name
         self.expr = expr
+        self.is_global = is_global
 
     def __str__(self):
-        return 'ctx->store("%s", %s)' % (self.name, self.expr)
+        return 'ctx->store(%s, "%s", %s)' % ('true' if self.is_global else 'false',
+                self.name, self.expr)
 
 class StoreAttr(Node):
     def __init__(self, name, attr, expr):
@@ -160,13 +164,6 @@ class DeleteSubscript(Node):
 
     def __str__(self):
         return '%s->__delitem__(%s)' % (self.expr, self.index)
-
-class Global(Node):
-    def __init__(self, name):
-        self.name = name
-
-    def __str__(self):
-        return 'ctx->set_global("%s")' % self.name
 
 class List(Node):
     def __init__(self, items):
@@ -349,9 +346,9 @@ class ListComp(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i)]
+                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i, False)]
         else:
-            arg_unpacking = [Store(self.target, '*__iter')]
+            arg_unpacking = [Store(self.target, '*__iter', False)]
         arg_unpacking = block_str(arg_unpacking)
         body = """
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
@@ -392,10 +389,10 @@ class For(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = []
         if isinstance(self.target, list):
-            for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i)]
+            for i, (arg, is_global) in enumerate(self.target):
+                arg_unpacking += [Store(arg, '(*__iter)->__getitem__(%s)' % i, is_global)]
         else:
-            arg_unpacking = [Store(self.target, '*__iter')]
+            arg_unpacking = [Store(self.target[0], '*__iter', self.target[1])]
         arg_unpacking = block_str(arg_unpacking)
         # XXX sorta weird?
         body = """
@@ -473,9 +470,11 @@ class Arguments(Node):
         arg_unpacking = []
         for i, (arg, default, name) in enumerate(zip(self.args, self.defaults, self.name_strings)):
             if default:
-                arg_unpacking += [Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) : (args->len() > %s ? args->__getitem__(%s) : %s)' % (name, name, i, i, default))]
+                arg_unpacking += [Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) '
+                    ': (args->len() > %s ? args->__getitem__(%s) : %s)' %
+                    (name, name, i, i, default), False)]
             else:
-                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i)]
+                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i, False)]
         return block_str(arg_unpacking)
 
 class FunctionDef(Node):
@@ -488,7 +487,7 @@ class FunctionDef(Node):
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)))]
+        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)), False)]
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -509,7 +508,7 @@ class ClassDef(Node):
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)))]
+        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), False)]
 
     def __str__(self):
         stmts = block_str(self.stmts)

@@ -56,7 +56,6 @@ typedef std::pair<node *, node *> node_pair;
 typedef std::map<const char *, node *, std::less<const char *>, alloc<std::pair<const char *, node *> > > symbol_table;
 typedef std::map<int_t, node_pair, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_dict;
 typedef std::map<int_t, node *, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_set;
-typedef std::set<std::string, std::less<std::string>, alloc<std::string> > globals_set;
 typedef std::vector<node *, alloc<node *> > node_list;
 
 node *builtin_dict_get(context *ctx, list *args, dict *kwargs);
@@ -194,7 +193,6 @@ private:
     symbol_table symbols;
     context *parent_ctx;
     context *globals_ctx;
-    globals_set globals;
 
 public:
     context() {
@@ -217,26 +215,23 @@ public:
             this->parent_ctx->mark_live(false);
     }
 
-    void store(const char *name, node *obj) {
-        if (this->globals.find(std::string(name)) != this->globals.end())
-            this->globals_ctx->store(name, obj);
+    void store(bool global, const char *name, node *obj) {
+        if (global && this->globals_ctx)
+            this->globals_ctx->store(false, name, obj);
         else
             this->symbols[name] = obj;
     }
-    node *load(const char *name) {
-        if (this->globals.find(std::string(name)) != this->globals.end())
-            return this->globals_ctx->load(name);
+    node *load(bool global, const char *name) {
+        if (global && this->globals_ctx)
+            return this->globals_ctx->load(false, name);
         symbol_table::const_iterator v = this->symbols.find(name);
         if (v == this->symbols.end()) {
             if (this->parent_ctx)
-                return this->parent_ctx->load(name);
+                return this->parent_ctx->load(false, name);
             else
                 error("cannot find '%s' in symbol table", name);
         }
         return v->second;
-    }
-    void set_global(const char *name) {
-        this->globals.insert(name);
     }
     void dump() {
         for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
@@ -606,7 +601,10 @@ public:
         else
             hashkey = key->hash();
         node_dict::const_iterator v = this->items.find(hashkey);
-        if (v == this->items.end() || !v->second.first->_eq(key))
+        if (v == this->items.end())
+            return NULL;
+        node *k = v->second.first;
+        if (!k->_eq(key))
             return NULL;
         return v->second.second;
     }
@@ -841,15 +839,15 @@ public:
         }
     }
 
-    node *load(const char *name) {
+    node *load(bool global, const char *name) {
         return items.__getitem__(new(allocator) string_const(name));
     }
-    void store(const char *name, node *value) {
+    void store(bool global, const char *name, node *value) {
         items.__setitem__(new(allocator) string_const(name), value);
     }
 
     virtual node *__call__(context *ctx, list *args, dict *kwargs) {
-        node *init = this->load("__init__");
+        node *init = this->load(false, "__init__");
         node *obj = new(allocator) object();
 
         obj->__setattr__(new(allocator) string_const("__class__"), this);
@@ -865,7 +863,7 @@ public:
         return obj;
     }
     virtual node *getattr(const char *attr) {
-        return this->load(attr);
+        return this->load(false, attr);
     }
 };
 
@@ -1306,27 +1304,27 @@ node *builtin_zip(context *ctx, list *args, dict *kwargs) {
 }
 
 void init_context(context *ctx, int_t argc, char **argv) {
-    ctx->store("fread", new(allocator) function_def(builtin_fread));
-    ctx->store("len", new(allocator) function_def(builtin_len));
-    ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
-    ctx->store("open", new(allocator) function_def(builtin_open));
-    ctx->store("ord", new(allocator) function_def(builtin_ord));
-    ctx->store("print", new(allocator) function_def(builtin_print));
-    ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
-    ctx->store("range", new(allocator) function_def(builtin_range));
-    ctx->store("reversed", new(allocator) function_def(builtin_reversed));
-    ctx->store("set", new(allocator) function_def(builtin_set));
-    ctx->store("sorted", new(allocator) function_def(builtin_sorted));
-    ctx->store("zip", new(allocator) function_def(builtin_zip));
+    ctx->store(true, "fread", new(allocator) function_def(builtin_fread));
+    ctx->store(true, "len", new(allocator) function_def(builtin_len));
+    ctx->store(true, "isinstance", new(allocator) function_def(builtin_isinstance));
+    ctx->store(true, "open", new(allocator) function_def(builtin_open));
+    ctx->store(true, "ord", new(allocator) function_def(builtin_ord));
+    ctx->store(true, "print", new(allocator) function_def(builtin_print));
+    ctx->store(true, "print_nonl", new(allocator) function_def(builtin_print_nonl));
+    ctx->store(true, "range", new(allocator) function_def(builtin_range));
+    ctx->store(true, "reversed", new(allocator) function_def(builtin_reversed));
+    ctx->store(true, "set", new(allocator) function_def(builtin_set));
+    ctx->store(true, "sorted", new(allocator) function_def(builtin_sorted));
+    ctx->store(true, "zip", new(allocator) function_def(builtin_zip));
 
-    ctx->store("int", &builtin_class_int);
-    ctx->store("str", &builtin_class_str);
+    ctx->store(true, "int", &builtin_class_int);
+    ctx->store(true, "str", &builtin_class_str);
 
-    ctx->store("__name__", new(allocator) string_const("__main__"));
+    ctx->store(true, "__name__", new(allocator) string_const("__main__"));
     list *plist = new(allocator) list();
     for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
-    ctx->store("__args__", plist);
+    ctx->store(true, "__args__", plist);
 }
 
 void collect_garbage(context *ctx, bool free_ctx) {

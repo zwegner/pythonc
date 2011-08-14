@@ -32,6 +32,7 @@ class Transformer(ast.NodeTransformer):
         self.statements = []
         self.functions = []
         self.in_class = False
+        self.globals_set = set()
 
     def get_temp(self):
         self.temp_id += 1
@@ -65,6 +66,12 @@ class Transformer(ast.NodeTransformer):
         self.statements = old_stmts
         return statements
 
+    def get_globals(self, node):
+        if isinstance(node, ast.Global):
+            for name in node.names:
+                self.globals_set.add(name)
+        return [self.get_globals(i) for i in ast.iter_child_nodes(node)]
+
     def generic_visit(self, node):
         print(node.lineno)
         raise RuntimeError('can\'t translate %s' % node)
@@ -78,7 +85,7 @@ class Transformer(ast.NodeTransformer):
             return syntax.BoolConst(node.id == 'True')
         elif node.id == 'None':
             return syntax.NoneConst()
-        return syntax.Load(node.id)
+        return syntax.Load(node.id, node.id in self.globals_set)
 
     def visit_Num(self, node):
         assert isinstance(node.n, int)
@@ -229,12 +236,12 @@ class Transformer(ast.NodeTransformer):
         target = node.targets[0]
         value = self.flatten_node(node.value)
         if isinstance(target, ast.Name):
-            return [syntax.Store(target.id, value)]
+            return [syntax.Store(target.id, value, target.id in self.globals_set)]
         elif isinstance(target, ast.Tuple):
             assert all(isinstance(t, ast.Name) for t in target.elts)
             stmts = []
             for i, t in enumerate(target.elts):
-                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)))]
+                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)), t.id in self.globals_set)]
             return stmts
         elif isinstance(target, ast.Attribute):
             base = self.flatten_node(target.value)
@@ -253,8 +260,8 @@ class Transformer(ast.NodeTransformer):
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
-            binop = syntax.BinaryOp(op, syntax.Load(target), value)
-            return [syntax.Store(target, binop)]
+            binop = syntax.BinaryOp(op, syntax.Load(target, target in self.globals_set), value)
+            return [syntax.Store(target, binop, target in self.globals_set)]
         elif isinstance(node.target, ast.Attribute):
             l = self.flatten_node(node.target.value)
             attr_name = syntax.StringConst(node.target.attr)
@@ -273,9 +280,6 @@ class Transformer(ast.NodeTransformer):
         name = self.flatten_node(target.value)
         value = self.flatten_node(target.slice.value)
         return [syntax.DeleteSubscript(name, value)]
-
-    def visit_Global(self, node):
-        return [syntax.Global(name) for name in node.names]
 
     def visit_If(self, node):
         expr = self.flatten_node(node.test)
@@ -298,9 +302,9 @@ class Transformer(ast.NodeTransformer):
         stmts = self.flatten_list(node.body)
 
         if isinstance(node.target, ast.Name):
-            target = node.target.id
+            target = (node.target.id, node.target.id in self.globals_set)
         elif isinstance(node.target, ast.Tuple):
-            target = node.target.elts
+            target = [(t.id, node.target.id in self.globals_set) for t in node.target.elts]
         else:
             assert False
         return syntax.For(target, iter, stmts)
@@ -356,6 +360,8 @@ class Transformer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node):
         args = self.visit(node.args)
+        self.globals_set = set()
+        self.get_globals(node)
         body = self.flatten_list(node.body)
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
         fn = syntax.FunctionDef(node.name, args, body, exp_name).flatten(self)
@@ -386,6 +392,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Pass(self, node): pass
     def visit_Load(self, node): pass
     def visit_Store(self, node): pass
+    def visit_Global(self, node): pass
 
 with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
