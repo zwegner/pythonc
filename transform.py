@@ -304,7 +304,7 @@ class Transformer(ast.NodeTransformer):
         if isinstance(node.target, ast.Name):
             target = (node.target.id, node.target.id in self.globals_set)
         elif isinstance(node.target, ast.Tuple):
-            target = [(t.id, node.target.id in self.globals_set) for t in node.target.elts]
+            target = [(t.id, t.id in self.globals_set) for t in node.target.elts]
         else:
             assert False
         return syntax.For(target, iter, stmts)
