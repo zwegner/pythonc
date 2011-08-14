@@ -104,8 +104,9 @@ public:
     // Virtual deallocator function, since the size needs to be known
     // Don't deallocate singletons, either.
     virtual void deallocate() = 0;
-#define DEALLOCATE_FN \
+#define DEALLOCATE_FN(type) \
     virtual void deallocate() { \
+        this->~type(); \
         allocator->deallocate(this, sizeof(this)); \
     }
 #define DEALLOCATE_FN_SINGLETON \
@@ -269,7 +270,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(int_const)
 
     virtual bool is_int_const() { return true; }
     virtual int_t int_value() { return this->value; }
@@ -393,7 +394,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(string_const)
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
@@ -477,7 +478,7 @@ public:
     list(node_list &l) : node("list"), items(l) {
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(list)
 
     virtual void mark_live() {
         this->live = true;
@@ -572,7 +573,7 @@ public:
     dict() : node("dict") {
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(dict)
 
     virtual void mark_live() {
         this->live = true;
@@ -643,7 +644,7 @@ public:
     set() : node("set") {
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(set)
 
     virtual void mark_live() {
         this->live = true;
@@ -703,7 +704,7 @@ public:
     object() : node("object")
     {}
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(object)
 
     virtual void mark_live() {
         this->live = true;
@@ -737,7 +738,7 @@ public:
             error("%s: file not found", path);
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(file)
 
     node *read(int_t len) {
         static char buf[64*1024];
@@ -762,7 +763,7 @@ public:
         this->function = function;
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(bound_method)
 
     virtual void mark_live() {
         this->live = true;
@@ -789,7 +790,7 @@ public:
         this->base_function = base_function;
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(function_def)
 
     virtual bool is_function() { return true; }
 
@@ -809,7 +810,7 @@ public:
         creator(this);
     }
 
-    DEALLOCATE_FN
+    DEALLOCATE_FN(class_def)
 
     virtual void mark_live() {
         this->live = true;
