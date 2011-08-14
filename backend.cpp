@@ -103,14 +103,15 @@ public:
 
     // Virtual deallocator function, since the size needs to be known
     // Don't deallocate singletons, either.
-    virtual void deallocate() = 0;
+    virtual bool deallocate() = 0;
 #define DEALLOCATE_FN(type) \
-    virtual void deallocate() { \
+    virtual bool deallocate() { \
         this->~type(); \
         allocator->deallocate(this, sizeof(this)); \
+        return true; \
     }
 #define DEALLOCATE_FN_SINGLETON \
-    virtual void deallocate() { }
+    virtual bool deallocate() { return false; }
 
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
@@ -1345,12 +1346,11 @@ void collect_garbage(context *ctx, bool free_ctx) {
         node *last = NULL;
         while (n) {
             node *next = n->next_node;
-            if (!n->live) {
+            if (!n->live && n->deallocate()) {
                 if (last)
-                    last->next_node = n->next_node;
+                    last->next_node = next;
                 else
-                    all_nodes_list = n->next_node;
-                n->deallocate();
+                    all_nodes_list = next;
             }
             else
                 last = n;
