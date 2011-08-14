@@ -36,6 +36,9 @@ public:
         // Ensure power-of-two block size, aligned address
         assert((block_size & block_size - 1) == 0);
         assert(((uint64_t)this & block_size - 1) == 0);
+        this->init();
+    }
+    void init() {
         this->curr = this->data;
         this->ref_count = 0;
     }
@@ -96,6 +99,7 @@ public:
             if (this->free_list) {
                 block = this->free_list;
                 this->free_list = block->next;
+                block->init();
             }
             else
                 block = this->new_block();

@@ -269,7 +269,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN_SINGLETON
+    DEALLOCATE_FN
 
     virtual bool is_int_const() { return true; }
     virtual int_t int_value() { return this->value; }
@@ -320,6 +320,13 @@ public:
     virtual int_t hash() { return this->value; }
     virtual node *getattr(const char *key);
     virtual std::string str();
+};
+
+class int_const_singleton : public int_const {
+public:
+    int_const_singleton(int_t value) : int_const(value) { }
+
+    DEALLOCATE_FN_SINGLETON
 };
 
 class bool_const : public node {
@@ -386,7 +393,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN_SINGLETON
+    DEALLOCATE_FN
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
@@ -451,6 +458,13 @@ public:
         return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
     }
     virtual std::string str() { return this->value; }
+};
+
+class string_const_singleton : public string_const {
+public:
+    string_const_singleton(std::string value) : string_const(value) { }
+
+    DEALLOCATE_FN_SINGLETON
 };
 
 class list : public node {
@@ -1285,7 +1299,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx) {
     static int gc_tick = 0;
-    if (++gc_tick > 0) {
+    if (++gc_tick > 1024) {
         gc_tick = 0;
 
         node *n = all_nodes_list;

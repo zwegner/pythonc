@@ -46,10 +46,10 @@ def export_consts(f):
     global all_ints, all_strings
 
     for i in all_ints:
-        f.write('int_const %s(%sll);\n' % (int_name(i), i))
+        f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
 
     for k, v in all_strings.items():
-        f.write('string_const string_singleton_%s("%s");\n' % (v, repr(k)[1:-1]))
+        f.write('string_const_singleton string_singleton_%s("%s");\n' % (v, repr(k)[1:-1]))
 
 class Node:
     def is_atom(self):
