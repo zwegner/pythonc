@@ -360,9 +360,19 @@ public:
     BOOL_AS_INT_OP(rshift, >>)
     BOOL_AS_INT_OP(sub, -)
 
-    BOOL_AS_INT_OP(and, &)
-    BOOL_AS_INT_OP(or, |)
-    BOOL_AS_INT_OP(xor, ^)
+#define BOOL_INT_CHECK_OP(NAME, OP) \
+    virtual node *__##NAME##__(node *rhs) { \
+        if (rhs->is_bool()) \
+            return new(allocator) bool_const((bool)(this->int_value() OP rhs->int_value())); \
+        else if (rhs->is_int_const()) \
+            return new(allocator) int_const(this->int_value() OP rhs->int_value()); \
+        error(#NAME " error in bool"); \
+        return NULL; \
+    }
+
+    BOOL_INT_CHECK_OP(and, &)
+    BOOL_INT_CHECK_OP(or, |)
+    BOOL_INT_CHECK_OP(xor, ^)
 
 #define BOOL_OP(NAME, OP) \
     virtual bool _##NAME(node *rhs) { \
