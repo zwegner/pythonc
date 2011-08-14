@@ -401,7 +401,6 @@ with open(sys.argv[2], 'w') as f:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
-    f.write('    allocator->init();\n')
     f.write('    context *ctx = new(allocator) context();\n')
     f.write('    init_context(ctx, argc, argv);\n')
 

@@ -32,7 +32,7 @@ public:
     int ref_count;
     byte data[capacity];
 
-    void init() {
+    arena_block() {
         // Ensure power-of-two block size, aligned address
         assert((block_size & block_size - 1) == 0);
         assert(((uint64_t)this & block_size - 1) == 0);
@@ -64,7 +64,7 @@ private:
     byte *chunk_start, *chunk_end;
 
 public:
-    void init() {
+    arena() {
         assert(sizeof(arena_block<BLOCK_SIZE>) == BLOCK_SIZE);
         this->get_new_chunk();
         this->head = this->new_block();
@@ -85,8 +85,7 @@ public:
         arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)this->chunk_start;
         this->chunk_start += BLOCK_SIZE;
 
-        block->init();
-        return block;
+        return new(block) arena_block<BLOCK_SIZE>();
     }
 
     void *allocate(uint64_t bytes) {
@@ -160,11 +159,11 @@ public:
     T *address(T &x) const { return &x; }
     const T* address(const T &x) const { return &x; }
 
-    T *allocate(size_t bytes, alloc<void>::const_pointer hint=0) {
-        return (T *)allocator->allocate(bytes * sizeof(T));
+    T *allocate(size_t n, alloc<void>::const_pointer hint=0) {
+        return (T *)allocator->allocate(n * sizeof(T));
     }
     void deallocate(T *p, size_t n) {
-        // XXX would be nice :)
+        allocator->deallocate(p, n * sizeof(T));
     }
     size_t max_size() const {
         return size_t(-1) / sizeof(value_type);
