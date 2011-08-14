@@ -32,13 +32,10 @@ public:
     int ref_count;
     byte data[capacity];
 
-    arena_block() {
+    void init() {
         // Ensure power-of-two block size, aligned address
         assert((block_size & (block_size - 1)) == 0);
         assert(((uint64_t)this & (block_size - 1)) == 0);
-        this->init();
-    }
-    void init() {
         this->curr = this->data;
         this->ref_count = 0;
     }
@@ -75,7 +72,7 @@ public:
     }
 
     void get_new_chunk() {
-        this->chunk_start = (byte *)malloc(CHUNK_SIZE);
+        this->chunk_start = (byte *)new byte[CHUNK_SIZE];
         this->chunk_end = chunk_start + CHUNK_SIZE; 
         // Align the start of the chunk
         this->chunk_start = (byte *)(((uint64_t)this->chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
@@ -88,7 +85,8 @@ public:
         arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)this->chunk_start;
         this->chunk_start += BLOCK_SIZE;
 
-        return new(block) arena_block<BLOCK_SIZE>();
+        block->init();
+        return block;
     }
 
     void *allocate(uint64_t bytes) {
