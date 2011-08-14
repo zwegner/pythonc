@@ -35,9 +35,15 @@ all_strings = {}
 def register_string(value):
     global all_strings
     if value in all_strings:
-        return all_strings[value]
-    all_strings[value] = len(all_strings)
-    return all_strings[value]
+        return all_strings[value][0]
+    # Compute hash via FNV-1a algorithm. Python makes signed 64-bit arithmetic hard.
+    hashkey = 14695981039346656037
+    for c in value:
+        hashkey ^= ord(c)
+        hashkey *= 1099511628211
+        hashkey &= (1 << 64) - 1
+    all_strings[value] = (len(all_strings), hashkey)
+    return all_strings[value][0]
 
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
@@ -48,8 +54,8 @@ def export_consts(f):
     for i in all_ints:
         f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
 
-    for k, v in all_strings.items():
-        f.write('string_const_singleton string_singleton_%s("%s");\n' % (v, repr(k)[1:-1]))
+    for k, (v, hashkey) in all_strings.items():
+        f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, repr(k)[1:-1], hashkey))
 
 class Node:
     def is_atom(self):

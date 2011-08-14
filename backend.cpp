@@ -454,10 +454,17 @@ public:
 };
 
 class string_const_singleton : public string_const {
+private:
+    int_t hashkey;
+
 public:
-    string_const_singleton(std::string value) : string_const(value) { }
+    string_const_singleton(std::string value, int_t hashkey) : string_const(value), hashkey(hashkey) { }
 
     DEALLOCATE_FN_SINGLETON
+
+    virtual int_t hash() {
+        return this->hashkey;
+    }
 };
 
 class list : public node {
@@ -1314,7 +1321,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx, bool free_ctx) {
     static int gc_tick = 0;
-    if (++gc_tick > 1024) {
+    if (++gc_tick > 128) {
         gc_tick = 0;
 
         node *n = all_nodes_list;
