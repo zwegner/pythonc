@@ -145,7 +145,7 @@ public:
 
 #define UNIMP_CMP_OP(NAME) \
     virtual bool _##NAME(node *rhs) { error(#NAME " unimplemented for %s", node_type); return false; } \
-    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", node_type); return NULL; }
+    node *__##NAME##__(node *rhs) { return create_bool_const(this->_##NAME(rhs)); }
 
     UNIMP_CMP_OP(eq)
     UNIMP_CMP_OP(ne)
@@ -280,9 +280,6 @@ public:
     virtual bool _##NAME(node *rhs) { \
         return this->int_value() OP rhs->int_value(); \
     } \
-    virtual node *__##NAME##__(node *rhs) { \
-        return create_bool_const(this->_##NAME(rhs)); \
-    }
 
     CMP_OP(eq, ==)
     CMP_OP(ne, !=)
@@ -362,9 +359,6 @@ public:
             return this->int_value() OP rhs->int_value(); \
         error(#NAME " error in bool"); \
         return false; \
-    } \
-    virtual node *__##NAME##__(node *rhs) { \
-        return create_bool_const(this->_##NAME(rhs)); \
     }
     BOOL_OP(eq, ==)
     BOOL_OP(ne, !=)
@@ -402,9 +396,6 @@ public:
         error(#NAME " unimplemented"); \
         return false; \
     } \
-    virtual node *__##NAME##__(node *rhs) { \
-        return create_bool_const(this->_##NAME(rhs)); \
-    }
 
     STRING_OP(eq, ==)
     STRING_OP(ne, !=)
@@ -731,9 +722,6 @@ public:
     }
     virtual bool _eq(node *rhs) {
         return this == rhs;
-    }
-    virtual node *__eq__(node *rhs) {
-        return create_bool_const(this->_eq(rhs));
     }
 };
 
