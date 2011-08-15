@@ -127,25 +127,29 @@ class BinaryOp(Node):
         return '%s->%s(%s)' % (self.lhs, self.op, self.rhs)
 
 class Load(Node):
-    def __init__(self, name, is_global):
+    def __init__(self, name, binding):
         self.name = name
-        self.is_global = is_global
+        self.binding = binding
 
     def __str__(self):
-        if self.is_global:
+        if self.binding == 'global':
             return 'globals->load("%s")' % self.name
-        else:
-            return 'ctx->load("%s")' % self.name
+        elif self.binding == 'class':
+            return 'class_ctx->load("%s")' % self.name
+        return 'ctx->load("%s")' % self.name
 
 class Store(Node):
-    def __init__(self, name, expr, is_global):
+    def __init__(self, name, expr, binding):
         self.name = name
         self.expr = expr
-        self.is_global = is_global
+        self.binding = binding
 
     def __str__(self):
-        return '%s->store("%s", %s)' % ('globals' if self.is_global else 'ctx',
-                self.name, self.expr)
+        if self.binding == 'global':
+            return 'globals->store("%s", %s)' % (self.name, self.expr)
+        elif self.binding == 'class':
+            return 'class_ctx->store("%s", %s)' % (self.name, self.expr)
+        return 'ctx->store("%s", %s)' % (self.name, self.expr)
 
 class StoreAttr(Node):
     def __init__(self, name, attr, expr):
@@ -354,9 +358,9 @@ class ListComp(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i, False)]
+                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i, 'local')]
         else:
-            arg_unpacking = [Store(self.target, '*__iter', False)]
+            arg_unpacking = [Store(self.target, '*__iter', 'local')]
         arg_unpacking = block_str(arg_unpacking)
         body = """
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
@@ -397,10 +401,11 @@ class For(Node):
         stmts = block_str(self.stmts)
         arg_unpacking = []
         if isinstance(self.target, list):
-            for i, (arg, is_global) in enumerate(self.target):
-                arg_unpacking += [Store(arg, '(*__iter)->__getitem__(%s)' % i, is_global)]
+            for i, (arg, binding) in enumerate(self.target):
+                arg_unpacking += [Store(arg, '(*__iter)->__getitem__(%s)' % i, binding)]
         else:
-            arg_unpacking = [Store(self.target[0], '*__iter', self.target[1])]
+            arg, binding = self.target
+            arg_unpacking = [Store(arg, '*__iter', binding)]
         arg_unpacking = block_str(arg_unpacking)
         # XXX sorta weird?
         body = """
@@ -480,22 +485,23 @@ class Arguments(Node):
             if default:
                 arg_unpacking += [Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) '
                     ': (args->len() > %s ? args->__getitem__(%s) : %s)' %
-                    (name, name, i, i, default), False)]
+                    (name, name, i, i, default), 'local')]
             else:
-                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i, False)]
+                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i, 'local')]
         return block_str(arg_unpacking)
 
 class FunctionDef(Node):
-    def __init__(self, name, args, stmts, exp_name=None):
+    def __init__(self, name, args, stmts, exp_name, binding):
         self.name = name
         self.exp_name = exp_name if exp_name else name
         self.exp_name = 'fn_%s' % self.exp_name # make sure no name collisions
         self.args = args
         self.stmts = stmts
+        self.binding = binding
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)), False)]
+        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)), self.binding)]
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -516,12 +522,12 @@ class ClassDef(Node):
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), False)]
+        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), 'global')]
 
     def __str__(self):
         stmts = block_str(self.stmts)
         body = """
-void _{name}__create__(class_def *ctx) {{
+void _{name}__create__(class_def *class_ctx) {{
 {stmts}
 }}""".format(name=self.name, stmts=stmts)
         return body

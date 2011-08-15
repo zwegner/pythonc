@@ -32,9 +32,8 @@ class Transformer(ast.NodeTransformer):
         self.statements = []
         self.functions = []
         self.in_class = False
-        self.globals_set = set()
-        self.locals_set = None
-        self.all_vars_set = None
+        self.in_function = False
+        self.globals_set = None
 
     def get_temp(self):
         self.temp_id += 1
@@ -68,19 +67,28 @@ class Transformer(ast.NodeTransformer):
         self.statements = old_stmts
         return statements
 
-    def get_globals(self, node):
+    def get_globals(self, node, globals_set, locals_set, all_vars_set):
         if isinstance(node, ast.Global):
             for name in node.names:
-                self.globals_set.add(name)
+                globals_set.add(name)
         elif isinstance(node, ast.Name):
-            self.all_vars_set.add(node.id)
+            all_vars_set.add(node.id)
             if isinstance(node.ctx, (ast.Store, ast.AugStore)):
-                self.locals_set.add(node.id)
+                locals_set.add(node.id)
         elif isinstance(node, ast.arg):
-            self.all_vars_set.add(node.arg)
-            self.locals_set.add(node.arg)
+            all_vars_set.add(node.arg)
+            locals_set.add(node.arg)
         for i in ast.iter_child_nodes(node):
-            self.get_globals(i)
+            self.get_globals(i, globals_set, locals_set, all_vars_set)
+
+    def get_binding(self, name):
+        if self.in_function:
+            if name in self.globals_set:
+                return 'global'
+            return 'local'
+        elif self.in_class:
+            return 'class'
+        return 'global'
 
     def generic_visit(self, node):
         print(node.lineno)
@@ -95,7 +103,7 @@ class Transformer(ast.NodeTransformer):
             return syntax.BoolConst(node.id == 'True')
         elif node.id == 'None':
             return syntax.NoneConst()
-        return syntax.Load(node.id, node.id in self.globals_set)
+        return syntax.Load(node.id, self.get_binding(node.id))
 
     def visit_Num(self, node):
         assert isinstance(node.n, int)
@@ -246,12 +254,12 @@ class Transformer(ast.NodeTransformer):
         target = node.targets[0]
         value = self.flatten_node(node.value)
         if isinstance(target, ast.Name):
-            return [syntax.Store(target.id, value, target.id in self.globals_set)]
+            return [syntax.Store(target.id, value, self.get_binding(target.id))]
         elif isinstance(target, ast.Tuple):
             assert all(isinstance(t, ast.Name) for t in target.elts)
             stmts = []
             for i, t in enumerate(target.elts):
-                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)), t.id in self.globals_set)]
+                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)), self.get_binding(t.id))]
             return stmts
         elif isinstance(target, ast.Attribute):
             base = self.flatten_node(target.value)
@@ -270,8 +278,8 @@ class Transformer(ast.NodeTransformer):
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
-            binop = syntax.BinaryOp(op, syntax.Load(target, target in self.globals_set), value)
-            return [syntax.Store(target, binop, target in self.globals_set)]
+            binop = syntax.BinaryOp(op, syntax.Load(target, self.get_binding(target)), value)
+            return [syntax.Store(target, binop, self.get_binding(target))]
         elif isinstance(node.target, ast.Attribute):
             l = self.flatten_node(node.target.value)
             attr_name = syntax.StringConst(node.target.attr)
@@ -312,9 +320,9 @@ class Transformer(ast.NodeTransformer):
         stmts = self.flatten_list(node.body)
 
         if isinstance(node.target, ast.Name):
-            target = (node.target.id, node.target.id in self.globals_set)
+            target = (node.target.id, self.get_binding(node.target.id))
         elif isinstance(node.target, ast.Tuple):
-            target = [(t.id, t.id in self.globals_set) for t in node.target.elts]
+            target = [(t.id, self.get_binding(t.id)) for t in node.target.elts]
         else:
             assert False
         return syntax.For(target, iter, stmts)
@@ -369,19 +377,27 @@ class Transformer(ast.NodeTransformer):
         return args.flatten(self)
 
     def visit_FunctionDef(self, node):
+        assert not self.in_function
+
         # Get bindings of all variables. Globals are the variables that have "global x"
         # somewhere in the function, or are never written in the function.
-        self.globals_set = set()
-        self.locals_set = set()
-        self.all_vars_set = set()
-        self.get_globals(node)
-        self.globals_set |= self.all_vars_set - self.locals_set
+        globals_set = set()
+        locals_set = set()
+        all_vars_set = set()
+        self.get_globals(node, globals_set, locals_set, all_vars_set)
+        globals_set |= (all_vars_set - locals_set)
 
+        # Set some state and recursively visit child nodes, then restore state
+        self.globals_set = globals_set
+        self.in_function = True
         args = self.visit(node.args)
         body = self.flatten_list(node.body)
+        self.globals_set = None
+        self.in_function = False
+
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        fn = syntax.FunctionDef(node.name, args, body, exp_name).flatten(self)
-        return fn
+        fn = syntax.FunctionDef(node.name, args, body, exp_name, self.get_binding(node.name))
+        return fn.flatten(self)
 
     def visit_ClassDef(self, node):
         assert not node.bases
@@ -389,12 +405,16 @@ class Transformer(ast.NodeTransformer):
         assert not node.starargs
         assert not node.kwargs
         assert not node.decorator_list
+        assert not self.in_class
+        assert not self.in_function
 
         for fn in node.body:
             if isinstance(fn, ast.FunctionDef):
                 fn.exp_name = '_%s_%s' % (node.name, fn.name)
 
+        self.in_class = True
         body = self.flatten_list(node.body)
+        self.in_class = False
 
         c = syntax.ClassDef(node.name, body)
         return c.flatten(self)
