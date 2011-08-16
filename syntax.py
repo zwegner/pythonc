@@ -412,7 +412,7 @@ class For(Node):
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
-    collect_garbage(ctx, false);
+    collect_garbage(ctx, NULL);
 }}
 """.format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
         return body
@@ -437,7 +437,7 @@ class While(Node):
 while ({test}->bool_value())
 {{
 {stmts}
-    collect_garbage(ctx, false);
+    collect_garbage(ctx, NULL);
 {dup_test_stmts}
 }}
 """.format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test, stmts=stmts)
@@ -451,9 +451,9 @@ class Return(Node):
 
     def __str__(self):
         body = """
-        collect_garbage(ctx, true);
+        collect_garbage(ctx, %s);
         return %s;
-""" % self.value
+""" % (self.value, self.value)
         return body
 
 class Assert(Node):

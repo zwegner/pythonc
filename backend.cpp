@@ -53,10 +53,10 @@ class string_const;
 typedef int64_t int_t;
 
 typedef std::pair<node *, node *> node_pair;
-typedef std::map<const char *, node *, std::less<const char *>, alloc<std::pair<const char *, node *> > > symbol_table;
-typedef std::map<int_t, node_pair, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_dict;
-typedef std::map<int_t, node *, std::less<int_t>, alloc<std::pair<int_t, node *> > > node_set;
-typedef std::vector<node *, alloc<node *> > node_list;
+typedef std::map<const char *, node *> symbol_table;
+typedef std::map<int_t, node_pair> node_dict;
+typedef std::map<int_t, node *> node_set;
+typedef std::vector<node *> node_list;
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
@@ -1307,7 +1307,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("__args__", plist);
 }
 
-void collect_garbage(context *ctx, bool free_ctx) {
+void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
     if (++gc_tick > 128) {
         gc_tick = 0;
@@ -1318,7 +1318,10 @@ void collect_garbage(context *ctx, bool free_ctx) {
             n = n->next_node;
         }
 
-        ctx->mark_live(free_ctx);
+        ctx->mark_live(ret_val != NULL);
+
+        if (ret_val)
+            ret_val->live = true;
 
         n = all_nodes_list;
         node *last = NULL;
