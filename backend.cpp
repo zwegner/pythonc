@@ -601,10 +601,9 @@ public:
         return create_bool_const(this->lookup(key) != NULL);
     }
     virtual node *__getitem__(node *key) {
-        node *old_key = key;
         node *value = this->lookup(key);
         if (value == NULL)
-            error("cannot find '%s' in dict", old_key->str().c_str());
+            error("cannot find '%s' in dict", key->str().c_str());
         return value;
     }
     virtual int_t len() {
@@ -1321,7 +1320,7 @@ void collect_garbage(context *ctx, node *ret_val) {
         ctx->mark_live(ret_val != NULL);
 
         if (ret_val)
-            ret_val->live = true;
+            ret_val->mark_live();
 
         n = all_nodes_list;
         node *last = NULL;
