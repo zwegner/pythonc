@@ -325,7 +325,8 @@ class Transformer(ast.NodeTransformer):
             target = [(t.id, self.get_binding(t.id)) for t in node.target.elts]
         else:
             assert False
-        return syntax.For(target, iter, stmts)
+        for_loop = syntax.For(target, iter, stmts)
+        return for_loop.flatten(self)
 
     def visit_While(self, node):
         assert not node.orelse

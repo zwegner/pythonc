@@ -72,7 +72,7 @@ public:
     }
 
     void get_new_chunk() {
-        this->chunk_start = (byte *)new byte[CHUNK_SIZE];
+        this->chunk_start = new byte[CHUNK_SIZE];
         this->chunk_end = chunk_start + CHUNK_SIZE; 
         // Align the start of the chunk
         this->chunk_start = (byte *)(((uint64_t)this->chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));

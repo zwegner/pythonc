@@ -24,7 +24,8 @@
 import copy
 
 def block_str(stmts):
-    return '\n'.join('    %s;' % s for s in stmts)
+    stmts = '\n'.join('%s;' % s for s in stmts).splitlines()
+    return '\n'.join('    %s' % s for s in stmts)
 
 all_ints = set()
 def register_int(value):
@@ -275,10 +276,10 @@ class IfExp(Node):
         true_stmts = block_str(self.true_stmts)
         false_stmts = block_str(self.false_stmts)
         body =  """if ({expr}->bool_value()) {{
-    {true_stmts}
+{true_stmts}
     {temp} = {true_expr};
 }} else {{
-    {false_stmts}
+{false_stmts}
     {temp} = {false_expr};
 }}
 """.format(expr=self.expr, temp=self.temp.name, true_stmts=true_stmts,
@@ -301,7 +302,7 @@ class BoolOp(Node):
     def __str__(self):
         rhs_stmts = block_str(self.rhs_stmts)
         body =  """if ({op}{lhs_expr}->bool_value()) {{
-    {rhs_stmts}
+{rhs_stmts}
     {temp} = {rhs_expr};
 }}
 """.format(op='!' if self.op == 'or' else '', lhs_expr=self.lhs_expr,
@@ -335,7 +336,7 @@ class If(Node):
         if self.else_block:
             stmts = block_str(self.else_block)
             body +=  """else {{
-    {stmts}
+{stmts}
     }}
     """.format(expr=self.expr, stmts=stmts)
         return body
@@ -351,6 +352,8 @@ class ListComp(Node):
         l = List([])
         self.temp = l.flatten(ctx)
         ctx.statements += [self]
+        # HACK: prevent iterable from being garbage collected
+        self.iter_store = Store(ctx.get_temp(), self.iter, 'local')
         return self.temp
 
     def __str__(self):
@@ -363,12 +366,14 @@ class ListComp(Node):
             arg_unpacking = [Store(self.target, '*__iter', 'local')]
         arg_unpacking = block_str(arg_unpacking)
         body = """
+{iter_store};
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
     {temp}->append({expr});
 }}
-""".format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts, temp=self.temp, expr=self.expr)
+""".format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+        stmts=stmts, temp=self.temp, expr=self.expr)
         return body
 
 class Break(Node):
@@ -397,6 +402,11 @@ class For(Node):
         self.iter = iter
         self.stmts = stmts
 
+    def flatten(self, ctx):
+        # HACK: prevent iterable from being garbage collected
+        self.iter_store = Store(ctx.get_temp(), self.iter, 'local')
+        return self
+
     def __str__(self):
         stmts = block_str(self.stmts)
         arg_unpacking = []
@@ -409,12 +419,14 @@ class For(Node):
         arg_unpacking = block_str(arg_unpacking)
         # XXX sorta weird?
         body = """
+{iter_store};
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
     collect_garbage(ctx, NULL);
 }}
-""".format(iter=self.iter, arg_unpacking=arg_unpacking, stmts=stmts)
+""".format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+        stmts=stmts)
         return body
 
 class While(Node):
@@ -451,8 +463,8 @@ class Return(Node):
 
     def __str__(self):
         body = """
-        collect_garbage(ctx, %s);
-        return %s;
+collect_garbage(ctx, %s);
+return %s;
 """ % (self.value, self.value)
         return body
 
