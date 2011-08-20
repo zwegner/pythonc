@@ -105,7 +105,6 @@ public:
     virtual bool deallocate() = 0;
 #define DEALLOCATE_FN(type) \
     virtual bool deallocate() { \
-        this->~type(); \
         allocator->deallocate(this, sizeof(this)); \
         return true; \
     }
@@ -1308,7 +1307,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
-    if (++gc_tick > 128) {
+    if (++gc_tick > 1024) {
         gc_tick = 0;
 
         node *n = all_nodes_list;
