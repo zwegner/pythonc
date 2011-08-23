@@ -90,8 +90,6 @@ public:
     }
 
     void *allocate(uint64_t bytes) {
-        if (bytes > this->head->capacity)
-            return malloc(bytes);
         if (this->head->bytes_left() < bytes) {
             arena_block<BLOCK_SIZE> *block;
             if (this->free_list) {
@@ -107,10 +105,6 @@ public:
         return this->head->get_bytes(bytes);
     }
     void deallocate(void *p, uint64_t bytes) {
-        if (bytes > this->head->capacity) {
-            free(p);
-            return;
-        }
         arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)
             ((uint64_t)p & ~(BLOCK_SIZE - 1));
         block->ref_count--;
