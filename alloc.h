@@ -114,9 +114,10 @@ public:
         arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)
             ((uint64_t)p & ~(BLOCK_SIZE - 1));
         block->ref_count--;
-        if (block->ref_count <= 0) {
+        // XXX hack
+        if (block->ref_count <= 0 && this->head != block) {
             block->next = this->free_list;
-     //       this->free_list = block;
+            this->free_list = block;
         }
     }
 };
