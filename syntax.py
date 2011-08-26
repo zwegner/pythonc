@@ -137,7 +137,7 @@ class Load(Node):
             return 'globals->load("%s")' % self.name
         elif self.binding == 'class':
             return 'class_ctx->load("%s")' % self.name
-        return 'ctx->load("%s")' % self.name
+        return 'ctx.load("%s")' % self.name
 
 class Store(Node):
     def __init__(self, name, expr, binding):
@@ -150,7 +150,7 @@ class Store(Node):
             return 'globals->store("%s", %s)' % (self.name, self.expr)
         elif self.binding == 'class':
             return 'class_ctx->store("%s", %s)' % (self.name, self.expr)
-        return 'ctx->store("%s", %s)' % (self.name, self.expr)
+        return 'ctx.store("%s", %s)' % (self.name, self.expr)
 
 class StoreAttr(Node):
     def __init__(self, name, attr, expr):
@@ -257,7 +257,7 @@ class Call(Node):
         self.kwargs = kwargs
 
     def __str__(self):
-        return '%s->__call__(globals, ctx, %s, %s)' % (self.func, self.args, self.kwargs)
+        return '%s->__call__(globals, &ctx, %s, %s)' % (self.func, self.args, self.kwargs)
 
 class IfExp(Node):
     def __init__(self, expr, true_stmts, true_expr, false_stmts, false_expr):
@@ -423,7 +423,7 @@ class For(Node):
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
 {stmts}
-    collect_garbage(ctx, NULL);
+    collect_garbage(&ctx, NULL);
 }}
 """.format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
         stmts=stmts)
@@ -449,7 +449,7 @@ class While(Node):
 while ({test}->bool_value())
 {{
 {stmts}
-    collect_garbage(ctx, NULL);
+    collect_garbage(&ctx, NULL);
 {dup_test_stmts}
 }}
 """.format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test, stmts=stmts)
@@ -463,7 +463,7 @@ class Return(Node):
 
     def __str__(self):
         body = """
-collect_garbage(ctx, %s);
+collect_garbage(&ctx, %s);
 return %s;
 """ % (self.value, self.value)
         return body
@@ -520,7 +520,7 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *globals, context *parent_ctx, list *args, dict *kwargs) {{
-    context ctx[1];
+    context ctx(parent_ctx);
 {arg_unpacking}
 {stmts}
     return &none_singleton;

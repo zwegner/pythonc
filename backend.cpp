@@ -1271,7 +1271,8 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
-    if (++gc_tick > 0) {
+    if (++gc_tick > 8192) {
+        gc_tick = 0;
 
         allocator->mark_dead();
 

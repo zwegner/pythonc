@@ -13,7 +13,7 @@ args = sys.argv[1:]
 
 gcc_flags = ['-g', '-Wall']
 if args and args[0] == '-O':
-    gcc_flags = ['-O3']
+    gcc_flags += ['-O3']
     args = args[1:]
 
 if not args:
