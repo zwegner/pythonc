@@ -445,7 +445,7 @@ with open(sys.argv[2], 'w') as f:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
-    f.write('    context *ctx = new(allocator) context(), *globals = ctx;\n')
+    f.write('    context ctx[1], *globals = ctx;\n')
     f.write('    init_context(ctx, argc, argv);\n')
 
     for stmt in node:

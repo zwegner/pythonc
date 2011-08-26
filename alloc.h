@@ -21,54 +21,76 @@
 #include <stddef.h>
 #include <assert.h>
 
+#define BLOCK_SIZE (1 << 14)
+#define CHUNK_SIZE (1 << 22)
+
 typedef unsigned char byte;
 
-template <uint64_t block_size>
+uint32_t bitscan64(uint64_t r) {
+   asm ("bsfq %0, %0" : "=r" (r) : "0" (r));
+   return r;
+}
+
+template <uint64_t obj_size>
 class arena_block {
 public:
-    static const uint64_t capacity = block_size - 2 * sizeof(void *) - sizeof(int);
-    arena_block *next;
-    byte *curr;
-    int ref_count;
-    byte data[capacity];
+    static const uint64_t capacity = BLOCK_SIZE - sizeof(void *);
+    static const uint64_t n_objects = (capacity * 64 / (obj_size * 64 + 8)) & ~63;
+    arena_block<obj_size> *next_block;
+    uint64_t live_bits[n_objects / 64];
+    byte data[obj_size * n_objects];
+    byte padding[capacity - (obj_size * n_objects + n_objects / 8)];
 
     void init() {
-        // Ensure power-of-two block size, aligned address
-        assert((block_size & (block_size - 1)) == 0);
-        assert(((uint64_t)this & (block_size - 1)) == 0);
-        this->curr = this->data;
-        this->ref_count = 0;
+        assert(sizeof(arena_block<obj_size>) == BLOCK_SIZE);
+        assert(sizeof(this->live_bits) * 8 == n_objects);
+        mark_dead();
     }
-    void *get_bytes(uint64_t bytes) {
-        // Should only happen if allocation is bigger than block size
-        if (bytes > this->bytes_left()) {
-            printf("unable to allocate %" PRIu64 " bytes of memory!", bytes);
-            exit(1);
+    void mark_dead() {
+        for (uint32_t t = 0; t < n_objects / 64; t++)
+            this->live_bits[t] = 0;
+    }
+    void *get_obj() {
+        for (uint32_t t = 0; t < n_objects / 64; t++) {
+            uint64_t dead = ~this->live_bits[t];
+            if (dead) {
+                uint32_t bit = bitscan64(dead);
+                uint32_t idx = t * 64 + bit;
+                this->live_bits[t] |= (1ull << bit);
+                byte *b = &this->data[idx * obj_size];
+                return (void *)b;
+            }
         }
-        byte *b = this->curr;
-        this->curr += bytes;
-        this->ref_count++;
-        return (void *)b;
+        return NULL;
     }
-    uint64_t bytes_left() {
-        return capacity - (this->curr - this->data);
+    bool mark_live(uint32_t idx) {
+        uint32_t t = idx / 64;
+        uint64_t bit = 1ull << (idx & 63);
+        bool already_live = (this->live_bits[t] & bit) != 0ull;
+        this->live_bits[t] |= bit;
+        return already_live;
     }
 };
 
-#define BLOCK_SIZE (1 << 12)
-#define CHUNK_SIZE (1 << 20)
+// Silly preprocessor stuff for "cleanly" handling multiple block sizes.
+#define FOR_EACH_OBJ_SIZE(x) x(16) x(24) x(32) x(40) x(56) x(64) x(72)
 
 class arena {
 private:
-    arena_block<BLOCK_SIZE> *head, *free_list;
+#define DECL_BLOCK(size) arena_block<size> *head_##size;
+    FOR_EACH_OBJ_SIZE(DECL_BLOCK)
+#undef DECL_BLOCK
     byte *chunk_start, *chunk_end;
 
 public:
     arena() {
-        assert(sizeof(arena_block<BLOCK_SIZE>) == BLOCK_SIZE);
         this->get_new_chunk();
-        this->head = this->new_block();
-        this->free_list = NULL;
+#define INIT_BLOCK(size) \
+        this->head_##size = (arena_block<size> *)this->new_block(); \
+        this->head_##size->init();
+
+        FOR_EACH_OBJ_SIZE(INIT_BLOCK)
+#undef INIT_BLOCK
     }
 
     void get_new_chunk() {
@@ -78,40 +100,57 @@ public:
         this->chunk_start = (byte *)(((uint64_t)this->chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
     }
 
-    arena_block<BLOCK_SIZE> *new_block() {
+    void *new_block() {
         if (this->chunk_end - this->chunk_start < BLOCK_SIZE)
             this->get_new_chunk();
 
-        arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)this->chunk_start;
+        void *block = this->chunk_start;
         this->chunk_start += BLOCK_SIZE;
-
-        block->init();
         return block;
     }
 
     void *allocate(uint64_t bytes) {
-        if (this->head->bytes_left() < bytes) {
-            arena_block<BLOCK_SIZE> *block;
-            if (this->free_list) {
-                block = this->free_list;
-                this->free_list = block->next;
-                block->init();
+        switch (bytes) {
+#define OBJ_CASE(size) \
+            case size: { \
+                arena_block<size> *block = this->head_##size; \
+                void *p = block->get_obj(); \
+                if (!p) { \
+                    block = (arena_block<size> *)this->new_block(); \
+                    block->init(); \
+                    block->next_block = this->head_##size; \
+                    this->head_##size = block; \
+                    p = block->get_obj(); \
+                } \
+                return p; \
             }
-            else
-                block = this->new_block();
-            block->next = this->head;
-            this->head = block;
+
+            FOR_EACH_OBJ_SIZE(OBJ_CASE)
+#undef OBJ_CASE
+            default:
+                printf("bad obj size %" PRIu64 "\n", bytes);
+                exit(1);
         }
-        return this->head->get_bytes(bytes);
+        return NULL;
     }
-    void deallocate(void *p, uint64_t bytes) {
-        arena_block<BLOCK_SIZE> *block = (arena_block<BLOCK_SIZE> *)
-            ((uint64_t)p & ~(BLOCK_SIZE - 1));
-        block->ref_count--;
-        // XXX hack
-        if (block->ref_count <= 0 && this->head != block) {
-            block->next = this->free_list;
-            this->free_list = block;
+    void mark_dead() {
+#define MARK_DEAD(size) \
+        for (arena_block<size> *p = this->head_##size; p; p = p->next_block) \
+            p->mark_dead();
+
+        FOR_EACH_OBJ_SIZE(MARK_DEAD)
+#undef MARK_DEAD
+    }
+    bool mark_live(void *object, uint64_t bytes) {
+        uint32_t idx = ((uint64_t)object & (BLOCK_SIZE - 1)) / bytes;
+        void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));
+        switch (bytes) {
+#define OBJ_CASE(size) case size: return ((arena_block<size> *)block)->mark_live(idx);
+            FOR_EACH_OBJ_SIZE(OBJ_CASE)
+#undef OBJ_CASE
+            default:
+                printf("bad obj size %" PRIu64 "\n", bytes);
+                exit(1);
         }
     }
 };

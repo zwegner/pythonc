@@ -82,34 +82,18 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
-static node *all_nodes_list;
+const char *node_type = "node";
 
 class node {
 private:
-    const char *node_type;
-
 public:
-    bool live;
-    node *next_node;
-
     node(const char *type) {
-        this->node_type = type;
-        this->next_node = all_nodes_list;
-        all_nodes_list = this;
     }
 
-    virtual void mark_live() { this->live = true; }
-
-    // Virtual deallocator function, since the size needs to be known
-    // Don't deallocate singletons, either.
-    virtual bool deallocate() = 0;
-#define DEALLOCATE_FN(type) \
-    virtual bool deallocate() { \
-        allocator->deallocate(this, sizeof(this)); \
-        return true; \
-    }
-#define DEALLOCATE_FN_SINGLETON \
-    virtual bool deallocate() { return false; }
+    virtual void mark_live() { error("mark_live unimplemented for %s", node_type); }
+#define MARK_LIVE_FN \
+    virtual void mark_live() { allocator->mark_live(this, sizeof(*this)); }
+#define MARK_LIVE_SINGLETON_FN virtual void mark_live() { }
 
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
@@ -232,7 +216,7 @@ public:
     none_const(int_t value) : node("none") {
     }
 
-    DEALLOCATE_FN_SINGLETON
+    MARK_LIVE_SINGLETON_FN
 
     virtual bool is_none() { return true; }
     virtual bool bool_value() { return false; }
@@ -251,7 +235,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN(int_const)
+    MARK_LIVE_FN
 
     virtual bool is_int_const() { return true; }
     virtual int_t int_value() { return this->value; }
@@ -305,7 +289,7 @@ class int_const_singleton : public int_const {
 public:
     int_const_singleton(int_t value) : int_const(value) { }
 
-    DEALLOCATE_FN_SINGLETON
+    MARK_LIVE_SINGLETON_FN
 };
 
 class bool_const : public node {
@@ -317,7 +301,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN_SINGLETON
+    MARK_LIVE_SINGLETON_FN
 
     virtual bool is_bool() { return true; }
     virtual bool bool_value() { return this->value; }
@@ -379,7 +363,7 @@ public:
         this->value = value;
     }
 
-    DEALLOCATE_FN(string_const)
+    MARK_LIVE_FN
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
@@ -450,7 +434,7 @@ private:
 public:
     string_const_singleton(std::string value, int_t hashkey) : string_const(value), hashkey(hashkey) { }
 
-    DEALLOCATE_FN_SINGLETON
+    MARK_LIVE_SINGLETON_FN
 
     virtual int_t hash() {
         return this->hashkey;
@@ -467,11 +451,8 @@ public:
     list(node_list &l) : node("list"), items(l) {
     }
 
-    DEALLOCATE_FN(list)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this))) {
             for (size_t i = 0; i < this->items.size(); i++)
                 this->items[i]->mark_live();
         }
@@ -564,11 +545,8 @@ public:
     dict() : node("dict") {
     }
 
-    DEALLOCATE_FN(dict)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this))) {
             for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
                 i->second.first->mark_live();
                 i->second.second->mark_live();
@@ -639,11 +617,8 @@ public:
     set() : node("set") {
     }
 
-    DEALLOCATE_FN(set)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this))) {
             for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
                 i->second->mark_live();
         }
@@ -701,13 +676,9 @@ public:
     object() : node("object")
     {}
 
-    DEALLOCATE_FN(object)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this)))
             this->items.mark_live();
-        }
     }
 
     virtual bool bool_value() { return true; }
@@ -734,7 +705,7 @@ public:
             error("%s: file not found", path);
     }
 
-    DEALLOCATE_FN(file)
+    MARK_LIVE_FN
 
     node *read(int_t len) {
         static char buf[64*1024];
@@ -759,11 +730,8 @@ public:
         this->function = function;
     }
 
-    DEALLOCATE_FN(bound_method)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this))) {
             this->self->mark_live();
             this->function->mark_live();
         }
@@ -788,7 +756,7 @@ public:
         this->base_function = base_function;
     }
 
-    DEALLOCATE_FN(function_def)
+    MARK_LIVE_FN
 
     virtual bool is_function() { return true; }
 
@@ -808,13 +776,9 @@ public:
         creator(this);
     }
 
-    DEALLOCATE_FN(class_def)
-
     virtual void mark_live() {
-        if (!this->live) {
-            this->live = true;
+        if (!allocator->mark_live(this, sizeof(*this)))
             this->items.mark_live();
-        }
     }
 
     node *load(const char *name) {
@@ -1307,33 +1271,13 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
-    if (++gc_tick > 1024) {
-        gc_tick = 0;
+    if (++gc_tick > 0) {
 
-        node *n = all_nodes_list;
-        while (n) {
-            n->live = false;
-            n = n->next_node;
-        }
+        allocator->mark_dead();
 
         ctx->mark_live(ret_val != NULL);
 
         if (ret_val)
             ret_val->mark_live();
-
-        n = all_nodes_list;
-        node *last = NULL;
-        while (n) {
-            node *next = n->next_node;
-            if (!n->live && n->deallocate()) {
-                if (last)
-                    last->next_node = next;
-                else
-                    all_nodes_list = next;
-            }
-            else
-                last = n;
-            n = next;
-        }
     }
 }

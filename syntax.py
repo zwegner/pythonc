@@ -520,7 +520,7 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *globals, context *parent_ctx, list *args, dict *kwargs) {{
-    context *ctx = new(allocator) context(parent_ctx);
+    context ctx[1];
 {arg_unpacking}
 {stmts}
     return &none_singleton;
