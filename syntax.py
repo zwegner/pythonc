@@ -66,12 +66,18 @@ class NoneConst(Node):
     def __init__(self):
         pass
 
+    def is_atom(self):
+        return True
+
     def __str__(self):
         return '&none_singleton'
 
 class BoolConst(Node):
     def __init__(self, value):
         self.value = value
+
+    def is_atom(self):
+        return True
 
     def __str__(self):
         return '&bool_singleton_%s' % self.value
@@ -81,6 +87,9 @@ class IntConst(Node):
         self.value = value
         register_int(value)
 
+    def is_atom(self):
+        return True
+
     def __str__(self):
         return '&%s' % int_name(self.value)
 
@@ -88,6 +97,9 @@ class StringConst(Node):
     def __init__(self, value):
         self.value = value
         self.id = register_string(value)
+
+    def is_atom(self):
+        return True
 
     def __str__(self):
         return '&string_singleton_%s' % self.id

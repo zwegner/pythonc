@@ -809,6 +809,13 @@ public:
     }
 };
 
+class class_def_singleton : public class_def {
+public:
+    class_def_singleton(std::string name, void (*creator)(class_def *)) : class_def(name, creator) { }
+
+    MARK_LIVE_SINGLETON_FN
+};
+
 bool_const bool_singleton_True(true);
 bool_const bool_singleton_False(false);
 none_const none_singleton(0);
@@ -824,8 +831,8 @@ void _int__create_(class_def *ctx) {
 void _str__create_(class_def *ctx) {
 }
 
-class_def builtin_class_int("int", _int__create_);
-class_def builtin_class_str("str", _str__create_);
+class_def_singleton builtin_class_int("int", _int__create_);
+class_def_singleton builtin_class_str("str", _str__create_);
 
 node *node::__getattr__(node *key) {
     if (!key->is_string())
@@ -1271,7 +1278,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
 
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
-    if (++gc_tick > 8192) {
+    if (++gc_tick > 128) {
         gc_tick = 0;
 
         allocator->mark_dead();
