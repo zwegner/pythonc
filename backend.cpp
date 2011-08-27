@@ -82,15 +82,13 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
-const char *node_type = "node";
-
 class node {
 private:
 public:
-    node(const char *type) {
-    }
+    node() { }
+    virtual const char *node_type() { return "node"; }
 
-    virtual void mark_live() { error("mark_live unimplemented for %s", node_type); }
+    virtual void mark_live() { error("mark_live unimplemented for %s", this->node_type()); }
 #define MARK_LIVE_FN \
     virtual void mark_live() { allocator->mark_live(this, sizeof(*this)); }
 #define MARK_LIVE_SINGLETON_FN virtual void mark_live() { }
@@ -104,13 +102,13 @@ public:
     virtual bool is_none() { return false; }
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
-    virtual bool bool_value() { error("bool_value unimplemented for %s", node_type); return false; }
-    virtual int_t int_value() { error("int_value unimplemented for %s", node_type); return 0; }
-    virtual std::string string_value() { error("string_value unimplemented for %s", node_type); return NULL; }
-    virtual node_list *list_value() { error("list_value unimplemented for %s", node_type); return NULL; }
+    virtual bool bool_value() { error("bool_value unimplemented for %s", this->node_type()); return false; }
+    virtual int_t int_value() { error("int_value unimplemented for %s", this->node_type()); return 0; }
+    virtual std::string string_value() { error("string_value unimplemented for %s", this->node_type()); return NULL; }
+    virtual node_list *list_value() { error("list_value unimplemented for %s", this->node_type()); return NULL; }
 
 #define UNIMP_OP(NAME) \
-    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", node_type); return NULL; }
+    virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", this->node_type()); return NULL; }
 
     UNIMP_OP(add)
     UNIMP_OP(and)
@@ -127,7 +125,7 @@ public:
     UNIMP_OP(xor)
 
 #define UNIMP_CMP_OP(NAME) \
-    virtual bool _##NAME(node *rhs) { error(#NAME " unimplemented for %s", node_type); return false; } \
+    virtual bool _##NAME(node *rhs) { error(#NAME " unimplemented for %s", this->node_type()); return false; } \
     node *__##NAME##__(node *rhs) { return create_bool_const(this->_##NAME(rhs)); }
 
     UNIMP_CMP_OP(eq)
@@ -140,7 +138,7 @@ public:
     UNIMP_OP(contains)
 
 #define UNIMP_UNOP(NAME) \
-    virtual node *__##NAME##__() { error(#NAME " unimplemented for %s", node_type); return NULL; }
+    virtual node *__##NAME##__() { error(#NAME " unimplemented for %s", this->node_type()); return NULL; }
 
     UNIMP_UNOP(invert)
     UNIMP_UNOP(pos)
@@ -156,19 +154,19 @@ public:
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", node_type); return NULL; }
-    virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", node_type); }
-    virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", node_type); return NULL; }
-    virtual node *__getitem__(int index) { error("getitem unimplemented for %s", node_type); return NULL; }
-    virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented for %s", node_type); }
-    virtual void __setitem__(node *key, node *value) { error("setitem unimplemented for %s", node_type); }
-    virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", node_type); return NULL; }
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
+    virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", this->node_type()); }
+    virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
+    virtual node *__getitem__(int index) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
+    virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented for %s", this->node_type()); }
+    virtual void __setitem__(node *key, node *value) { error("setitem unimplemented for %s", this->node_type()); }
+    virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", this->node_type()); return NULL; }
 
     // unwrapped versions
-    virtual int_t len() { error("len unimplemented for %s", node_type); return 0; }
-    virtual node *getattr(const char *rhs) { error("getattr unimplemented (%s) for %s", rhs, node_type); return NULL; }
-    virtual int_t hash() { error("hash unimplemented for %s", node_type); return 0; }
-    virtual std::string str() { error("str unimplemented for %s", node_type); return NULL; }
+    virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
+    virtual node *getattr(const char *rhs) { error("getattr unimplemented (%s) for %s", rhs, this->node_type()); return NULL; }
+    virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
+    virtual std::string str() { error("str unimplemented for %s", this->node_type()); return NULL; }
 };
 
 class context {
@@ -213,8 +211,8 @@ public:
 class none_const : public node {
 public:
     // For some reason this causes errors without an argument to the constructor...
-    none_const(int_t value) : node("none") {
-    }
+    none_const(int_t value) { }
+    const char *node_type() { return "none"; }
 
     MARK_LIVE_SINGLETON_FN
 
@@ -231,9 +229,10 @@ private:
     int_t value;
 
 public:
-    int_const(int_t value) : node("int") {
+    int_const(int_t value) {
         this->value = value;
     }
+    const char *node_type() { return "int"; }
 
     MARK_LIVE_FN
 
@@ -297,9 +296,10 @@ private:
     bool value;
 
 public:
-    bool_const(bool value) : node("bool") {
+    bool_const(bool value) {
         this->value = value;
     }
+    const char *node_type() { return "bool"; }
 
     MARK_LIVE_SINGLETON_FN
 
@@ -359,9 +359,10 @@ private:
     std::string value;
 
 public:
-    string_const(std::string value) : node("str") {
+    string_const(std::string value) {
         this->value = value;
     }
+    const char *node_type() { return "str"; }
 
     MARK_LIVE_FN
 
@@ -446,10 +447,9 @@ private:
     node_list items;
 
 public:
-    list() : node("list") {
-    }
-    list(node_list &l) : node("list"), items(l) {
-    }
+    list() { }
+    list(node_list &l) : items(l) { }
+    const char *node_type() { return "list"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -542,8 +542,8 @@ private:
     node_dict items;
 
 public:
-    dict() : node("dict") {
-    }
+    dict() { }
+    const char *node_type() { return "dict"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -614,8 +614,8 @@ private:
     node_set items;
 
 public:
-    set() : node("set") {
-    }
+    set() { }
+    const char *node_type() { return "set"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -673,8 +673,8 @@ private:
     dict items;
 
 public:
-    object() : node("object")
-    {}
+    object() { }
+    const char *node_type() { return "object"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this)))
@@ -699,11 +699,12 @@ private:
     FILE *f;
 
 public:
-    file(const char *path, const char *mode) : node("file") {
+    file(const char *path, const char *mode) {
         f = fopen(path, mode);
         if (!f)
             error("%s: file not found", path);
     }
+    const char *node_type() { return "file"; }
 
     MARK_LIVE_FN
 
@@ -725,10 +726,11 @@ private:
     node *function;
 
 public:
-    bound_method(node *self, node *function) : node("bound_method") {
+    bound_method(node *self, node *function) {
         this->self = self;
         this->function = function;
     }
+    const char *node_type() { return "bound_method"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -752,9 +754,10 @@ private:
     fptr base_function;
 
 public:
-    function_def(fptr base_function) : node("function") {
+    function_def(fptr base_function) {
         this->base_function = base_function;
     }
+    const char *node_type() { return "function"; }
 
     MARK_LIVE_FN
 
@@ -771,10 +774,11 @@ private:
     dict items;
 
 public:
-    class_def(std::string name, void (*creator)(class_def *)) : node("class") {
+    class_def(std::string name, void (*creator)(class_def *)) {
         this->name = name;
         creator(this);
     }
+    const char *node_type() { return "class"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this)))
