@@ -36,9 +36,9 @@ class arena_block {
 public:
     static const uint64_t capacity = BLOCK_SIZE - sizeof(void *);
     static const uint64_t n_objects = (capacity * 64 / (obj_size * 64 + 8)) & ~63;
+    byte data[obj_size * n_objects];
     arena_block<obj_size> *next_block;
     uint64_t live_bits[n_objects / 64];
-    byte data[obj_size * n_objects];
     byte padding[capacity - (obj_size * n_objects + n_objects / 8)];
 
     void init() {

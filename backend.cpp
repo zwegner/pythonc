@@ -41,7 +41,7 @@ void error(const char *msg, ...) {
     va_end(va);
     puts("");
     fflush(stdout);
-    exit(1);
+    assert(0);
 }
 
 class node;
