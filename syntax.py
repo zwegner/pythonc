@@ -70,17 +70,14 @@ class NoneConst(Node):
         return True
 
     def __str__(self):
-        return '&none_singleton'
+        return '(&none_singleton)'
 
 class BoolConst(Node):
     def __init__(self, value):
         self.value = value
 
-    def is_atom(self):
-        return True
-
     def __str__(self):
-        return '&bool_singleton_%s' % self.value
+        return '(&bool_singleton_%s)' % self.value
 
 class IntConst(Node):
     def __init__(self, value):
@@ -91,7 +88,7 @@ class IntConst(Node):
         return True
 
     def __str__(self):
-        return '&%s' % int_name(self.value)
+        return '(&%s)' % int_name(self.value)
 
 class StringConst(Node):
     def __init__(self, value):
@@ -102,7 +99,7 @@ class StringConst(Node):
         return True
 
     def __str__(self):
-        return '&string_singleton_%s' % self.id
+        return '(&string_singleton_%s)' % self.id
 
 class Identifier(Node):
     def __init__(self, name):
