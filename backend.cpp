@@ -670,24 +670,26 @@ public:
 
 class object : public node {
 private:
-    dict items;
+    dict *items;
 
 public:
-    object() { }
+    object() {
+        this->items = new(allocator) dict();
+    }
     const char *node_type() { return "object"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this)))
-            this->items.mark_live();
+            this->items->mark_live();
     }
 
     virtual bool bool_value() { return true; }
 
     virtual node *getattr(const char *key) {
-        return items.__getitem__(new(allocator) string_const(key));
+        return items->__getitem__(new(allocator) string_const(key));
     }
     virtual void __setattr__(node *key, node *value) {
-        items.__setitem__(key, value);
+        items->__setitem__(key, value);
     }
     virtual bool _eq(node *rhs) {
         return this == rhs;
@@ -771,25 +773,26 @@ public:
 class class_def : public node {
 private:
     std::string name;
-    dict items;
+    dict *items;
 
 public:
     class_def(std::string name, void (*creator)(class_def *)) {
         this->name = name;
+        this->items = new(allocator) dict();
         creator(this);
     }
     const char *node_type() { return "class"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this)))
-            this->items.mark_live();
+            this->items->mark_live();
     }
 
     node *load(const char *name) {
-        return items.__getitem__(new(allocator) string_const(name));
+        return items->__getitem__(new(allocator) string_const(name));
     }
     void store(const char *name, node *value) {
-        items.__setitem__(new(allocator) string_const(name), value);
+        items->__setitem__(new(allocator) string_const(name), value);
     }
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -799,7 +802,7 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (node_dict::iterator i = items.begin(); i != items.end(); i++)
+        for (node_dict::iterator i = items->begin(); i != items->end(); i++)
             if (i->second.second->is_function())
                 obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
 
