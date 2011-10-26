@@ -58,11 +58,13 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
+node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs);
@@ -666,6 +668,8 @@ public:
         return this->items.size();
     }
     virtual std::string str() {
+        if (!this->items.size())
+            return "set()";
         std::string new_string = "{";
         bool first = true;
         for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++) {
@@ -1041,6 +1045,13 @@ node *string_const::__mul__(node *rhs) {
     if (kwargs->len()) \
         error(name "() does not take keyword arguments")
 
+node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS("dict");
+    if (args->len())
+        error("too many arguments to dict()");
+    return new(allocator) dict();
+}
+
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
@@ -1084,6 +1095,13 @@ node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwarg
 
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
     return args->__getitem__(0)->__len__();
+}
+
+node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS("list");
+    if (args->len())
+        error("too many arguments to list()");
+    return new(allocator) list();
 }
 
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1279,9 +1297,11 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 void init_context(context *ctx, int_t argc, char **argv) {
+    ctx->store("dict", new(allocator) function_def(builtin_dict));
     ctx->store("fread", new(allocator) function_def(builtin_fread));
     ctx->store("len", new(allocator) function_def(builtin_len));
     ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
+    ctx->store("list", new(allocator) function_def(builtin_list));
     ctx->store("open", new(allocator) function_def(builtin_open));
     ctx->store("ord", new(allocator) function_def(builtin_ord));
     ctx->store("print", new(allocator) function_def(builtin_print));
