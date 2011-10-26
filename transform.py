@@ -106,12 +106,17 @@ class Transformer(ast.NodeTransformer):
         return syntax.Load(node.id, self.get_binding(node.id))
 
     def visit_Num(self, node):
+        if isinstance(node.n, float):
+            raise RuntimeError('Pythonc currently does not support float literals')
         assert isinstance(node.n, int)
         return syntax.IntConst(node.n)
 
     def visit_Str(self, node):
         assert isinstance(node.s, str)
         return syntax.StringConst(node.s)
+
+    def visit_Bytes(self, node):
+        raise RuntimeError('Pythonc currently does not support bytes literals')
 
     # Unary Ops
     def visit_Invert(self, node): return '__invert__'
