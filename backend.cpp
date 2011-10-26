@@ -1037,6 +1037,10 @@ node *string_const::__mul__(node *rhs) {
     return new(allocator) string_const(new_string);
 }
 
+#define NO_KWARGS(name) \
+    if (kwargs->len()) \
+        error(name "() does not take keyword arguments")
+
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     if (args->len() != 3) // just assume 3 args for now...
         error("bad number of arguments to dict.get()");
@@ -1181,6 +1185,9 @@ node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs)
 }
 
 node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS("set");
+    if (args->len())
+        error("too many arguments to set()");
     return new(allocator) set();
 }
 
