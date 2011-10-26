@@ -277,7 +277,6 @@ public:
         return new(allocator) int_const(OP this->int_value()); \
     }
     INT_UNOP(invert, ~)
-    INT_UNOP(not, !)
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
 
