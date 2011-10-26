@@ -34,14 +34,14 @@
 
 #include "alloc.h"
 
-void error(const char *msg, ...) {
+__attribute((noreturn)) void error(const char *msg, ...) {
     va_list va;
     va_start(va, msg);
     vprintf(msg, va);
     va_end(va);
     puts("");
     fflush(stdout);
-    assert(0);
+    exit(1);
 }
 
 class node;
