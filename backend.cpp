@@ -922,6 +922,9 @@ public:
     virtual node *getattr(const char *attr) {
         return this->load(attr);
     }
+    virtual std::string repr() {
+        return std::string("<class '") + this->name + "'>";
+    }
 };
 
 class class_def_singleton : public class_def {
