@@ -152,6 +152,7 @@ public:
     node *__not__();
     node *__is__(node *rhs);
     node *__isnot__(node *rhs);
+    node *__repr__();
     node *__str__();
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
@@ -168,7 +169,8 @@ public:
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
     virtual node *getattr(const char *rhs) { error("getattr unimplemented (%s) for %s", rhs, this->node_type()); return NULL; }
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
-    virtual std::string str() { error("str unimplemented for %s", this->node_type()); return NULL; }
+    virtual std::string repr() { error("repr unimplemented for %s", this->node_type()); return NULL; }
+    virtual std::string str() { return repr(); }
 };
 
 class context {
@@ -223,7 +225,7 @@ public:
 
     virtual bool _eq(node *rhs);
     virtual int_t hash() { return 0; }
-    virtual std::string str() { return std::string("None"); }
+    virtual std::string repr() { return std::string("None"); }
 };
 
 class int_const : public node {
@@ -282,7 +284,7 @@ public:
 
     virtual int_t hash() { return this->value; }
     virtual node *getattr(const char *key);
-    virtual std::string str();
+    virtual std::string repr();
 };
 
 class int_const_singleton : public int_const {
@@ -352,7 +354,7 @@ public:
     BOOL_OP(ge, >=)
 
     virtual int_t hash() { return (int_t)this->value; }
-    virtual std::string str();
+    virtual std::string repr();
 };
 
 class string_const : public node {
@@ -425,6 +427,12 @@ public:
         if (st != 1)
             error("slice step != 1 not supported for string");
         return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
+    }
+    virtual std::string repr() {
+        std::string s("'");
+        s += this->value; // XXX Add proper quoting/escaping
+        s += "'";
+        return s;
     }
     virtual std::string str() { return this->value; }
 };
@@ -535,14 +543,14 @@ public:
             new_list->append(items[lo]);
         return new_list;
     }
-    virtual std::string str() {
+    virtual std::string repr() {
         std::string new_string = "[";
         bool first = true;
         for (node_list::iterator i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += (*i)->str();
+            new_string += (*i)->repr();
         }
         new_string += "]";
         return new_string;
@@ -593,7 +601,7 @@ public:
     virtual node *__getitem__(node *key) {
         node *value = this->lookup(key);
         if (value == NULL)
-            error("cannot find '%s' in dict", key->str().c_str());
+            error("cannot find %s in dict", key->repr().c_str());
         return value;
     }
     virtual int_t len() {
@@ -607,14 +615,14 @@ public:
             hashkey = key->hash();
         items[hashkey] = node_pair(key, value);
     }
-    virtual std::string str() {
+    virtual std::string repr() {
         std::string new_string = "{";
         bool first = true;
         for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second.first->str() + ": " + i->second.second->str();
+            new_string += i->second.first->repr() + ": " + i->second.second->repr();
         }
         new_string += "}";
         return new_string;
@@ -666,7 +674,7 @@ public:
     virtual int_t len() {
         return this->items.size();
     }
-    virtual std::string str() {
+    virtual std::string repr() {
         if (!this->items.size())
             return "set()";
         std::string new_string = "{";
@@ -675,7 +683,7 @@ public:
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second->str();
+            new_string += i->second->repr();
         }
         new_string += "}";
         return new_string;
@@ -882,6 +890,10 @@ node *node::__isnot__(node *rhs) {
     return create_bool_const(this != rhs);
 }
 
+node *node::__repr__() {
+    return new(allocator) string_const(this->repr());
+}
+
 node *node::__str__() {
     return new(allocator) string_const(this->str());
 }
@@ -897,13 +909,13 @@ node *int_const::getattr(const char *key) {
     return NULL;
 }
 
-std::string int_const::str() {
+std::string int_const::repr() {
     char buf[32];
     sprintf(buf, "%" PRId64, this->value);
     return std::string(buf);
 }
 
-std::string bool_const::str() {
+std::string bool_const::repr() {
     return std::string(this->value ? "True" : "False");
 }
 
