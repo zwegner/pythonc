@@ -1058,6 +1058,10 @@ node *string_const::__mul__(node *rhs) {
     return new(allocator) string_const(new_string);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Builtins ////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 #define NO_KWARGS_N_ARGS(name, n_args) \
     if (kwargs->len()) \
         error(name "() does not take keyword arguments"); \
@@ -1070,8 +1074,7 @@ node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
-    if (args->len() != 3) // just assume 3 args for now...
-        error("bad number of arguments to dict.get()");
+    NO_KWARGS_N_ARGS("dict.get", 3);
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
 
@@ -1083,8 +1086,7 @@ node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs)
 }
 
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs) {
-    if (args->len() != 1)
-        error("bad number of arguments to dict.keys()");
+    NO_KWARGS_N_ARGS("dict.keys", 1);
     dict *self = (dict *)args->__getitem__(0);
 
     list *plist = new(allocator) list();
@@ -1111,6 +1113,7 @@ node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs
 }
 
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("fread", 2);
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
     if (!f->is_file() || !len->is_int_const())
@@ -1119,6 +1122,7 @@ node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("isinstance", 2);
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
 
@@ -1127,6 +1131,7 @@ node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwarg
 }
 
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("len", 1);
     return args->__getitem__(0)->__len__();
 }
 
@@ -1136,6 +1141,7 @@ node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("list.append", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1145,8 +1151,7 @@ node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwar
 }
 
 node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs) {
-    if (args->len() != 2)
-        error("bad number of arguments to list.index()");
+    NO_KWARGS_N_ARGS("list.index", 2);
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
 
@@ -1158,12 +1163,14 @@ node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwarg
 }
 
 node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("pop", 1);
     list *self = (list *)args->__getitem__(0);
 
     return self->pop();
 }
 
 node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("open", 2);
     node *path = args->__getitem__(0);
     node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
@@ -1173,6 +1180,7 @@ node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("ord", 1);
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
@@ -1192,6 +1200,7 @@ node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("print_nonl", 1);
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
     return &none_singleton;
@@ -1221,6 +1230,7 @@ node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("reversed", 1);
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call reversed on non-list");
@@ -1239,6 +1249,7 @@ node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("set.add", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
 
@@ -1252,6 +1263,7 @@ bool compare_nodes(node *lhs, node *rhs) {
 }
 
 node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("sorted", 1);
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call sorted on non-list");
@@ -1266,6 +1278,7 @@ node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("str.join", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
     if (!self->is_string() || !item->is_list())
@@ -1305,6 +1318,7 @@ node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs
 }
 
 node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("str.upper", 1);
     node *self = args->__getitem__(0);
     if (!self->is_string())
         error("bad argument to str.upper()");
@@ -1318,6 +1332,7 @@ node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs
 }
 
 node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("str.startswith", 2);
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
     if (!self->is_string() || !prefix->is_string())
@@ -1329,8 +1344,7 @@ node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *k
 }
 
 node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
-    if (args->len() != 2)
-        error("bad arguments to zip()");
+    NO_KWARGS_N_ARGS("zip", 2);
     node *list1 = args->__getitem__(0);
     node *list2 = args->__getitem__(1);
 
