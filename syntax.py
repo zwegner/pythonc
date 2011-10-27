@@ -55,8 +55,16 @@ def export_consts(f):
     for i in all_ints:
         f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
 
+    char_escape = {
+        '"': r'\"',
+        '\\': r'\\',
+        '\n': r'\n',
+        '\r': r'\r',
+        '\t': r'\t',
+    }
     for k, (v, hashkey) in all_strings.items():
-        f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, repr(k)[1:-1], hashkey))
+        c_str = ''.join(char_escape.get(c, c) for c in k)
+        f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, c_str, hashkey))
 
 class Node:
     def is_atom(self):
