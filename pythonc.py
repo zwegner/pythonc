@@ -12,8 +12,12 @@ def usage():
 args = sys.argv[1:]
 
 gcc_flags = ['-g', '-Wall']
+quiet = False
 if args and args[0] == '-O':
     gcc_flags += ['-O3']
+    args = args[1:]
+if args and args[0] == '-q':
+    quiet = True
     args = args[1:]
 
 if not args:
@@ -25,14 +29,17 @@ base = os.path.splitext(path)[0]
 start = time.time()
 subprocess.check_call(['python3', 'transform.py', path, '%s.cpp' % base])
 elapsed = time.time() - start
-print('Transform time: %.4fs' % elapsed)
+if not quiet:
+    print('Transform time: %.4fs' % elapsed)
 
 start = time.time()
 subprocess.check_call(['c++'] + gcc_flags + ['%s.cpp' % base, '-o', base])
 elapsed = time.time() - start
-print('Compile time: %.4fs' % elapsed)
+if not quiet:
+    print('Compile time: %.4fs' % elapsed)
 
 start = time.time()
 subprocess.check_call(['./%s' % base] + args[1:])
 elapsed = time.time() - start
-print('Run time: %.4fs' % elapsed)
+if not quiet:
+    print('Run time: %.4fs' % elapsed)

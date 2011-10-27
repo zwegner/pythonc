@@ -15,7 +15,7 @@ for i in os.listdir('tests'):
     if i.endswith('.py'):
         shutil.copy('tests/%s' % i, '.temp/test.py')
         start = time.time()
-        out_p = subprocess.check_output('./pythonc.py test.py', cwd='.temp', shell=True)
+        out_p = subprocess.check_output('./pythonc.py -q test.py', cwd='.temp', shell=True)
         mid = time.time()
         out_c = subprocess.check_output('python3 test.py', cwd='.temp', shell=True)
         end = time.time()
