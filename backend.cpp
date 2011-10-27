@@ -163,6 +163,8 @@ public:
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", this->node_type()); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
+    virtual node *__iter__() { error("iter unimplemented for %s", this->node_type()); }
+    virtual node *next() { error("next unimplemented for %s", this->node_type()); }
     virtual void __setattr__(node *rhs, node *key) { error("setattr unimplemented for %s", this->node_type()); }
     virtual void __setitem__(node *key, node *value) { error("setitem unimplemented for %s", this->node_type()); }
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", this->node_type()); return NULL; }
@@ -455,6 +457,32 @@ public:
 
 class list : public node {
 private:
+    class list_iter: public node {
+    private:
+        list *parent;
+        node_list::iterator it;
+
+    public:
+        list_iter(list *l) {
+            this->parent = l;
+            it = l->items.begin();
+        }
+        const char *node_type() { return "list_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *ret = *this->it;
+            ++this->it;
+            return ret;
+        }
+    };
+
     node_list items;
 
 public:
@@ -558,10 +586,37 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *__iter__() { return new(allocator) list_iter(this); }
 };
 
 class dict : public node {
 private:
+    class dict_iter: public node {
+    private:
+        dict *parent;
+        node_dict::iterator it;
+
+    public:
+        dict_iter(dict *d) {
+            this->parent = d;
+            it = d->items.begin();
+        }
+        const char *node_type() { return "dict_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *ret = this->it->second.first;
+            ++this->it;
+            return ret;
+        }
+    };
+
     node_dict items;
 
 public:
@@ -630,10 +685,37 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *__iter__() { return new(allocator) dict_iter(this); }
 };
 
 class set : public node {
 private:
+    class set_iter: public node {
+    private:
+        set *parent;
+        node_set::iterator it;
+
+    public:
+        set_iter(set *s) {
+            this->parent = s;
+            it = s->items.begin();
+        }
+        const char *node_type() { return "set_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *ret = this->it->second;
+            ++this->it;
+            return ret;
+        }
+    };
+
     node_set items;
 
 public:
@@ -691,6 +773,7 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *__iter__() { return new(allocator) set_iter(this); }
 };
 
 class object : public node {

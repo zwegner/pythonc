@@ -377,9 +377,11 @@ class Comprehension(Node):
         else:
             l = List([])
         self.temp = l.flatten(ctx)
+        self.iter_name = ctx.get_temp()
+        ctx.statements += [Assign(self.iter_name, '%s->__iter__()' % self.iter)]
         ctx.statements += [self]
-        # HACK: prevent iterable from being garbage collected
-        self.iter_store = Store(ctx.get_temp(), self.iter, 'local')
+        # HACK: prevent iterator from being garbage collected
+        self.iter_store = Store(self.iter_name, self.iter_name, 'local')
         return self.temp
 
     def __str__(self):
@@ -388,9 +390,9 @@ class Comprehension(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, '(*__iter)->__getitem__(%s)' % i, 'local')]
+                arg_unpacking += [Store(arg.id, 'item->__getitem__(%s)' % i, 'local')]
         else:
-            arg_unpacking = [Store(self.target, '*__iter', 'local')]
+            arg_unpacking = [Store(self.target, 'item', 'local')]
         arg_unpacking = block_str(arg_unpacking)
         if self.cond:
             cond = 'if (!(%s)->bool_value()) continue;' % self.cond
@@ -404,14 +406,14 @@ class Comprehension(Node):
             adder = '%s->append(%s);' % (self.temp, self.expr)
         body = """
 {iter_store};
-for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
+for (node *item = {iter}->next(); item; item = {iter}->next()) {{
 {arg_unpacking}
 {cond_stmts}
 {cond}
 {expr_stmts}
     {adder}
 }}
-""".format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+""".format(iter=self.iter_name, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
         cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
         return body
 
@@ -442,8 +444,10 @@ class For(Node):
         self.stmts = stmts
 
     def flatten(self, ctx):
-        # HACK: prevent iterable from being garbage collected
-        self.iter_store = Store(ctx.get_temp(), self.iter, 'local')
+        self.iter_name = ctx.get_temp()
+        ctx.statements += [Assign(self.iter_name, '%s->__iter__()' % self.iter)]
+        # HACK: prevent iterator from being garbage collected
+        self.iter_store = Store(self.iter_name, self.iter_name, 'local')
         return self
 
     def __str__(self):
@@ -451,20 +455,20 @@ class For(Node):
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, (arg, binding) in enumerate(self.target):
-                arg_unpacking += [Store(arg, '(*__iter)->__getitem__(%s)' % i, binding)]
+                arg_unpacking += [Store(arg, 'item->__getitem__(%s)' % i, binding)]
         else:
             arg, binding = self.target
-            arg_unpacking = [Store(arg, '*__iter', binding)]
+            arg_unpacking = [Store(arg, 'item', binding)]
         arg_unpacking = block_str(arg_unpacking)
         # XXX sorta weird?
         body = """
 {iter_store};
-for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
+for (node *item = {iter}->next(); item; item = {iter}->next()) {{
 {arg_unpacking}
 {stmts}
     collect_garbage(&ctx, NULL);
 }}
-""".format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+""".format(iter=self.iter_name, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
         stmts=stmts)
         return body
 
