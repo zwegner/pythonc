@@ -79,6 +79,7 @@ node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs);
@@ -974,6 +975,8 @@ node *string_const::getattr(const char *key) {
         return &builtin_class_str;
     else if (!strcmp(key, "join"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_join));
+    else if (!strcmp(key, "split"))
+        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_split));
     else if (!strcmp(key, "upper"))
         return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_upper));
     else if (!strcmp(key, "startswith"))
@@ -1053,14 +1056,14 @@ node *string_const::__mul__(node *rhs) {
     return new(allocator) string_const(new_string);
 }
 
-#define NO_KWARGS(name) \
+#define NO_KWARGS_N_ARGS(name, n_args) \
     if (kwargs->len()) \
-        error(name "() does not take keyword arguments")
+        error(name "() does not take keyword arguments"); \
+    if (args->len() != n_args) \
+        error("too many arguments to " name "()")
 
 node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS("dict");
-    if (args->len())
-        error("too many arguments to dict()");
+    NO_KWARGS_N_ARGS("dict", 0);
     return new(allocator) dict();
 }
 
@@ -1090,9 +1093,7 @@ node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs
 }
 
 node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS("enumerate");
-    if (args->len() != 1)
-        error("bad number of arguments to enumerate()");
+    NO_KWARGS_N_ARGS("enumerate", 1);
     node *item = args->__getitem__(0);
     if (!item->is_list())
         error("cannot call enumerate on non-list");
@@ -1128,9 +1129,7 @@ node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS("list");
-    if (args->len())
-        error("too many arguments to list()");
+    NO_KWARGS_N_ARGS("list", 0);
     return new(allocator) list();
 }
 
@@ -1233,9 +1232,7 @@ node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs)
 }
 
 node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS("set");
-    if (args->len())
-        error("too many arguments to set()");
+    NO_KWARGS_N_ARGS("set", 0);
     return new(allocator) set();
 }
 
@@ -1280,6 +1277,29 @@ node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs)
             s += self->string_value();
     }
     return new(allocator) string_const(s);
+}
+
+node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("str.split", 2);
+    node *self = args->__getitem__(0);
+    node *item = args->__getitem__(1);
+    if (!self->is_string() || !item->is_string() || (item->len() != 1))
+        error("bad argument to str.upper()");
+    string_const *str = (string_const *)self;
+    char split = item->string_value()[0];
+    list *ret = new(allocator) list;
+    std::string s;
+    for (std::string::iterator c = str->begin(); c != str->end(); ++c) {
+        if (*c == split) {
+            ret->append(new(allocator) string_const(s));
+            s.clear();
+        }
+        else {
+            s += *c;
+        }
+    }
+    ret->append(new(allocator) string_const(s));
+    return ret;
 }
 
 node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs) {
