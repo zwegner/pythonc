@@ -340,7 +340,7 @@ class Transformer(ast.NodeTransformer):
         stmts = self.flatten_list(node.body)
         return syntax.While(test_stmts, test, stmts)
 
-    def visit_ListComp(self, node):
+    def visit_Comprehension(self, node, comp_type):
         assert len(node.generators) == 1
         gen = node.generators[0]
         assert len(gen.ifs) <= 1
@@ -358,13 +358,26 @@ class Transformer(ast.NodeTransformer):
         cond = None
         if gen.ifs:
             cond = self.flatten_node(gen.ifs[0], statements=cond_stmts)
-        expr = self.flatten_node(node.elt, statements=expr_stmts)
-        comp = syntax.ListComp(target, iter, cond_stmts, cond, expr_stmts, expr)
+        if comp_type == 'dict':
+            expr = self.flatten_node(node.key, statements=expr_stmts)
+            expr2 = self.flatten_node(node.value, statements=expr_stmts)
+        else:
+            expr = self.flatten_node(node.elt, statements=expr_stmts)
+            expr2 = None
+        comp = syntax.Comprehension(comp_type, target, iter, cond_stmts, cond, expr_stmts, expr, expr2)
         return comp.flatten(self)
 
-    # XXX HACK if we ever want these to differ...
+    def visit_ListComp(self, node):
+        return self.visit_Comprehension(node, 'list')
+
+    def visit_SetComp(self, node):
+        return self.visit_Comprehension(node, 'set')
+
+    def visit_DictComp(self, node):
+        return self.visit_Comprehension(node, 'dict')
+
     def visit_GeneratorExp(self, node):
-        return self.visit_ListComp(node)
+        return self.visit_Comprehension(node, 'generator')
 
     def visit_Return(self, node):
         if node.value is not None:

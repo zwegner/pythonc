@@ -350,17 +350,24 @@ class If(Node):
     """.format(expr=self.expr, stmts=stmts)
         return body
 
-class ListComp(Node):
-    def __init__(self, target, iter, cond_stmts, cond, expr_stmts, expr):
+class Comprehension(Node):
+    def __init__(self, comp_type, target, iter, cond_stmts, cond, expr_stmts, expr, expr2):
+        self.comp_type = comp_type
         self.target = target
         self.iter = iter
         self.cond_stmts = cond_stmts
         self.cond = cond
         self.expr_stmts = expr_stmts
         self.expr = expr
+        self.expr2 = expr2
 
     def flatten(self, ctx):
-        l = List([])
+        if self.comp_type == 'set':
+            l = Set([])
+        elif self.comp_type == 'dict':
+            l = Dict([], [])
+        else:
+            l = List([])
         self.temp = l.flatten(ctx)
         ctx.statements += [self]
         # HACK: prevent iterable from being garbage collected
@@ -381,6 +388,12 @@ class ListComp(Node):
             cond = 'if (!(%s)->bool_value()) continue;' % self.cond
         else:
             cond = ''
+        if self.comp_type == 'set':
+            adder = '%s->add(%s);' % (self.temp, self.expr)
+        elif self.comp_type == 'dict':
+            adder = '%s->__setitem__(%s, %s);' % (self.temp, self.expr, self.expr2)
+        else:
+            adder = '%s->append(%s);' % (self.temp, self.expr)
         body = """
 {iter_store};
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
@@ -388,10 +401,10 @@ for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter
 {cond_stmts}
 {cond}
 {expr_stmts}
-    {temp}->append({expr});
+    {adder}
 }}
 """.format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
-        cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, temp=self.temp, expr=self.expr)
+        cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
         return body
 
 class Break(Node):
