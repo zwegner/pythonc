@@ -61,6 +61,7 @@ typedef std::vector<node *> node_list;
 node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs);
@@ -1088,6 +1089,24 @@ node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs
     return plist;
 }
 
+node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS("enumerate");
+    if (args->len() != 1)
+        error("bad number of arguments to enumerate()");
+    node *item = args->__getitem__(0);
+    if (!item->is_list())
+        error("cannot call enumerate on non-list");
+    list *plist = (list *)item;
+    node_list new_list;
+    for (int i = 0; i < plist->len(); i++) {
+        list *sub_list = new(allocator) list;
+        sub_list->append(new(allocator) int_const(i));
+        sub_list->append(plist->__getitem__(i));
+        new_list.push_back(sub_list);
+    }
+    return new(allocator) list(new_list);
+}
+
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
@@ -1309,6 +1328,7 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
 
 void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("dict", new(allocator) function_def(builtin_dict));
+    ctx->store("enumerate", new(allocator) function_def(builtin_enumerate));
     ctx->store("fread", new(allocator) function_def(builtin_fread));
     ctx->store("len", new(allocator) function_def(builtin_len));
     ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
