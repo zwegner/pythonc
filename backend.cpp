@@ -1016,6 +1016,8 @@ node *string_const::__mod__(node *rhs) {
                 sprintf(buf, fmt_buf, arg->str().c_str());
             }
             else if (*c == 'd' || *c == 'i' || *c == 'X') {
+                *fmt++ = 'l';
+                *fmt++ = 'l';
                 *fmt++ = *c;
                 *fmt = 0;
                 sprintf(buf, fmt_buf, arg->int_value());
