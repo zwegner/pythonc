@@ -291,6 +291,13 @@ class Transformer(ast.NodeTransformer):
             attr = syntax.Attribute(l, attr_name)
             binop = syntax.BinaryOp(op, attr, value)
             return [syntax.StoreAttr(l, attr_name, binop)]
+        elif isinstance(node.target, ast.Subscript):
+            assert isinstance(node.target.slice, ast.Index)
+            base = self.flatten_node(node.target.value)
+            index = self.flatten_node(node.target.slice.value)
+            old = syntax.Subscript(base, index)
+            binop = syntax.BinaryOp(op, old, value)
+            return [syntax.StoreSubscript(base, index, binop)]
         else:
             assert False
 
