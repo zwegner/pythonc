@@ -351,10 +351,12 @@ class If(Node):
         return body
 
 class ListComp(Node):
-    def __init__(self, target, iter, stmts, expr):
+    def __init__(self, target, iter, cond_stmts, cond, expr_stmts, expr):
         self.target = target
         self.iter = iter
-        self.stmts = stmts
+        self.cond_stmts = cond_stmts
+        self.cond = cond
+        self.expr_stmts = expr_stmts
         self.expr = expr
 
     def flatten(self, ctx):
@@ -366,7 +368,8 @@ class ListComp(Node):
         return self.temp
 
     def __str__(self):
-        stmts = block_str(self.stmts)
+        cond_stmts = block_str(self.cond_stmts)
+        expr_stmts = block_str(self.expr_stmts)
         arg_unpacking = []
         if isinstance(self.target, list):
             for i, arg in enumerate(self.target):
@@ -374,15 +377,21 @@ class ListComp(Node):
         else:
             arg_unpacking = [Store(self.target, '*__iter', 'local')]
         arg_unpacking = block_str(arg_unpacking)
+        if self.cond:
+            cond = 'if (!(%s)->bool_value()) continue;' % self.cond
+        else:
+            cond = ''
         body = """
 {iter_store};
 for (node_list::iterator __iter = {iter}->list_value()->begin(); __iter != {iter}->list_value()->end(); __iter++) {{
 {arg_unpacking}
-{stmts}
+{cond_stmts}
+{cond}
+{expr_stmts}
     {temp}->append({expr});
 }}
 """.format(iter=self.iter, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
-        stmts=stmts, temp=self.temp, expr=self.expr)
+        cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, temp=self.temp, expr=self.expr)
         return body
 
 class Break(Node):

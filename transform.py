@@ -343,7 +343,7 @@ class Transformer(ast.NodeTransformer):
     def visit_ListComp(self, node):
         assert len(node.generators) == 1
         gen = node.generators[0]
-        assert not gen.ifs
+        assert len(gen.ifs) <= 1
 
         if isinstance(gen.target, ast.Name):
             target = gen.target.id
@@ -353,9 +353,13 @@ class Transformer(ast.NodeTransformer):
             assert False
 
         iter = self.flatten_node(gen.iter)
-        stmts = []
-        expr = self.flatten_node(node.elt, statements=stmts)
-        comp = syntax.ListComp(target, iter, stmts, expr)
+        cond_stmts = []
+        expr_stmts = []
+        cond = None
+        if gen.ifs:
+            cond = self.flatten_node(gen.ifs[0], statements=cond_stmts)
+        expr = self.flatten_node(node.elt, statements=expr_stmts)
+        comp = syntax.ListComp(target, iter, cond_stmts, cond, expr_stmts, expr)
         return comp.flatten(self)
 
     # XXX HACK if we ever want these to differ...
