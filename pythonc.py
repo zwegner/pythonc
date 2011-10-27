@@ -22,9 +22,17 @@ if not args:
 path = args[0]
 base = os.path.splitext(path)[0]
 
+start = time.time()
 subprocess.check_call(['python3', 'transform.py', path, '%s.cpp' % base])
+elapsed = time.time() - start
+print('Transform time: %.4fs' % elapsed)
+
+start = time.time()
 subprocess.check_call(['c++'] + gcc_flags + ['%s.cpp' % base, '-o', base])
+elapsed = time.time() - start
+print('Compile time: %.4fs' % elapsed)
+
 start = time.time()
 subprocess.check_call(['./%s' % base] + args[1:])
 elapsed = time.time() - start
-print('Total time: %ss' % elapsed)
+print('Run time: %.4fs' % elapsed)
