@@ -1,7 +1,7 @@
-for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, zip]:
+for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, zip]:
     print(x)
 
-for x in [bool, dict, int, list, set, str]:
+for x in [bool, dict, int, list, set, str, tuple]:
     print(x())
 
 for x in [0, 1]:
@@ -31,6 +31,9 @@ for x in [[1], 'abc']:
 
 for x in [[5, 3, 1]]:
     print(sorted(x))
+
+for x in [[], range(1), range(5)]:
+    print(tuple(x))
 
 for x in [0, 'a', []]:
     print(str(x))

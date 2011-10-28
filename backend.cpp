@@ -627,6 +627,95 @@ public:
     virtual node *__iter__() { return new(allocator) list_iter(this); }
 };
 
+class tuple: public node {
+private:
+    class tuple_iter: public node {
+    private:
+        tuple *parent;
+        node_list::iterator it;
+
+    public:
+        tuple_iter(tuple *t) {
+            this->parent = t;
+            it = t->items.begin();
+        }
+        const char *node_type() { return "tuple_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *ret = *this->it;
+            ++this->it;
+            return ret;
+        }
+    };
+
+    node_list items;
+
+public:
+    tuple() { }
+    tuple(node_list &l) : items(l) { }
+    const char *node_type() { return "tuple"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this))) {
+            for (size_t i = 0; i < this->items.size(); i++)
+                this->items[i]->mark_live();
+        }
+    }
+
+    int_t index(int_t base) {
+        if (base < 0)
+            base = items.size() + base;
+        return base;
+    }
+
+    virtual bool bool_value() { return this->len() != 0; }
+
+    virtual node *__contains__(node *key) {
+        bool found = false;
+        for (size_t i = 0; i < this->items.size(); i++)
+            if (this->items[i]->_eq(key)) {
+                found = true;
+                break;
+            }
+        return create_bool_const(found);
+    }
+    virtual node *__getitem__(int idx) {
+        return this->items[this->index(idx)];
+    }
+    virtual node *__getitem__(node *rhs) {
+        if (!rhs->is_int_const()) {
+            error("getitem unimplemented");
+            return NULL;
+        }
+        return this->__getitem__(rhs->int_value());
+    }
+    virtual int_t len() {
+        return this->items.size();
+    }
+    virtual std::string repr() {
+        std::string new_string = "(";
+        bool first = true;
+        for (node_list::iterator i = this->items.begin(); i != this->items.end(); i++) {
+            if (!first)
+                new_string += ", ";
+            first = false;
+            new_string += (*i)->repr();
+        }
+        if (this->items.size() == 1)
+            new_string += ",";
+        new_string += ")";
+        return new_string;
+    }
+    virtual node *__iter__() { return new(allocator) tuple_iter(this); }
+};
+
 class dict : public node {
 private:
     class dict_iter: public node {
@@ -1053,6 +1142,7 @@ inline node *create_bool_const(bool b) {
     x(reversed) \
     x(set) \
     x(str) \
+    x(tuple) \
     x(zip) \
 
 void _dummy__create_(class_def *ctx) {}
@@ -1214,6 +1304,23 @@ public:
             return new(allocator) string_const("");
         node *arg = args->__getitem__(0);
         return arg->__str__();
+    }
+};
+
+class tuple_class_def_singleton: public builtin_class_def_singleton {
+public:
+    tuple_class_def_singleton(): builtin_class_def_singleton("tuple") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_MAX_ARGS("tuple", 1);
+        if (!args->len())
+            return new(allocator) tuple;
+        node *arg = args->__getitem__(0);
+        node *iter = arg->__iter__();
+        node_list l;
+        for (node *item = iter->next(); item; item = iter->next())
+            l.push_back(item);
+        return new(allocator) tuple(l);
     }
 };
 
