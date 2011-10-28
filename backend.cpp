@@ -58,14 +58,12 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
-node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs);
@@ -75,7 +73,6 @@ node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs);
@@ -927,13 +924,6 @@ public:
     }
 };
 
-class class_def_singleton : public class_def {
-public:
-    class_def_singleton(std::string name, void (*creator)(class_def *)) : class_def(name, creator) { }
-
-    MARK_LIVE_SINGLETON_FN
-};
-
 bool_const bool_singleton_True(true);
 bool_const bool_singleton_False(false);
 none_const none_singleton(0);
@@ -948,12 +938,29 @@ inline node *create_bool_const(bool b) {
     if (args->len() != n_args) \
         error("wrong number of arguments to " name "()")
 
-// Silly builtin classes
+// Builtin classes
 void _dummy__create_(class_def *ctx) {}
 
-class int_class_def_singleton: public class_def_singleton {
+class builtin_class_def_singleton: public class_def {
 public:
-    int_class_def_singleton(): class_def_singleton("int", _dummy__create_) {}
+    builtin_class_def_singleton(std::string name): class_def(name, _dummy__create_) {}
+
+    MARK_LIVE_SINGLETON_FN
+};
+
+class dict_class_def_singleton: public builtin_class_def_singleton {
+public:
+    dict_class_def_singleton(): builtin_class_def_singleton("dict") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("dict", 0);
+        return new(allocator) dict();
+    }
+};
+
+class int_class_def_singleton: public builtin_class_def_singleton {
+public:
+    int_class_def_singleton(): builtin_class_def_singleton("int") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("int", 1);
@@ -968,9 +975,29 @@ public:
     }
 };
 
-class str_class_def_singleton: public class_def_singleton {
+class list_class_def_singleton: public builtin_class_def_singleton {
 public:
-    str_class_def_singleton(): class_def_singleton("str", _dummy__create_) {}
+    list_class_def_singleton(): builtin_class_def_singleton("list") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("list", 0);
+        return new(allocator) list();
+    }
+};
+
+class set_class_def_singleton: public builtin_class_def_singleton {
+public:
+    set_class_def_singleton(): builtin_class_def_singleton("set") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("set", 0);
+        return new(allocator) set();
+    }
+};
+
+class str_class_def_singleton: public builtin_class_def_singleton {
+public:
+    str_class_def_singleton(): builtin_class_def_singleton("str") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("str", 1);
@@ -979,7 +1006,10 @@ public:
     }
 };
 
+dict_class_def_singleton builtin_class_dict;
 int_class_def_singleton builtin_class_int;
+list_class_def_singleton builtin_class_list;
+set_class_def_singleton builtin_class_set;
 str_class_def_singleton builtin_class_str;
 
 node *node::__getattr__(node *key) {
@@ -1178,11 +1208,6 @@ node *string_const::__mul__(node *rhs) {
 // Builtins ////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("dict", 0);
-    return new(allocator) dict();
-}
-
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);
     node *self = args->__getitem__(0);
@@ -1243,11 +1268,6 @@ node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwarg
 node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("len", 1);
     return args->__getitem__(0)->__len__();
-}
-
-node *builtin_list(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("list", 0);
-    return new(allocator) list();
 }
 
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1351,11 +1371,6 @@ node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs)
     std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
 
     return new(allocator) list(new_list);
-}
-
-node *builtin_set(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("set", 0);
-    return new(allocator) set();
 }
 
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1473,23 +1488,23 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
 }
 
 void init_context(context *ctx, int_t argc, char **argv) {
-    ctx->store("dict", new(allocator) function_def(builtin_dict));
     ctx->store("enumerate", new(allocator) function_def(builtin_enumerate));
     ctx->store("fread", new(allocator) function_def(builtin_fread));
     ctx->store("len", new(allocator) function_def(builtin_len));
     ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
-    ctx->store("list", new(allocator) function_def(builtin_list));
     ctx->store("open", new(allocator) function_def(builtin_open));
     ctx->store("ord", new(allocator) function_def(builtin_ord));
     ctx->store("print", new(allocator) function_def(builtin_print));
     ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
     ctx->store("range", new(allocator) function_def(builtin_range));
     ctx->store("reversed", new(allocator) function_def(builtin_reversed));
-    ctx->store("set", new(allocator) function_def(builtin_set));
     ctx->store("sorted", new(allocator) function_def(builtin_sorted));
     ctx->store("zip", new(allocator) function_def(builtin_zip));
 
+    ctx->store("dict", &builtin_class_dict);
     ctx->store("int", &builtin_class_int);
+    ctx->store("list", &builtin_class_list);
+    ctx->store("set", &builtin_class_set);
     ctx->store("str", &builtin_class_str);
 
     ctx->store("__name__", new(allocator) string_const("__main__"));
