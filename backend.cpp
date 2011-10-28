@@ -60,25 +60,14 @@ typedef std::vector<node *> node_list;
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
@@ -1328,6 +1317,36 @@ node *string_const::__mul__(node *rhs) {
 // Builtins ////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+class builtin_function_def: public function_def {
+private:
+    const char *name;
+
+public:
+    builtin_function_def(const char *name, fptr base_function): function_def(base_function) {
+        this->name = name;
+    }
+    const char *node_type() { return "builtin_function"; }
+
+    MARK_LIVE_SINGLETON_FN
+
+    virtual std::string repr() {
+        return std::string("<built-in function ") + this->name + ">";
+    }
+};
+
+#define LIST_BUILTIN_FUNCTIONS(x) \
+    x(enumerate) \
+    x(fread) \
+    x(isinstance) \
+    x(len) \
+    x(open) \
+    x(ord) \
+    x(print) \
+    x(print_nonl) \
+    x(reversed) \
+    x(sorted) \
+    x(zip) \
+
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);
     node *self = args->__getitem__(0);
@@ -1584,18 +1603,14 @@ node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
     return plist;
 }
 
+#define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, builtin_##name);
+LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
+#undef BUILTIN_FUNCTION
+
 void init_context(context *ctx, int_t argc, char **argv) {
-    ctx->store("enumerate", new(allocator) function_def(builtin_enumerate));
-    ctx->store("fread", new(allocator) function_def(builtin_fread));
-    ctx->store("len", new(allocator) function_def(builtin_len));
-    ctx->store("isinstance", new(allocator) function_def(builtin_isinstance));
-    ctx->store("open", new(allocator) function_def(builtin_open));
-    ctx->store("ord", new(allocator) function_def(builtin_ord));
-    ctx->store("print", new(allocator) function_def(builtin_print));
-    ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
-    ctx->store("reversed", new(allocator) function_def(builtin_reversed));
-    ctx->store("sorted", new(allocator) function_def(builtin_sorted));
-    ctx->store("zip", new(allocator) function_def(builtin_zip));
+#define BUILTIN_FUNCTION(name) ctx->store(#name, &builtin_function_##name);
+LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
+#undef BUILTIN_FUNCTION
 
     ctx->store("bool", &builtin_class_bool);
     ctx->store("dict", &builtin_class_dict);
