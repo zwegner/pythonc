@@ -1015,7 +1015,9 @@ public:
     bool_class_def_singleton(): builtin_class_def_singleton("bool") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("bool", 1);
+        NO_KWARGS_MAX_ARGS("bool", 1);
+        if (!args->len())
+            return &bool_singleton_False;
         node *arg = args->__getitem__(0);
         return create_bool_const(arg->bool_value());
     }
