@@ -1338,10 +1338,10 @@ public:
 
         list *plist = new(allocator) list();
         for (int_t i = 0; i < list1->len(); i++) {
-            list *pair = new(allocator) list();
-            pair->append(list1->__getitem__(i));
-            pair->append(list2->__getitem__(i));
-            plist->append(pair);
+            node_list pair;
+            pair.push_back(list1->__getitem__(i));
+            pair.push_back(list2->__getitem__(i));
+            plist->append(new(allocator) tuple(pair));
         }
 
         return plist;

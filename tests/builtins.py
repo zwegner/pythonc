@@ -40,3 +40,5 @@ for x in [[], range(1), range(5)]:
 
 for x in [0, 'a', []]:
     print(str(x))
+
+print(list(zip([1, 2], [3, 4])))
