@@ -205,7 +205,7 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Tuple(self, node):
         items = [self.flatten_node(i) for i in node.elts]
-        l = syntax.List(items)
+        l = syntax.Tuple(items)
         return l.flatten(self)
 
     def visit_Dict(self, node):

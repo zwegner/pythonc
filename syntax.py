@@ -210,6 +210,23 @@ class List(Node):
     def __str__(self):
         return ''
 
+class Tuple(Node):
+    def __init__(self, items):
+        self.items = items
+
+    def flatten(self, ctx):
+        list_name = ctx.get_temp()
+        name = ctx.get_temp()
+        # XXX HACK: add just some C++ text instead of syntax nodes...
+        ctx.statements += ['node_list %s' % list_name]
+        for i in self.items:
+            ctx.statements += ['%s.push_back(%s)' % (list_name, i)]
+        ctx.statements += [Assign(name, Ref('tuple', list_name), target_type='tuple')]
+        return name
+
+    def __str__(self):
+        return ''
+
 class Dict(Node):
     def __init__(self, keys, values):
         self.keys = keys
