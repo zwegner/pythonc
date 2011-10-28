@@ -960,6 +960,10 @@ public:
         node *arg = args->__getitem__(0);
         if (arg->is_int_const())
             return arg;
+        if (arg->is_string()) {
+            std::string s = arg->string_value();
+            return new(allocator) int_const(atoi(s.c_str()));
+        }
         error("don't know how to handle argument to int()");
     }
 };
