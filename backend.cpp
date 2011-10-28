@@ -824,6 +824,63 @@ public:
     virtual bool is_file() { return true; }
 };
 
+class range: public node {
+private:
+    class range_iter: public node {
+    private:
+        int_t start, end, step;
+
+    public:
+        range_iter(range *r) {
+            this->start = r->start;
+            this->end = r->end;
+            this->step = r->step;
+        }
+        const char *node_type() { return "range_iter"; }
+ 
+        MARK_LIVE_FN
+
+        virtual node *next() {
+            if (step > 0) {
+                if (this->start >= this->end)
+                    return NULL;
+            }
+            else {
+                if (this->start <= this->end)
+                    return NULL;
+            }
+            node *ret = new(allocator) int_const(this->start);
+            this->start += this->step;
+            return ret;
+        }
+    };
+
+    int_t start, end, step;
+
+public:
+    range(int_t start, int_t end, int_t step) {
+        this->start = start;
+        this->end = end;
+        this->step = step;
+    }
+    const char *node_type() { return "range"; }
+ 
+    MARK_LIVE_FN
+
+    virtual node *__iter__() { return new(allocator) range_iter(this); }
+
+    virtual std::string repr() {
+        char buf[128];
+        if (step == 1) {
+            sprintf(buf, "range(%ld, %ld)", this->start, this->end);
+        }
+        else {
+            sprintf(buf, "range(%ld, %ld, %ld)", this->start, this->end, this->step);
+        }
+        return buf;
+    }
+};
+
 typedef node *(*fptr)(context *globals, context *parent_ctx, list *args, dict *kwargs);
 
 class bound_method : public node {
@@ -1013,7 +1070,6 @@ public:
     range_class_def_singleton(): builtin_class_def_singleton("range") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        list *new_list = new(allocator) list();
         int_t start = 0, end, step = 1;
 
         if (args->len() == 1)
@@ -1030,9 +1086,7 @@ public:
         else
             error("too many arguments to range()");
 
-        for (int_t s = start; step > 0 ? (s < end) : (s > end); s += step)
-            new_list->append(new(allocator) int_const(s));
-        return new_list;
+        return new(allocator) range(start, end, step);
     }
 };
 
