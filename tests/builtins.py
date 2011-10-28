@@ -1,2 +1,2 @@
-for x in [bool, dict, int, list, range, set, str]:
+for x in [bool, dict, int, isinstance, len, list, open, ord, print, range, set, sorted, str]:
     print(x)
