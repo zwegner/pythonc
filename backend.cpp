@@ -1041,8 +1041,15 @@ public:
     set_class_def_singleton(): builtin_class_def_singleton("set") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("set", 0);
-        return new(allocator) set();
+        NO_KWARGS_MAX_ARGS("set", 1);
+        set *ret = new(allocator) set();
+        if (!args->len())
+            return ret;
+        node *arg = args->__getitem__(0);
+        node *iter = arg->__iter__();
+        for (node *item = iter->next(); item; item = iter->next())
+            ret->add(item);
+        return ret;
     }
 };
 
