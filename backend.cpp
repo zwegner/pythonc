@@ -1145,6 +1145,18 @@ inline node *create_bool_const(bool b) {
     x(tuple) \
     x(zip) \
 
+#define LIST_BUILTIN_CLASS_METHODS(x) \
+    x(dict, get) \
+    x(dict, keys) \
+    x(list, append) \
+    x(list, index) \
+    x(list, pop) \
+    x(set, add) \
+    x(str, join) \
+    x(str, split) \
+    x(str, upper) \
+    x(str, startswith) \
+
 void _dummy__create_(class_def *ctx) {}
 
 class builtin_class_def_singleton: public class_def {
@@ -1352,6 +1364,17 @@ public:
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
+class builtin_method_def: public function_def {
+public:
+    builtin_method_def(fptr base_function): function_def(base_function) {}
+
+    MARK_LIVE_SINGLETON_FN
+};
+
+#define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(builtin_##class_name##_##method_name);
+LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
+#undef BUILTIN_METHOD
+
 node *node::__getattr__(node *key) {
     if (!key->is_string())
         error("getattr with non-string");
@@ -1431,27 +1454,27 @@ node *list::__mul__(node *rhs) {
 
 node *list::getattr(const char *key) {
     if (!strcmp(key, "append"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_append));
+        return new(allocator) bound_method(this, &builtin_method_list_append);
     else if (!strcmp(key, "index"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_index));
+        return new(allocator) bound_method(this, &builtin_method_list_index);
     else if (!strcmp(key, "pop"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_list_pop));
+        return new(allocator) bound_method(this, &builtin_method_list_pop);
     error("list has no attribute %s", key);
     return NULL;
 }
 
 node *dict::getattr(const char *key) {
     if (!strcmp(key, "get"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_dict_get));
+        return new(allocator) bound_method(this, &builtin_method_dict_get);
     else if (!strcmp(key, "keys"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_dict_keys));
+        return new(allocator) bound_method(this, &builtin_method_dict_keys);
     error("dict has no attribute %s", key);
     return NULL;
 }
 
 node *set::getattr(const char *key) {
     if (!strcmp(key, "add"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_set_add));
+        return new(allocator) bound_method(this, &builtin_method_set_add);
     error("set has no attribute %s", key);
     return NULL;
 }
@@ -1460,13 +1483,13 @@ node *string_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
     else if (!strcmp(key, "join"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_join));
+        return new(allocator) bound_method(this, &builtin_method_str_join);
     else if (!strcmp(key, "split"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_split));
+        return new(allocator) bound_method(this, &builtin_method_str_split);
     else if (!strcmp(key, "upper"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_upper));
+        return new(allocator) bound_method(this, &builtin_method_str_upper);
     else if (!strcmp(key, "startswith"))
-        return new(allocator) bound_method(this, new(allocator) function_def(builtin_str_startswith));
+        return new(allocator) bound_method(this, &builtin_method_str_startswith);
     error("str has no attribute %s", key);
     return NULL;
 }
