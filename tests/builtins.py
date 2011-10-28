@@ -1,4 +1,4 @@
-for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, reversed, set, sorted, str, zip]:
+for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, zip]:
     print(x)
 
 for x in [bool, dict, int, list, set, str]:
@@ -22,6 +22,9 @@ for x in ['a', ' ', '+']:
 for x in [0, 1, 5, 10]:
     print(range(x))
     print(list(range(x)))
+
+for x in [0, 1, [], {}, set(), '', 'a', '\n', '\r', '\t', '\\', '"', '"\'', '\'"', "'"]:
+    print(repr(x))
 
 for x in [[1], 'abc']:
     print(set(x))

@@ -446,9 +446,33 @@ public:
         return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
     }
     virtual std::string repr() {
-        std::string s("'");
-        s += this->value; // XXX Add proper quoting/escaping
-        s += "'";
+        bool has_single_quotes = false;
+        bool has_double_quotes = false;
+        for (std::string::iterator it = this->begin(); it != this->end(); ++it) {
+            char c = *it;
+            if (c == '\'')
+                has_single_quotes = true;
+            else if (c == '"')
+                has_double_quotes = true;
+        }
+        bool use_double_quotes = has_single_quotes && !has_double_quotes;
+        std::string s(use_double_quotes ? "\"" : "'");
+        for (std::string::iterator it = this->begin(); it != this->end(); ++it) {
+            char c = *it;
+            if (c == '\n')
+                s += "\\n";
+            else if (c == '\r')
+                s += "\\r";
+            else if (c == '\t')
+                s += "\\t";
+            else if (c == '\\')
+                s += "\\\\";
+            else if ((c == '\'') && !use_double_quotes)
+                s += "\\'";
+            else
+                s += c;
+        }
+        s += use_double_quotes ? "\"" : "'";
         return s;
     }
     virtual std::string str() { return this->value; }
@@ -1442,6 +1466,7 @@ public:
     x(ord) \
     x(print) \
     x(print_nonl) \
+    x(repr) \
     x(sorted) \
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1554,6 +1579,12 @@ node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwarg
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
     return &none_singleton;
+}
+
+node *builtin_repr(context *globals, context *ctx, list *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("repr", 1);
+    node *arg = args->__getitem__(0);
+    return arg->__repr__();
 }
 
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
