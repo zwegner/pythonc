@@ -348,6 +348,34 @@ public:
 
 class string_const : public node {
 private:
+    class str_iter: public node {
+    private:
+        string_const *parent;
+        std::string::iterator it;
+
+    public:
+        str_iter(string_const *s) {
+            this->parent = s;
+            it = s->value.begin();
+        }
+        const char *node_type() { return "str_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->value.end())
+                return NULL;
+            char ret[2];
+            ret[0] = *this->it;
+            ret[1] = 0;
+            ++this->it;
+            return new(allocator) string_const(ret);
+        }
+    };
+
     std::string value;
 
 public:
@@ -424,6 +452,7 @@ public:
         return s;
     }
     virtual std::string str() { return this->value; }
+    virtual node *__iter__() { return new(allocator) str_iter(this); }
 };
 
 class string_const_singleton : public string_const {

@@ -13,7 +13,7 @@ for x in [0, 1, '0', '1', '10', '15']:
 for x in ['', [], {}, set(), 'a', [1], {'b'}, {1: 2}]:
     print(len(x))
 
-for x in [range(5), {1, 2, 3}, [1, 'c']]:
+for x in [range(5), {1, 2, 3}, [1, 'c'], '', 'a', 'abc']:
     print(list(x))
 
 for x in ['a', ' ', '+']:
@@ -23,7 +23,7 @@ for x in [0, 1, 5, 10]:
     print(range(x))
     print(list(range(x)))
 
-for x in [[1]]:
+for x in [[1], 'abc']:
     print(set(x))
 
 for x in [[5, 3, 1]]:
