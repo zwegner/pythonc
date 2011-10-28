@@ -948,6 +948,17 @@ public:
     MARK_LIVE_SINGLETON_FN
 };
 
+class bool_class_def_singleton: public builtin_class_def_singleton {
+public:
+    bool_class_def_singleton(): builtin_class_def_singleton("bool") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("bool", 1);
+        node *arg = args->__getitem__(0);
+        return create_bool_const(arg->bool_value());
+    }
+};
+
 class dict_class_def_singleton: public builtin_class_def_singleton {
 public:
     dict_class_def_singleton(): builtin_class_def_singleton("dict") {}
@@ -1006,6 +1017,7 @@ public:
     }
 };
 
+bool_class_def_singleton builtin_class_bool;
 dict_class_def_singleton builtin_class_dict;
 int_class_def_singleton builtin_class_int;
 list_class_def_singleton builtin_class_list;
@@ -1501,6 +1513,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("sorted", new(allocator) function_def(builtin_sorted));
     ctx->store("zip", new(allocator) function_def(builtin_zip));
 
+    ctx->store("bool", &builtin_class_bool);
     ctx->store("dict", &builtin_class_dict);
     ctx->store("int", &builtin_class_int);
     ctx->store("list", &builtin_class_list);
