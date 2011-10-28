@@ -1157,6 +1157,17 @@ inline node *create_bool_const(bool b) {
     x(str, upper) \
     x(str, startswith) \
 
+class builtin_method_def: public function_def {
+public:
+    builtin_method_def(fptr base_function): function_def(base_function) {}
+
+    MARK_LIVE_SINGLETON_FN
+};
+
+#define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(builtin_##class_name##_##method_name);
+LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
+#undef BUILTIN_METHOD
+
 void _dummy__create_(class_def *ctx) {}
 
 class builtin_class_def_singleton: public class_def {
@@ -1182,6 +1193,15 @@ public:
 class dict_class_def_singleton: public builtin_class_def_singleton {
 public:
     dict_class_def_singleton(): builtin_class_def_singleton("dict") {}
+
+    virtual node *getattr(const char *key) {
+        if (!strcmp(key, "get"))
+            return &builtin_method_dict_get;
+        if (!strcmp(key, "keys"))
+            return &builtin_method_dict_keys;
+        error("dict has no attribute %s", key);
+        return NULL;
+    }
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("dict", 0);
@@ -1231,6 +1251,16 @@ public:
 class list_class_def_singleton: public builtin_class_def_singleton {
 public:
     list_class_def_singleton(): builtin_class_def_singleton("list") {}
+
+    virtual node *getattr(const char *key) {
+        if (!strcmp(key, "append"))
+            return &builtin_method_list_append;
+        if (!strcmp(key, "index"))
+            return &builtin_method_list_index;
+        if (!strcmp(key, "pop"))
+            return &builtin_method_list_pop;
+        error("list has no attribute %s", key);
+    }
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("list", 1);
@@ -1293,6 +1323,13 @@ class set_class_def_singleton: public builtin_class_def_singleton {
 public:
     set_class_def_singleton(): builtin_class_def_singleton("set") {}
 
+    virtual node *getattr(const char *key) {
+        if (!strcmp(key, "add"))
+            return &builtin_method_set_add;
+        error("set has no attribute %s", key);
+        return NULL;
+    }
+
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("set", 1);
         set *ret = new(allocator) set();
@@ -1309,6 +1346,18 @@ public:
 class str_class_def_singleton: public builtin_class_def_singleton {
 public:
     str_class_def_singleton(): builtin_class_def_singleton("str") {}
+
+    virtual node *getattr(const char *key) {
+        if (!strcmp(key, "join"))
+            return &builtin_method_str_join;
+        if (!strcmp(key, "split"))
+            return &builtin_method_str_split;
+        if (!strcmp(key, "upper"))
+            return &builtin_method_str_upper;
+        if (!strcmp(key, "startswith"))
+            return &builtin_method_str_startswith;
+        error("str has no attribute %s", key);
+    }
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("str", 1);
@@ -1363,17 +1412,6 @@ public:
 #define BUILTIN_CLASS(name) name##_class_def_singleton builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
-
-class builtin_method_def: public function_def {
-public:
-    builtin_method_def(fptr base_function): function_def(base_function) {}
-
-    MARK_LIVE_SINGLETON_FN
-};
-
-#define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(builtin_##class_name##_##method_name);
-LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
-#undef BUILTIN_METHOD
 
 node *node::__getattr__(node *key) {
     if (!key->is_string())
@@ -1453,45 +1491,27 @@ node *list::__mul__(node *rhs) {
 }
 
 node *list::getattr(const char *key) {
-    if (!strcmp(key, "append"))
-        return new(allocator) bound_method(this, &builtin_method_list_append);
-    else if (!strcmp(key, "index"))
-        return new(allocator) bound_method(this, &builtin_method_list_index);
-    else if (!strcmp(key, "pop"))
-        return new(allocator) bound_method(this, &builtin_method_list_pop);
-    error("list has no attribute %s", key);
-    return NULL;
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_list;
+    return new(allocator) bound_method(this, builtin_class_list.getattr(key));
 }
 
 node *dict::getattr(const char *key) {
-    if (!strcmp(key, "get"))
-        return new(allocator) bound_method(this, &builtin_method_dict_get);
-    else if (!strcmp(key, "keys"))
-        return new(allocator) bound_method(this, &builtin_method_dict_keys);
-    error("dict has no attribute %s", key);
-    return NULL;
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_dict;
+    return new(allocator) bound_method(this, builtin_class_dict.getattr(key));
 }
 
 node *set::getattr(const char *key) {
-    if (!strcmp(key, "add"))
-        return new(allocator) bound_method(this, &builtin_method_set_add);
-    error("set has no attribute %s", key);
-    return NULL;
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_set;
+    return new(allocator) bound_method(this, builtin_class_set.getattr(key));
 }
 
 node *string_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_str;
-    else if (!strcmp(key, "join"))
-        return new(allocator) bound_method(this, &builtin_method_str_join);
-    else if (!strcmp(key, "split"))
-        return new(allocator) bound_method(this, &builtin_method_str_split);
-    else if (!strcmp(key, "upper"))
-        return new(allocator) bound_method(this, &builtin_method_str_upper);
-    else if (!strcmp(key, "startswith"))
-        return new(allocator) bound_method(this, &builtin_method_str_startswith);
-    error("str has no attribute %s", key);
-    return NULL;
+    return new(allocator) bound_method(this, builtin_class_str.getattr(key));
 }
 
 // This entire function is very stupidly implemented.
