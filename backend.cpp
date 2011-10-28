@@ -990,6 +990,15 @@ inline node *create_bool_const(bool b) {
         error("too many arguments to " name "()")
 
 // Builtin classes
+#define LIST_BUILTIN_CLASSES(x) \
+    x(bool) \
+    x(dict) \
+    x(int) \
+    x(list) \
+    x(range) \
+    x(set) \
+    x(str) \
+
 void _dummy__create_(class_def *ctx) {}
 
 class builtin_class_def_singleton: public class_def {
@@ -1113,13 +1122,9 @@ public:
     }
 };
 
-bool_class_def_singleton builtin_class_bool;
-dict_class_def_singleton builtin_class_dict;
-int_class_def_singleton builtin_class_int;
-list_class_def_singleton builtin_class_list;
-range_class_def_singleton builtin_class_range;
-set_class_def_singleton builtin_class_set;
-str_class_def_singleton builtin_class_str;
+#define BUILTIN_CLASS(name) name##_class_def_singleton builtin_class_##name;
+LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
+#undef BUILTIN_CLASS
 
 node *node::__getattr__(node *key) {
     if (!key->is_string())
@@ -1611,13 +1616,9 @@ void init_context(context *ctx, int_t argc, char **argv) {
 LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
-    ctx->store("bool", &builtin_class_bool);
-    ctx->store("dict", &builtin_class_dict);
-    ctx->store("int", &builtin_class_int);
-    ctx->store("list", &builtin_class_list);
-    ctx->store("range", &builtin_class_range);
-    ctx->store("set", &builtin_class_set);
-    ctx->store("str", &builtin_class_str);
+#define BUILTIN_CLASS(name) ctx->store(#name, &builtin_class_##name);
+LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
+#undef BUILTIN_CLASS
 
     ctx->store("__name__", new(allocator) string_const("__main__"));
     list *plist = new(allocator) list();
