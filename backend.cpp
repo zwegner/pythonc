@@ -1372,18 +1372,17 @@ node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs
 
 node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("enumerate", 1);
-    node *item = args->__getitem__(0);
-    if (!item->is_list())
-        error("cannot call enumerate on non-list");
-    list *plist = (list *)item;
-    node_list new_list;
-    for (int i = 0; i < plist->len(); i++) {
+    node *arg = args->__getitem__(0);
+    node *iter = arg->__iter__();
+    list *ret = new(allocator) list;
+    int i = 0;
+    for (node *item = iter->next(); item; item = iter->next(), i++) {
         list *sub_list = new(allocator) list;
         sub_list->append(new(allocator) int_const(i));
-        sub_list->append(plist->__getitem__(i));
-        new_list.push_back(sub_list);
+        sub_list->append(item);
+        ret->append(sub_list);
     }
-    return new(allocator) list(new_list);
+    return ret;
 }
 
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
