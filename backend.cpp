@@ -71,7 +71,6 @@ node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
 node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs);
@@ -938,6 +937,12 @@ inline node *create_bool_const(bool b) {
     if (args->len() != n_args) \
         error("wrong number of arguments to " name "()")
 
+#define NO_KWARGS_MAX_ARGS(name, max_args) \
+    if (kwargs->len()) \
+        error(name "() does not take keyword arguments"); \
+    if (args->len() > max_args) \
+        error("too many arguments to " name "()")
+
 // Builtin classes
 void _dummy__create_(class_def *ctx) {}
 
@@ -991,8 +996,43 @@ public:
     list_class_def_singleton(): builtin_class_def_singleton("list") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("list", 0);
-        return new(allocator) list();
+        NO_KWARGS_MAX_ARGS("list", 1);
+        list *ret = new(allocator) list();
+        if (!args->len())
+            return ret;
+        node *arg = args->__getitem__(0);
+        node *iter = arg->__iter__();
+        for (node *item = iter->next(); item; item = iter->next())
+            ret->append(item);
+        return ret;
+    }
+};
+
+class range_class_def_singleton: public builtin_class_def_singleton {
+public:
+    range_class_def_singleton(): builtin_class_def_singleton("range") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        list *new_list = new(allocator) list();
+        int_t start = 0, end, step = 1;
+
+        if (args->len() == 1)
+            end = args->__getitem__(0)->int_value();
+        else if (args->len() == 2) {
+            start = args->__getitem__(0)->int_value();
+            end = args->__getitem__(1)->int_value();
+        }
+        else if (args->len() == 3) {
+            start = args->__getitem__(0)->int_value();
+            end = args->__getitem__(1)->int_value();
+            step = args->__getitem__(2)->int_value();
+        }
+        else
+            error("too many arguments to range()");
+
+        for (int_t s = start; step > 0 ? (s < end) : (s > end); s += step)
+            new_list->append(new(allocator) int_const(s));
+        return new_list;
     }
 };
 
@@ -1021,6 +1061,7 @@ bool_class_def_singleton builtin_class_bool;
 dict_class_def_singleton builtin_class_dict;
 int_class_def_singleton builtin_class_int;
 list_class_def_singleton builtin_class_list;
+range_class_def_singleton builtin_class_range;
 set_class_def_singleton builtin_class_set;
 str_class_def_singleton builtin_class_str;
 
@@ -1348,29 +1389,6 @@ node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwarg
     return &none_singleton;
 }
 
-node *builtin_range(context *globals, context *ctx, list *args, dict *kwargs) {
-    list *new_list = new(allocator) list();
-    int_t start = 0, end, step = 1;
-
-    if (args->len() == 1)
-        end = args->__getitem__(0)->int_value();
-    else if (args->len() == 2) {
-        start = args->__getitem__(0)->int_value();
-        end = args->__getitem__(1)->int_value();
-    }
-    else if (args->len() == 3) {
-        start = args->__getitem__(0)->int_value();
-        end = args->__getitem__(1)->int_value();
-        step = args->__getitem__(2)->int_value();
-    }
-    else
-        error("too many arguments to range()");
-
-    for (int_t s = start; step > 0 ? (s < end) : (s > end); s += step)
-        new_list->append(new(allocator) int_const(s));
-    return new_list;
-}
-
 node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("reversed", 1);
     node *item = args->__getitem__(0);
@@ -1508,7 +1526,6 @@ void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("ord", new(allocator) function_def(builtin_ord));
     ctx->store("print", new(allocator) function_def(builtin_print));
     ctx->store("print_nonl", new(allocator) function_def(builtin_print_nonl));
-    ctx->store("range", new(allocator) function_def(builtin_range));
     ctx->store("reversed", new(allocator) function_def(builtin_reversed));
     ctx->store("sorted", new(allocator) function_def(builtin_sorted));
     ctx->store("zip", new(allocator) function_def(builtin_zip));
@@ -1517,6 +1534,7 @@ void init_context(context *ctx, int_t argc, char **argv) {
     ctx->store("dict", &builtin_class_dict);
     ctx->store("int", &builtin_class_int);
     ctx->store("list", &builtin_class_list);
+    ctx->store("range", &builtin_class_range);
     ctx->store("set", &builtin_class_set);
     ctx->store("str", &builtin_class_str);
 
