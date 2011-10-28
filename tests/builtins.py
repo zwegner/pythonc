@@ -1,4 +1,4 @@
-for x in [bool, dict, int, isinstance, len, list, open, ord, print, range, set, sorted, str]:
+for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, reversed, set, sorted, str, zip]:
     print(x)
 
 for x in [bool, dict, int, list, set, str]:

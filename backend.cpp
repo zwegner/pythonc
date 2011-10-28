@@ -993,11 +993,14 @@ inline node *create_bool_const(bool b) {
 #define LIST_BUILTIN_CLASSES(x) \
     x(bool) \
     x(dict) \
+    x(enumerate) \
     x(int) \
     x(list) \
     x(range) \
+    x(reversed) \
     x(set) \
     x(str) \
+    x(zip) \
 
 void _dummy__create_(class_def *ctx) {}
 
@@ -1028,6 +1031,26 @@ public:
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("dict", 0);
         return new(allocator) dict();
+    }
+};
+
+class enumerate_class_def_singleton: public builtin_class_def_singleton {
+public:
+    enumerate_class_def_singleton(): builtin_class_def_singleton("enumerate") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("enumerate", 1);
+        node *arg = args->__getitem__(0);
+        node *iter = arg->__iter__();
+        list *ret = new(allocator) list;
+        int i = 0;
+        for (node *item = iter->next(); item; item = iter->next(), i++) {
+            list *sub_list = new(allocator) list;
+            sub_list->append(new(allocator) int_const(i));
+            sub_list->append(item);
+            ret->append(sub_list);
+        }
+        return ret;
     }
 };
 
@@ -1092,6 +1115,25 @@ public:
     }
 };
 
+class reversed_class_def_singleton: public builtin_class_def_singleton {
+public:
+    reversed_class_def_singleton(): builtin_class_def_singleton("reversed") {}
+
+    node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("reversed", 1);
+        node *item = args->__getitem__(0);
+        if (!item->is_list())
+            error("cannot call reversed on non-list");
+        list *plist = (list *)item;
+        // sigh, I hate c++
+        node_list new_list;
+        new_list.resize(plist->len());
+        std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
+
+        return new(allocator) list(new_list);
+    }
+};
+
 class set_class_def_singleton: public builtin_class_def_singleton {
 public:
     set_class_def_singleton(): builtin_class_def_singleton("set") {}
@@ -1119,6 +1161,30 @@ public:
             return new(allocator) string_const("");
         node *arg = args->__getitem__(0);
         return arg->__str__();
+    }
+};
+
+class zip_class_def_singleton: public builtin_class_def_singleton {
+public:
+    zip_class_def_singleton(): builtin_class_def_singleton("zip") {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("zip", 2);
+        node *list1 = args->__getitem__(0);
+        node *list2 = args->__getitem__(1);
+
+        if (!list1->is_list() || !list2->is_list() || list1->len() != list2->len())
+            error("bad arguments to zip()");
+
+        list *plist = new(allocator) list();
+        for (int_t i = 0; i < list1->len(); i++) {
+            list *pair = new(allocator) list();
+            pair->append(list1->__getitem__(i));
+            pair->append(list2->__getitem__(i));
+            plist->append(pair);
+        }
+
+        return plist;
     }
 };
 
@@ -1340,7 +1406,6 @@ public:
 };
 
 #define LIST_BUILTIN_FUNCTIONS(x) \
-    x(enumerate) \
     x(fread) \
     x(isinstance) \
     x(len) \
@@ -1348,9 +1413,7 @@ public:
     x(ord) \
     x(print) \
     x(print_nonl) \
-    x(reversed) \
     x(sorted) \
-    x(zip) \
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);
@@ -1373,21 +1436,6 @@ node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs
         plist->append(i->second.first);
 
     return plist;
-}
-
-node *builtin_enumerate(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("enumerate", 1);
-    node *arg = args->__getitem__(0);
-    node *iter = arg->__iter__();
-    list *ret = new(allocator) list;
-    int i = 0;
-    for (node *item = iter->next(); item; item = iter->next(), i++) {
-        list *sub_list = new(allocator) list;
-        sub_list->append(new(allocator) int_const(i));
-        sub_list->append(item);
-        ret->append(sub_list);
-    }
-    return ret;
 }
 
 node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1477,20 +1525,6 @@ node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwarg
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
     return &none_singleton;
-}
-
-node *builtin_reversed(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("reversed", 1);
-    node *item = args->__getitem__(0);
-    if (!item->is_list())
-        error("cannot call reversed on non-list");
-    list *plist = (list *)item;
-    // sigh, I hate c++
-    node_list new_list;
-    new_list.resize(plist->len());
-    std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
-
-    return new(allocator) list(new_list);
 }
 
 node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
@@ -1586,25 +1620,6 @@ node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *k
     std::string s1 = self->string_value();
     std::string s2 = prefix->string_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
-}
-
-node *builtin_zip(context *globals, context *ctx, list *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("zip", 2);
-    node *list1 = args->__getitem__(0);
-    node *list2 = args->__getitem__(1);
-
-    if (!list1->is_list() || !list2->is_list() || list1->len() != list2->len())
-        error("bad arguments to zip()");
-
-    list *plist = new(allocator) list();
-    for (int_t i = 0; i < list1->len(); i++) {
-        list *pair = new(allocator) list();
-        pair->append(list1->__getitem__(i));
-        pair->append(list2->__getitem__(i));
-        plist->append(pair);
-    }
-
-    return plist;
 }
 
 #define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, builtin_##name);
