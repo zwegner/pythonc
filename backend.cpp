@@ -1188,10 +1188,10 @@ public:
         list *ret = new(allocator) list;
         int i = 0;
         for (node *item = iter->next(); item; item = iter->next(), i++) {
-            list *sub_list = new(allocator) list;
-            sub_list->append(new(allocator) int_const(i));
-            sub_list->append(item);
-            ret->append(sub_list);
+            node_list sub_list;
+            sub_list.push_back(new(allocator) int_const(i));
+            sub_list.push_back(item);
+            ret->append(new(allocator) tuple(sub_list));
         }
         return ret;
     }

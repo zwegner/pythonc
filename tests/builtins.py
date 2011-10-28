@@ -7,6 +7,9 @@ for x in [bool, dict, int, list, set, str, tuple]:
 for x in [0, 1]:
     print(bool(x))
 
+for x in [range(5)]:
+    print(list(enumerate(x)))
+
 for x in [0, 1, '0', '1', '10', '15']:
     print(int(x))
 
