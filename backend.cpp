@@ -942,15 +942,41 @@ inline node *create_bool_const(bool b) {
     return b ? &bool_singleton_True : &bool_singleton_False;
 }
 
+#define NO_KWARGS_N_ARGS(name, n_args) \
+    if (kwargs->len()) \
+        error(name "() does not take keyword arguments"); \
+    if (args->len() != n_args) \
+        error("wrong number of arguments to " name "()")
+
 // Silly builtin classes
-void _int__create_(class_def *ctx) {
-}
+void _dummy__create_(class_def *ctx) {}
 
-void _str__create_(class_def *ctx) {
-}
+class int_class_def_singleton: public class_def_singleton {
+public:
+    int_class_def_singleton(): class_def_singleton("int", _dummy__create_) {}
 
-class_def_singleton builtin_class_int("int", _int__create_);
-class_def_singleton builtin_class_str("str", _str__create_);
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("int", 1);
+        node *arg = args->__getitem__(0);
+        if (arg->is_int_const())
+            return arg;
+        error("don't know how to handle argument to int()");
+    }
+};
+
+class str_class_def_singleton: public class_def_singleton {
+public:
+    str_class_def_singleton(): class_def_singleton("str", _dummy__create_) {}
+
+    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("str", 1);
+        node *arg = args->__getitem__(0);
+        return arg->__str__();
+    }
+};
+
+int_class_def_singleton builtin_class_int;
+str_class_def_singleton builtin_class_str;
 
 node *node::__getattr__(node *key) {
     if (!key->is_string())
@@ -1147,12 +1173,6 @@ node *string_const::__mul__(node *rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 // Builtins ////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-
-#define NO_KWARGS_N_ARGS(name, n_args) \
-    if (kwargs->len()) \
-        error(name "() does not take keyword arguments"); \
-    if (args->len() != n_args) \
-        error("too many arguments to " name "()")
 
 node *builtin_dict(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict", 0);
