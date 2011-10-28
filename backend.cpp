@@ -1038,7 +1038,9 @@ public:
     int_class_def_singleton(): builtin_class_def_singleton("int") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("int", 1);
+        NO_KWARGS_MAX_ARGS("int", 1);
+        if (!args->len())
+            return new(allocator) int_const(0);
         node *arg = args->__getitem__(0);
         if (arg->is_int_const())
             return arg;
@@ -1114,7 +1116,9 @@ public:
     str_class_def_singleton(): builtin_class_def_singleton("str") {}
 
     virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("str", 1);
+        NO_KWARGS_MAX_ARGS("str", 1);
+        if (!args->len())
+            return new(allocator) string_const("");
         node *arg = args->__getitem__(0);
         return arg->__str__();
     }
