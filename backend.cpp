@@ -660,6 +660,10 @@ private:
 public:
     tuple() { }
     tuple(node_list &l) : items(l) { }
+    tuple(int_t n, node **items): items(n) {
+        for (int_t i = 0; i < n; i++)
+            this->items[i] = items[i];
+    }
     const char *node_type() { return "tuple"; }
 
     virtual void mark_live() {
@@ -1220,10 +1224,10 @@ public:
         list *ret = new(allocator) list;
         int i = 0;
         for (node *item = iter->next(); item; item = iter->next(), i++) {
-            node_list sub_list;
-            sub_list.push_back(new(allocator) int_const(i));
-            sub_list.push_back(item);
-            ret->append(new(allocator) tuple(sub_list));
+            node *pair[2];
+            pair[0] = new(allocator) int_const(i);
+            pair[1] = item;
+            ret->append(new(allocator) tuple(2, pair));
         }
         return ret;
     }
@@ -1399,10 +1403,10 @@ public:
 
         list *plist = new(allocator) list();
         for (int_t i = 0; i < list1->len(); i++) {
-            node_list pair;
-            pair.push_back(list1->__getitem__(i));
-            pair.push_back(list2->__getitem__(i));
-            plist->append(new(allocator) tuple(pair));
+            node *pair[2];
+            pair[0] = list1->__getitem__(i);
+            pair[1] = list2->__getitem__(i);
+            plist->append(new(allocator) tuple(2, pair));
         }
 
         return plist;
