@@ -1136,18 +1136,6 @@ inline node *create_bool_const(bool b) {
         error("too many arguments to " name "()")
 
 // Builtin classes
-#define LIST_BUILTIN_CLASSES(x) \
-    x(bool) \
-    x(dict) \
-    x(enumerate) \
-    x(int) \
-    x(list) \
-    x(range) \
-    x(reversed) \
-    x(set) \
-    x(str) \
-    x(tuple) \
-    x(zip) \
 
 #define LIST_BUILTIN_CLASS_METHODS(x) \
     x(dict, get) \
@@ -1611,17 +1599,6 @@ public:
         return std::string("<built-in function ") + this->name + ">";
     }
 };
-
-#define LIST_BUILTIN_FUNCTIONS(x) \
-    x(fread) \
-    x(isinstance) \
-    x(len) \
-    x(open) \
-    x(ord) \
-    x(print) \
-    x(print_nonl) \
-    x(repr) \
-    x(sorted) \
 
 node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);

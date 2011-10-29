@@ -26,6 +26,31 @@ import sys
 
 import syntax
 
+builtin_functions = [
+    'fread',
+    'isinstance',
+    'len',
+    'open',
+    'ord',
+    'print',
+    'print_nonl',
+    'repr',
+    'sorted',
+]
+builtin_classes = [
+    'bool',
+    'dict',
+    'enumerate',
+    'int',
+    'list',
+    'range',
+    'reversed',
+    'set',
+    'str',
+    'tuple',
+    'zip',
+]
+
 class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
@@ -467,6 +492,10 @@ x = Transformer()
 node = x.visit(node)
 
 with open(sys.argv[2], 'w') as f:
+    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' % ' '.join('x(%s)' % x
+        for x in builtin_functions))
+    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' % ' '.join('x(%s)' % x
+        for x in builtin_classes))
     f.write('#include "backend.cpp"\n')
     syntax.export_consts(f)
 
