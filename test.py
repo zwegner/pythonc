@@ -15,12 +15,12 @@ for i in os.listdir('tests'):
     if i.endswith('.py'):
         shutil.copy('tests/%s' % i, '.temp/test.py')
         start = time.time()
-        out_p = subprocess.check_output('./pythonc.py -O test.py', cwd='.temp', shell=True)
+        out_p = subprocess.check_output('./pythonc.py -q test.py', cwd='.temp', shell=True)
         mid = time.time()
         out_c = subprocess.check_output('python3 test.py', cwd='.temp', shell=True)
         end = time.time()
         if out_p != out_c:
-            print('%s mismatched!\nPythonc:\n%s\nCPython:\n%s' % (i,
+            raise RuntimeError('%s mismatched!\nPythonc:\n%s\nCPython:\n%s' % (i,
                 out_p.decode(), out_c.decode()))
         time_p = mid - start
         time_c = end - mid
