@@ -50,6 +50,10 @@ builtin_classes = [
     'tuple',
     'zip',
 ]
+builtin_symbols = builtin_functions + builtin_classes + [
+    '__name__',
+    '__args__',
+]
 
 class Transformer(ast.NodeTransformer):
     def __init__(self):
@@ -59,6 +63,10 @@ class Transformer(ast.NodeTransformer):
         self.in_class = False
         self.in_function = False
         self.globals_set = None
+
+    def get_temp_name(self):
+        self.temp_id += 1
+        return 'temp_%02i' % self.temp_id
 
     def get_temp(self):
         self.temp_id += 1
@@ -92,6 +100,26 @@ class Transformer(ast.NodeTransformer):
         self.statements = old_stmts
         return statements
 
+    def index_global_class_symbols(self, node, globals_set, class_set):
+        if isinstance(node, ast.Global):
+            for name in node.names:
+                globals_set.add(name)
+        # XXX make this check scope
+        elif isinstance(node, ast.Name) and isinstance(node.ctx,
+                (ast.Store, ast.AugStore)):
+            globals_set.add(node.id)
+            class_set.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            globals_set.add(node.name)
+            class_set.add(node.name)
+        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
+            ast.GeneratorExp)):
+            # HACK: set self.iter_temp for the space in the symbol table
+            node.iter_temp = self.get_temp_name()
+            globals_set.add(node.iter_temp)
+        for i in ast.iter_child_nodes(node):
+            self.index_global_class_symbols(i, globals_set, class_set)
+
     def get_globals(self, node, globals_set, locals_set, all_vars_set):
         if isinstance(node, ast.Global):
             for name in node.names:
@@ -103,17 +131,23 @@ class Transformer(ast.NodeTransformer):
         elif isinstance(node, ast.arg):
             all_vars_set.add(node.arg)
             locals_set.add(node.arg)
+        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
+            ast.GeneratorExp)):
+            locals_set.add(node.iter_temp)
         for i in ast.iter_child_nodes(node):
             self.get_globals(i, globals_set, locals_set, all_vars_set)
 
     def get_binding(self, name):
         if self.in_function:
             if name in self.globals_set:
-                return 'global'
-            return 'local'
+                scope = 'global'
+            else:
+                scope = 'local'
         elif self.in_class:
-            return 'class'
-        return 'global'
+            scope = 'class'
+        else:
+            scope = 'global'
+        return (scope, self.symbol_idx[scope][name])
 
     def generic_visit(self, node):
         print(node.lineno)
@@ -362,7 +396,8 @@ class Transformer(ast.NodeTransformer):
             target = [(t.id, self.get_binding(t.id)) for t in node.target.elts]
         else:
             assert False
-        for_loop = syntax.For(target, iter, stmts)
+        # HACK: self.iter_temp gets set when enumerating symbols
+        for_loop = syntax.For(target, iter, stmts, node.iter_temp, self.get_binding(node.iter_temp))
         return for_loop.flatten(self)
 
     def visit_While(self, node):
@@ -378,9 +413,9 @@ class Transformer(ast.NodeTransformer):
         assert len(gen.ifs) <= 1
 
         if isinstance(gen.target, ast.Name):
-            target = gen.target.id
+            target = (gen.target.id, self.get_binding(gen.target.id))
         elif isinstance(gen.target, ast.Tuple):
-            target = gen.target.elts
+            target = [(t.id, self.get_binding(t.id)) for t in gen.target.elts]
         else:
             assert False
 
@@ -396,7 +431,9 @@ class Transformer(ast.NodeTransformer):
         else:
             expr = self.flatten_node(node.elt, statements=expr_stmts)
             expr2 = None
-        comp = syntax.Comprehension(comp_type, target, iter, cond_stmts, cond, expr_stmts, expr, expr2)
+        comp = syntax.Comprehension(comp_type, target, iter, node.iter_temp,
+                self.get_binding(node.iter_temp), cond_stmts, cond, expr_stmts,
+                expr, expr2)
         return comp.flatten(self)
 
     def visit_ListComp(self, node):
@@ -427,8 +464,9 @@ class Transformer(ast.NodeTransformer):
         assert not node.kwarg
 
         args = [a.arg for a in node.args]
+        binding = [self.get_binding(a) for a in args]
         defaults = self.flatten_list(node.defaults)
-        args = syntax.Arguments(args, defaults)
+        args = syntax.Arguments(args, binding, defaults)
         return args.flatten(self)
 
     def visit_FunctionDef(self, node):
@@ -442,6 +480,8 @@ class Transformer(ast.NodeTransformer):
         self.get_globals(node, globals_set, locals_set, all_vars_set)
         globals_set |= (all_vars_set - locals_set)
 
+        self.symbol_idx['local'] = {symbol: idx for idx, symbol in enumerate(sorted(locals_set))}
+
         # Set some state and recursively visit child nodes, then restore state
         self.globals_set = globals_set
         self.in_function = True
@@ -451,7 +491,7 @@ class Transformer(ast.NodeTransformer):
         self.in_function = False
 
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        fn = syntax.FunctionDef(node.name, args, body, exp_name, self.get_binding(node.name))
+        fn = syntax.FunctionDef(node.name, args, body, exp_name, self.get_binding(node.name), len(locals_set))
         return fn.flatten(self)
 
     def visit_ClassDef(self, node):
@@ -471,13 +511,27 @@ class Transformer(ast.NodeTransformer):
         body = self.flatten_list(node.body)
         self.in_class = False
 
-        c = syntax.ClassDef(node.name, body)
+        c = syntax.ClassDef(node.name, self.get_binding(node.name), body)
         return c.flatten(self)
 
     def visit_Expr(self, node):
         return self.visit(node.value)
 
     def visit_Module(self, node):
+        # Set up an index of all possible global/class symbols
+        all_global_syms = set()
+        all_class_syms = set()
+        self.index_global_class_symbols(node, all_global_syms, all_class_syms)
+
+        all_global_syms |= set(builtin_symbols)
+
+        self.symbol_idx = {
+            scope: {symbol: idx for idx, symbol in enumerate(sorted(symbols))}
+            for scope, symbols in [['class', all_class_syms], ['global', all_global_syms]]
+        }
+        self.global_sym_count = len(all_global_syms)
+        self.class_sym_count = len(all_class_syms)
+
         return self.flatten_list(node.body)
 
     def visit_Pass(self, node): pass
@@ -488,22 +542,24 @@ class Transformer(ast.NodeTransformer):
 with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
 
-x = Transformer()
-node = x.visit(node)
+transformer = Transformer()
+node = transformer.visit(node)
 
 with open(sys.argv[2], 'w') as f:
     f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' % ' '.join('x(%s)' % x
         for x in builtin_functions))
     f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' % ' '.join('x(%s)' % x
         for x in builtin_classes))
+    for x in builtin_symbols:
+        f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
     f.write('#include "backend.cpp"\n')
     syntax.export_consts(f)
 
-    for func in x.functions:
+    for func in transformer.functions:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
-    f.write('    context ctx, *globals = &ctx;\n')
+    f.write('    context ctx(%s), *globals = &ctx;\n' % (transformer.global_sym_count))
     f.write('    init_context(&ctx, argc, argv);\n')
 
     for stmt in node:

@@ -3,5 +3,5 @@ def fib(x):
         return 1
     return fib(x-1) + fib(x-2)
 
-for i in range(5):
+for i in range(15):
     print(fib(i))

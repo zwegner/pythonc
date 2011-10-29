@@ -53,7 +53,7 @@ class string_const;
 typedef int64_t int_t;
 
 typedef std::pair<node *, node *> node_pair;
-typedef std::map<const char *, node *> symbol_table;
+typedef std::vector<node *> symbol_table;
 typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
@@ -88,6 +88,7 @@ public:
     virtual bool is_function() { return false; }
     virtual bool is_int_const() { return false; }
     virtual bool is_list() { return false; }
+    virtual bool is_tuple() { return false; }
     virtual bool is_none() { return false; }
     virtual bool is_set() { return false; }
     virtual bool is_string() { return false; }
@@ -168,36 +169,29 @@ private:
     context *parent_ctx;
 
 public:
-    context() {
+    context(uint32_t size) {
         this->parent_ctx = NULL;
+        this->symbols.resize(size);
     }
-    context(context *parent_ctx) {
+    context(context *parent_ctx, uint32_t size) {
         this->parent_ctx = parent_ctx;
+        this->symbols.resize(size);
     }
 
     void mark_live(bool free_ctx) {
         if (!free_ctx)
-            for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
-                i->second->mark_live();
+            for (uint32_t i = 0; i < this->symbols.size(); i++)
+                if (this->symbols[i])
+                    this->symbols[i]->mark_live();
         if (this->parent_ctx)
             this->parent_ctx->mark_live(false);
     }
 
-    void store(const char *name, node *obj) {
-        this->symbols[name] = obj;
+    void store(uint32_t idx, node *obj) {
+        this->symbols[idx] = obj;
     }
-    node *load(const char *name) {
-        symbol_table::const_iterator v = this->symbols.find(name);
-        if (v == this->symbols.end())
-            error("cannot find '%s' in symbol table", name);
-        return v->second;
-    }
-    void dump() {
-        for (symbol_table::const_iterator i = this->symbols.begin(); i != this->symbols.end(); i++)
-            if (i->second->is_int_const())
-                printf("symbol['%s'] = int(%" PRId64 ");\n", i->first, i->second->int_value());
-            else
-                printf("symbol['%s'] = %p;\n", i->first, i->second);
+    node *load(uint32_t idx) {
+        return this->symbols[idx];
     }
 };
 
@@ -665,6 +659,7 @@ public:
             this->items[i] = items[i];
     }
     const char *node_type() { return "tuple"; }
+    virtual bool is_tuple() { return true; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -1103,8 +1098,7 @@ public:
                 obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
 
         ((list *)args)->prepend(obj);
-        context *call_ctx = new(allocator) context(ctx);
-        init->__call__(globals, call_ctx, args, kwargs);
+        init->__call__(globals, ctx, args, kwargs);
         return obj;
     }
     virtual node *getattr(const char *attr) {
@@ -1818,19 +1812,19 @@ LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
 void init_context(context *ctx, int_t argc, char **argv) {
-#define BUILTIN_FUNCTION(name) ctx->store(#name, &builtin_function_##name);
+#define BUILTIN_FUNCTION(name) ctx->store(sym_id_##name, &builtin_function_##name);
 LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
-#define BUILTIN_CLASS(name) ctx->store(#name, &builtin_class_##name);
+#define BUILTIN_CLASS(name) ctx->store(sym_id_##name, &builtin_class_##name);
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
-    ctx->store("__name__", new(allocator) string_const("__main__"));
+    ctx->store(sym_id___name__, new(allocator) string_const("__main__"));
     list *plist = new(allocator) list();
     for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
-    ctx->store("__args__", plist);
+    ctx->store(sym_id___args__, plist);
 }
 
 void collect_garbage(context *ctx, node *ret_val) {

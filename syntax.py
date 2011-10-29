@@ -147,27 +147,27 @@ class BinaryOp(Node):
 class Load(Node):
     def __init__(self, name, binding):
         self.name = name
-        self.binding = binding
+        self.scope, self.idx = binding
 
     def __str__(self):
-        if self.binding == 'global':
-            return 'globals->load("%s")' % self.name
-        elif self.binding == 'class':
+        if self.scope == 'global':
+            return 'globals->load(%s)' % self.idx
+        elif self.scope == 'class':
             return 'class_ctx->load("%s")' % self.name
-        return 'ctx.load("%s")' % self.name
+        return 'ctx.load(%s)' % self.idx
 
 class Store(Node):
     def __init__(self, name, expr, binding):
         self.name = name
         self.expr = expr
-        self.binding = binding
+        self.scope, self.idx = binding
 
     def __str__(self):
-        if self.binding == 'global':
-            return 'globals->store("%s", %s)' % (self.name, self.expr)
-        elif self.binding == 'class':
+        if self.scope == 'global':
+            return 'globals->store(%s, %s)' % (self.idx, self.expr)
+        elif self.scope == 'class':
             return 'class_ctx->store("%s", %s)' % (self.name, self.expr)
-        return 'ctx.store("%s", %s)' % (self.name, self.expr)
+        return 'ctx.store(%s, %s)' % (self.idx, self.expr)
 
 class StoreAttr(Node):
     def __init__(self, name, attr, expr):
@@ -376,10 +376,13 @@ class If(Node):
         return body
 
 class Comprehension(Node):
-    def __init__(self, comp_type, target, iter, cond_stmts, cond, expr_stmts, expr, expr2):
+    def __init__(self, comp_type, target, iter, iter_name, iter_binding,
+            cond_stmts, cond, expr_stmts, expr, expr2):
         self.comp_type = comp_type
         self.target = target
         self.iter = iter
+        self.iter_name = iter_name
+        self.iter_binding = iter_binding
         self.cond_stmts = cond_stmts
         self.cond = cond
         self.expr_stmts = expr_stmts
@@ -394,22 +397,23 @@ class Comprehension(Node):
         else:
             l = List([])
         self.temp = l.flatten(ctx)
-        self.iter_name = ctx.get_temp()
         ctx.statements += [Assign(self.iter_name, '%s->__iter__()' % self.iter)]
         ctx.statements += [self]
         # HACK: prevent iterator from being garbage collected
-        self.iter_store = Store(self.iter_name, self.iter_name, 'local')
+        self.iter_store = Store(self.iter_name, self.iter_name, self.iter_binding)
         return self.temp
 
     def __str__(self):
         cond_stmts = block_str(self.cond_stmts)
         expr_stmts = block_str(self.expr_stmts)
         arg_unpacking = []
-        if isinstance(self.target, list):
-            for i, arg in enumerate(self.target):
-                arg_unpacking += [Store(arg.id, 'item->__getitem__(%s)' % i, 'local')]
+        # XXX HACK
+        if isinstance(self.target[0], tuple):
+            for i, (target, binding) in enumerate(self.target):
+                arg_unpacking += [Store(target, 'item->__getitem__(%s)' % i, binding)]
         else:
-            arg_unpacking = [Store(self.target, 'item', 'local')]
+            target, binding = self.target
+            arg_unpacking = [Store(target, 'item', binding)]
         arg_unpacking = block_str(arg_unpacking)
         if self.cond:
             cond = 'if (!(%s)->bool_value()) continue;' % self.cond
@@ -455,16 +459,17 @@ class Continue(Node):
         return 'continue'
 
 class For(Node):
-    def __init__(self, target, iter, stmts):
+    def __init__(self, target, iter, stmts, iter_name, iter_binding):
         self.target = target
         self.iter = iter
         self.stmts = stmts
+        self.iter_name = Identifier(iter_name)
+        self.iter_binding = iter_binding
 
     def flatten(self, ctx):
-        self.iter_name = ctx.get_temp()
         ctx.statements += [Assign(self.iter_name, '%s->__iter__()' % self.iter)]
         # HACK: prevent iterator from being garbage collected
-        self.iter_store = Store(self.iter_name, self.iter_name, 'local')
+        self.iter_store = Store(self.iter_name, self.iter_name, self.iter_binding)
         return self
 
     def __str__(self):
@@ -541,8 +546,9 @@ class Assert(Node):
         return body
 
 class Arguments(Node):
-    def __init__(self, args, defaults):
+    def __init__(self, args, binding, defaults):
         self.args = args
+        self.binding = binding
         self.defaults = defaults
 
     def flatten(self, ctx):
@@ -553,23 +559,25 @@ class Arguments(Node):
 
     def __str__(self):
         arg_unpacking = []
-        for i, (arg, default, name) in enumerate(zip(self.args, self.defaults, self.name_strings)):
+        for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
+            self.defaults, self.name_strings)):
             if default:
                 arg_unpacking += [Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) '
                     ': (args->len() > %s ? args->__getitem__(%s) : %s)' %
-                    (name, name, i, i, default), 'local')]
+                    (name, name, i, i, default), binding)]
             else:
-                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i, 'local')]
+                arg_unpacking += [Store(arg, 'args->__getitem__(%s)' % i, binding)]
         return block_str(arg_unpacking)
 
 class FunctionDef(Node):
-    def __init__(self, name, args, stmts, exp_name, binding):
+    def __init__(self, name, args, stmts, exp_name, binding, local_count):
         self.name = name
         self.exp_name = exp_name if exp_name else name
         self.exp_name = 'fn_%s' % self.exp_name # make sure no name collisions
         self.args = args
         self.stmts = stmts
         self.binding = binding
+        self.local_count = local_count
 
     def flatten(self, ctx):
         ctx.functions += [self]
@@ -580,21 +588,23 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *globals, context *parent_ctx, list *args, dict *kwargs) {{
-    context ctx(parent_ctx);
+    context ctx(parent_ctx, {local_count});
 {arg_unpacking}
 {stmts}
     return &none_singleton;
-}}""".format(name=self.exp_name, arg_unpacking=arg_unpacking, stmts=stmts)
+}}""".format(name=self.exp_name, local_count=self.local_count,
+        arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 
 class ClassDef(Node):
-    def __init__(self, name, stmts):
+    def __init__(self, name, binding, stmts):
         self.name = name
+        self.binding = binding
         self.stmts = stmts
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), 'global')]
+        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), self.binding)]
 
     def __str__(self):
         stmts = block_str(self.stmts)
