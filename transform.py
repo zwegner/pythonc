@@ -559,7 +559,8 @@ with open(sys.argv[2], 'w') as f:
         f.write('%s\n' % func)
 
     f.write('int main(int argc, char **argv) {\n')
-    f.write('    context ctx(%s), *globals = &ctx;\n' % (transformer.global_sym_count))
+    f.write('    node *global_syms[%s];\n' % (transformer.global_sym_count))
+    f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (transformer.global_sym_count))
     f.write('    init_context(&ctx, argc, argv);\n')
 
     for stmt in node:

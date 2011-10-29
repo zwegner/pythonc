@@ -588,7 +588,8 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *globals, context *parent_ctx, list *args, dict *kwargs) {{
-    context ctx(parent_ctx, {local_count});
+    node *local_syms[{local_count}];
+    context ctx(parent_ctx, {local_count}, local_syms);
 {arg_unpacking}
 {stmts}
     return &none_singleton;

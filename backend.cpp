@@ -53,7 +53,6 @@ class string_const;
 typedef int64_t int_t;
 
 typedef std::pair<node *, node *> node_pair;
-typedef std::vector<node *> symbol_table;
 typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
@@ -165,22 +164,25 @@ public:
 
 class context {
 private:
-    symbol_table symbols;
+    uint32_t sym_len;
+    node **symbols;
     context *parent_ctx;
 
 public:
-    context(uint32_t size) {
+    context(uint32_t size, node **symbols) {
         this->parent_ctx = NULL;
-        this->symbols.resize(size);
+        this->symbols = symbols;
+        this->sym_len = size;
     }
-    context(context *parent_ctx, uint32_t size) {
+    context(context *parent_ctx, uint32_t size, node **symbols) {
         this->parent_ctx = parent_ctx;
-        this->symbols.resize(size);
+        this->symbols = symbols;
+        this->sym_len = size;
     }
 
     void mark_live(bool free_ctx) {
         if (!free_ctx)
-            for (uint32_t i = 0; i < this->symbols.size(); i++)
+            for (uint32_t i = 0; i < this->sym_len; i++)
                 if (this->symbols[i])
                     this->symbols[i]->mark_live();
         if (this->parent_ctx)
