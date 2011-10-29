@@ -1505,11 +1505,10 @@ node *string_const::getattr(const char *key) {
 // This entire function is very stupidly implemented.
 node *string_const::__mod__(node *rhs) {
     std::ostringstream new_string;
-    // HACK for now...
-    if (!rhs->is_list()) {
-        list *l = new(allocator) list();
-        l->append(rhs);
-        rhs = l;
+    if (!rhs->is_tuple()) {
+        node *tuple_item[1] = {rhs};
+        tuple *t = new(allocator) tuple(1, tuple_item);
+        rhs = t;
     }
     int_t args = 0;
     for (const char *c = value.c_str(); *c; c++) {
