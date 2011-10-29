@@ -218,10 +218,10 @@ class Tuple(Node):
         list_name = ctx.get_temp()
         name = ctx.get_temp()
         # XXX HACK: add just some C++ text instead of syntax nodes...
-        ctx.statements += ['node_list %s' % list_name]
-        for i in self.items:
-            ctx.statements += ['%s.push_back(%s)' % (list_name, i)]
-        ctx.statements += [Assign(name, Ref('tuple', list_name), target_type='tuple')]
+        ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
+        for i, item in enumerate(self.items):
+            ctx.statements += ['%s[%d] = %s' % (list_name, i, item)]
+        ctx.statements += [Assign(name, Ref('tuple', len(self.items), list_name), target_type='tuple')]
         return name
 
     def __str__(self):
