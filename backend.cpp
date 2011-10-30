@@ -528,7 +528,6 @@ private:
 
 public:
     list() { }
-    list(node_list &l) : items(l) { }
     list(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
@@ -666,7 +665,6 @@ private:
 
 public:
     tuple() { }
-    tuple(node_list &l) : items(l) { }
     tuple(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
@@ -1304,7 +1302,7 @@ public:
         new_list.resize(plist->len());
         std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
 
-        return new(allocator) list(new_list);
+        return new(allocator) list(new_list.size(), &new_list[0]);
     }
 };
 
@@ -1370,7 +1368,7 @@ public:
         node_list l;
         for (node *item = iter->next(); item; item = iter->next())
             l.push_back(item);
-        return new(allocator) tuple(l);
+        return new(allocator) tuple(l.size(), &l[0]);
     }
 };
 
@@ -1740,7 +1738,7 @@ node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) 
     std::copy(plist->begin(), plist->end(), new_list.begin());
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
 
-    return new(allocator) list(new_list);
+    return new(allocator) list(new_list.size(), &new_list[0]);
 }
 
 node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs) {
