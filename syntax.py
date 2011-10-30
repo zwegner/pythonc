@@ -200,11 +200,13 @@ class List(Node):
         self.items = items
 
     def flatten(self, ctx):
+        list_name = ctx.get_temp()
         name = ctx.get_temp()
-        ctx.statements += [Assign(name, Ref('list'), target_type='list')]
-        for i in self.items:
-            # XXX HACK: add just some C++ text instead of syntax nodes...
-            ctx.statements += ['%s->append(%s)' % (name, i)]
+        # XXX HACK: add just some C++ text instead of syntax nodes...
+        ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
+        for i, item in enumerate(self.items):
+            ctx.statements += ['%s[%d] = %s' % (list_name, i, item)]
+        ctx.statements += [Assign(name, Ref('list', len(self.items), list_name), target_type='list')]
         return name
 
     def __str__(self):

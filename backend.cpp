@@ -529,6 +529,10 @@ private:
 public:
     list() { }
     list(node_list &l) : items(l) { }
+    list(int_t n, node **items): items(n) {
+        for (int_t i = 0; i < n; i++)
+            this->items[i] = items[i];
+    }
     const char *node_type() { return "list"; }
 
     virtual void mark_live() {
