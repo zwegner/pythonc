@@ -230,7 +230,7 @@ class Tuple(Node):
             ctx.statements += [
                 'node_list %s' % list_name,
                 'node *%s = %s->__iter__()' % (iter_name, self.items),
-                'for (node *item = %s->next(); item; item = %s->next()) %s.push_back(item)' % (iter_name, iter_name, list_name),
+                'while (node *item = %s->next()) %s.push_back(item)' % (iter_name, iter_name, list_name),
                 Assign(name, Ref('tuple', list_name), target_type='tuple')
             ]
         return name
@@ -438,7 +438,7 @@ class Comprehension(Node):
             adder = '%s->append(%s);' % (self.temp, self.expr)
         body = """
 {iter_store};
-for (node *item = {iter}->next(); item; item = {iter}->next()) {{
+while (node *item = {iter}->next()) {{
 {arg_unpacking}
 {cond_stmts}
 {cond}
@@ -496,7 +496,7 @@ class For(Node):
         # XXX sorta weird?
         body = """
 {iter_store};
-for (node *item = {iter}->next(); item; item = {iter}->next()) {{
+while (node *item = {iter}->next()) {{
 {arg_unpacking}
 {stmts}
     collect_garbage(&ctx, NULL);

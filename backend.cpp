@@ -1206,9 +1206,9 @@ public:
         node *iter = arg->__iter__();
         list *ret = new(allocator) list;
         int i = 0;
-        for (node *item = iter->next(); item; item = iter->next(), i++) {
+        while (node *item = iter->next()) {
             node *pair[2];
-            pair[0] = new(allocator) int_const(i);
+            pair[0] = new(allocator) int_const(i++);
             pair[1] = item;
             ret->append(new(allocator) tuple(2, pair));
         }
@@ -1256,7 +1256,7 @@ public:
             return ret;
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
-        for (node *item = iter->next(); item; item = iter->next())
+        while (node *item = iter->next())
             ret->append(item);
         return ret;
     }
@@ -1324,7 +1324,7 @@ public:
             return ret;
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
-        for (node *item = iter->next(); item; item = iter->next())
+        while (node *item = iter->next())
             ret->add(item);
         return ret;
     }
@@ -1366,7 +1366,7 @@ public:
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
         node_list l;
-        for (node *item = iter->next(); item; item = iter->next())
+        while (node *item = iter->next())
             l.push_back(item);
         return new(allocator) tuple(l.size(), &l[0]);
     }
@@ -1728,10 +1728,10 @@ bool compare_nodes(node *lhs, node *rhs) {
 
 node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("sorted", 1);
-    node *item = args->__getitem__(0);
-    node *iter = item->__iter__();
+    node *arg = args->__getitem__(0);
+    node *iter = arg->__iter__();
     node_list new_list;
-    for (node *item = iter->next(); item; item = iter->next())
+    while (node *item = iter->next())
         new_list.push_back(item);
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
     return new(allocator) list(new_list.size(), &new_list[0]);
