@@ -300,7 +300,8 @@ class Transformer(ast.NodeTransformer):
         if node.starargs:
             assert not node.args
             assert not node.kwargs
-            args = self.flatten_node(node.starargs)
+            args = syntax.Tuple(self.flatten_node(node.starargs))
+            args = args.flatten(self)
             kwargs = syntax.Dict([], [])
         else:
             args = syntax.Tuple([self.flatten_node(a) for a in node.args])
