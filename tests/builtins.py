@@ -35,7 +35,7 @@ for x in [[], [1], [1, 2, 3], (1, 2, 3)]:
 for x in [[1], 'abc']:
     print(set(x))
 
-for x in [[5, 3, 1]]:
+for x in [[5, 3, 1], (1, 3, 2), {10, 5, 0}]:
     print(sorted(x))
 
 for x in [[], range(1), range(5)]:

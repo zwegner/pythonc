@@ -1729,15 +1729,11 @@ bool compare_nodes(node *lhs, node *rhs) {
 node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("sorted", 1);
     node *item = args->__getitem__(0);
-    if (!item->is_list())
-        error("cannot call sorted on non-list");
-    list *plist = (list *)item;
-    // sigh, I hate c++
+    node *iter = item->__iter__();
     node_list new_list;
-    new_list.resize(plist->len());
-    std::copy(plist->begin(), plist->end(), new_list.begin());
+    for (node *item = iter->next(); item; item = iter->next())
+        new_list.push_back(item);
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
-
     return new(allocator) list(new_list.size(), &new_list[0]);
 }
 
