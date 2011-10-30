@@ -29,6 +29,9 @@ for x in [0, 1, 5, 10]:
 for x in [0, 1, [], {}, set(), '', 'a', '\n', '\r', '\t', '\\', '"', '"\'', '\'"', "'", (), (1,), (1, 2)]:
     print(repr(x))
 
+for x in [[], [1], [1, 2, 3], (1, 2, 3)]:
+    print(list(reversed(x)))
+
 for x in [[1], 'abc']:
     print(set(x))
 

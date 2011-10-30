@@ -1291,18 +1291,18 @@ class reversed_class_def_singleton: public builtin_class_def_singleton {
 public:
     reversed_class_def_singleton(): builtin_class_def_singleton("reversed") {}
 
+    // XXX This will actually work on dictionaries if they have keys of 0..len-1.
+    // Logically speaking it doesn't make sense to have reversed() of a dictionary
+    // do anything, but the Python docs imply that __len__ and __getitem__ are
+    // sufficient.  This seems like a documentation error.
     node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("reversed", 1);
         node *item = args->__getitem__(0);
-        if (!item->is_list())
-            error("cannot call reversed on non-list");
-        list *plist = (list *)item;
-        // sigh, I hate c++
-        node_list new_list;
-        new_list.resize(plist->len());
-        std::reverse_copy(plist->begin(), plist->end(), new_list.begin());
-
-        return new(allocator) list(new_list.size(), &new_list[0]);
+        int_t len = item->len();
+        node *new_list[len];
+        for (int_t i = 0; i < len; i++)
+            new_list[len-1-i] = item->__getitem__(i);
+        return new(allocator) list(len, new_list);
     }
 };
 
