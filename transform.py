@@ -303,7 +303,7 @@ class Transformer(ast.NodeTransformer):
             args = self.flatten_node(node.starargs)
             kwargs = syntax.Dict([], [])
         else:
-            args = syntax.List([self.flatten_node(a) for a in node.args])
+            args = syntax.Tuple([self.flatten_node(a) for a in node.args])
             args = args.flatten(self)
 
             keys = [syntax.StringConst(i.arg) for i in node.keywords]

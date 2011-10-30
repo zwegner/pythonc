@@ -47,6 +47,7 @@ __attribute((noreturn)) void error(const char *msg, ...) {
 class node;
 class dict;
 class list;
+class tuple;
 class context;
 class string_const;
 
@@ -57,16 +58,16 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
-node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs);
-node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs);
+node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_list_index(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_list_pop(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_set_add(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_str_upper(context *globals, context *ctx, tuple *args, dict *kwargs);
+node *builtin_str_startswith(context *globals, context *ctx, tuple *args, dict *kwargs);
 
 inline node *create_bool_const(bool b);
 
@@ -144,7 +145,7 @@ public:
 
     virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", this->node_type()); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
@@ -1013,7 +1014,7 @@ public:
     }
 };
 
-typedef node *(*fptr)(context *globals, context *parent_ctx, list *args, dict *kwargs);
+typedef node *(*fptr)(context *globals, context *parent_ctx, tuple *args, dict *kwargs);
 
 class bound_method : public node {
 private:
@@ -1036,10 +1037,13 @@ public:
 
     virtual bool is_function() { return true; } // XXX is it?
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
-        if (!args->is_list())
-            error("call with non-list args?");
-        ((list *)args)->prepend(this->self);
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+        int_t len = args->len();
+        node *new_args[len + 1];
+        new_args[0] = this->self;
+        for (int_t i = 0; i < len; i++)
+            new_args[i+1] = args->__getitem__(i);
+        args = new(allocator) tuple(len + 1, new_args);
         return this->function->__call__(globals, ctx, args, kwargs);
     }
 };
@@ -1058,7 +1062,7 @@ public:
 
     virtual bool is_function() { return true; }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         return this->base_function(globals, ctx, args, kwargs);
     }
 };
@@ -1088,7 +1092,7 @@ public:
         items->__setitem__(new(allocator) string_const(name), value);
     }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         node *init = this->load("__init__");
         node *obj = new(allocator) object();
 
@@ -1169,7 +1173,7 @@ class bool_class_def_singleton: public builtin_class_def_singleton {
 public:
     bool_class_def_singleton(): builtin_class_def_singleton("bool") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("bool", 1);
         if (!args->len())
             return &bool_singleton_False;
@@ -1191,7 +1195,7 @@ public:
         return NULL;
     }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("dict", 0);
         return new(allocator) dict();
     }
@@ -1201,7 +1205,7 @@ class enumerate_class_def_singleton: public builtin_class_def_singleton {
 public:
     enumerate_class_def_singleton(): builtin_class_def_singleton("enumerate") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("enumerate", 1);
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
@@ -1221,7 +1225,7 @@ class int_class_def_singleton: public builtin_class_def_singleton {
 public:
     int_class_def_singleton(): builtin_class_def_singleton("int") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("int", 1);
         if (!args->len())
             return new(allocator) int_const(0);
@@ -1250,7 +1254,7 @@ public:
         error("list has no attribute %s", key);
     }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("list", 1);
         list *ret = new(allocator) list();
         if (!args->len())
@@ -1267,7 +1271,7 @@ class range_class_def_singleton: public builtin_class_def_singleton {
 public:
     range_class_def_singleton(): builtin_class_def_singleton("range") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t start = 0, end, step = 1;
 
         if (args->len() == 1)
@@ -1292,7 +1296,7 @@ class reversed_class_def_singleton: public builtin_class_def_singleton {
 public:
     reversed_class_def_singleton(): builtin_class_def_singleton("reversed") {}
 
-    node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("reversed", 1);
         node *item = args->__getitem__(0);
         if (!item->is_list())
@@ -1318,7 +1322,7 @@ public:
         return NULL;
     }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("set", 1);
         set *ret = new(allocator) set();
         if (!args->len())
@@ -1347,7 +1351,7 @@ public:
         error("str has no attribute %s", key);
     }
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("str", 1);
         if (!args->len())
             return new(allocator) string_const("");
@@ -1360,7 +1364,7 @@ class tuple_class_def_singleton: public builtin_class_def_singleton {
 public:
     tuple_class_def_singleton(): builtin_class_def_singleton("tuple") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MAX_ARGS("tuple", 1);
         if (!args->len())
             return new(allocator) tuple;
@@ -1377,7 +1381,7 @@ class zip_class_def_singleton: public builtin_class_def_singleton {
 public:
     zip_class_def_singleton(): builtin_class_def_singleton("zip") {}
 
-    virtual node *__call__(context *globals, context *ctx, list *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("zip", 2);
         node *list1 = args->__getitem__(0);
         node *list2 = args->__getitem__(1);
@@ -1595,7 +1599,7 @@ public:
     }
 };
 
-node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
@@ -1607,7 +1611,7 @@ node *builtin_dict_get(context *globals, context *ctx, list *args, dict *kwargs)
     return value;
 }
 
-node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.keys", 1);
     dict *self = (dict *)args->__getitem__(0);
 
@@ -1618,7 +1622,7 @@ node *builtin_dict_keys(context *globals, context *ctx, list *args, dict *kwargs
     return plist;
 }
 
-node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_fread(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("fread", 2);
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
@@ -1627,7 +1631,7 @@ node *builtin_fread(context *globals, context *ctx, list *args, dict *kwargs) {
     return ((file *)f)->read(len->int_value());
 }
 
-node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_isinstance(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("isinstance", 2);
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
@@ -1636,12 +1640,12 @@ node *builtin_isinstance(context *globals, context *ctx, list *args, dict *kwarg
     return create_bool_const(obj_class == arg_class);
 }
 
-node *builtin_len(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_len(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("len", 1);
     return args->__getitem__(0)->__len__();
 }
 
-node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("list.append", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1651,7 +1655,7 @@ node *builtin_list_append(context *globals, context *ctx, list *args, dict *kwar
     return &none_singleton;
 }
 
-node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_list_index(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("list.index", 2);
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
@@ -1663,14 +1667,14 @@ node *builtin_list_index(context *globals, context *ctx, list *args, dict *kwarg
     return &none_singleton;
 }
 
-node *builtin_list_pop(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_list_pop(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("pop", 1);
     list *self = (list *)args->__getitem__(0);
 
     return self->pop();
 }
 
-node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_open(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("open", 2);
     node *path = args->__getitem__(0);
     node *mode = args->__getitem__(1);
@@ -1680,7 +1684,7 @@ node *builtin_open(context *globals, context *ctx, list *args, dict *kwargs) {
     return f;
 }
 
-node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_ord(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("ord", 1);
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
@@ -1688,7 +1692,7 @@ node *builtin_ord(context *globals, context *ctx, list *args, dict *kwargs) {
     return new(allocator) int_const((unsigned char)arg->string_value()[0]);
 }
 
-node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_print(context *globals, context *ctx, tuple *args, dict *kwargs) {
     std::string new_string;
     for (int_t i = 0; i < args->len(); i++) {
         if (i)
@@ -1700,20 +1704,20 @@ node *builtin_print(context *globals, context *ctx, list *args, dict *kwargs) {
     return &none_singleton;
 }
 
-node *builtin_print_nonl(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_print_nonl(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("print_nonl", 1);
     node *s = args->__getitem__(0);
     printf("%s", s->str().c_str());
     return &none_singleton;
 }
 
-node *builtin_repr(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_repr(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("repr", 1);
     node *arg = args->__getitem__(0);
     return arg->__repr__();
 }
 
-node *builtin_set_add(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_set_add(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("set.add", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1727,7 +1731,7 @@ bool compare_nodes(node *lhs, node *rhs) {
     return lhs->_lt(rhs);
 }
 
-node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("sorted", 1);
     node *item = args->__getitem__(0);
     if (!item->is_list())
@@ -1742,7 +1746,7 @@ node *builtin_sorted(context *globals, context *ctx, list *args, dict *kwargs) {
     return new(allocator) list(new_list);
 }
 
-node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("str.join", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1759,7 +1763,7 @@ node *builtin_str_join(context *globals, context *ctx, list *args, dict *kwargs)
     return new(allocator) string_const(s);
 }
 
-node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("str.split", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
@@ -1782,7 +1786,7 @@ node *builtin_str_split(context *globals, context *ctx, list *args, dict *kwargs
     return ret;
 }
 
-node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_str_upper(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("str.upper", 1);
     node *self = args->__getitem__(0);
     if (!self->is_string())
@@ -1796,7 +1800,7 @@ node *builtin_str_upper(context *globals, context *ctx, list *args, dict *kwargs
     return new(allocator) string_const(new_string);
 }
 
-node *builtin_str_startswith(context *globals, context *ctx, list *args, dict *kwargs) {
+node *builtin_str_startswith(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("str.startswith", 2);
     node *self = args->__getitem__(0);
     node *prefix = args->__getitem__(1);
