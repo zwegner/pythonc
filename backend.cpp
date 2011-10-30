@@ -58,16 +58,22 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
-node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_list_index(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_list_pop(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_set_add(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_str_upper(context *globals, context *ctx, tuple *args, dict *kwargs);
-node *builtin_str_startswith(context *globals, context *ctx, tuple *args, dict *kwargs);
+#define LIST_BUILTIN_CLASS_METHODS(x) \
+    x(dict, get) \
+    x(dict, keys) \
+    x(list, append) \
+    x(list, index) \
+    x(list, pop) \
+    x(set, add) \
+    x(str, join) \
+    x(str, split) \
+    x(str, upper) \
+    x(str, startswith) \
+
+#define BUILTIN_METHOD(class_name, method_name) \
+    node *builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
+LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
+#undef BUILTIN_METHOD
 
 inline node *create_bool_const(bool b);
 
@@ -1136,19 +1142,6 @@ inline node *create_bool_const(bool b) {
         error("too many arguments to " name "()")
 
 // Builtin classes
-
-#define LIST_BUILTIN_CLASS_METHODS(x) \
-    x(dict, get) \
-    x(dict, keys) \
-    x(list, append) \
-    x(list, index) \
-    x(list, pop) \
-    x(set, add) \
-    x(str, join) \
-    x(str, split) \
-    x(str, upper) \
-    x(str, startswith) \
-
 class builtin_method_def: public function_def {
 public:
     builtin_method_def(fptr base_function): function_def(base_function) {}
