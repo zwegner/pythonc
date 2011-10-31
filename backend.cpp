@@ -1740,16 +1740,18 @@ node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) 
 node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("str.join", 2);
     node *self = args->__getitem__(0);
-    node *item = args->__getitem__(1);
-    if (!self->is_string() || !item->is_list())
+    node *joined = args->__getitem__(1);
+    if (!self->is_string())
         error("bad arguments to str.join()");
-
-    list *joined = (list *)item;
+    node *iter = joined->__iter__();
     std::string s;
-    for (node_list::iterator i = joined->begin(); i != joined->end(); i++) {
-        s += (*i)->str();
-        if (i + 1 != joined->end())
+    bool first = true;
+    while (node *item = iter->next()) {
+        if (first)
+            first = false;
+        else
             s += self->string_value();
+        s += item->str();
     }
     return new(allocator) string_const(s);
 }

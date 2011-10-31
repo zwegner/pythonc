@@ -45,3 +45,8 @@ for x in [0, 'a', []]:
     print(str(x))
 
 print(list(zip([1, 2], [3, 4])))
+
+for x in [[], ['a'], ['a', 'b', 'c'], ('x', 'y', 'z')]:
+    print(','.join(x))
+for x in ['', 'a', ':', 'a:', 'a:b', 'a:b:c']:
+    print(x.split(':'))
