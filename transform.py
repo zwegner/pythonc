@@ -410,6 +410,14 @@ class Transformer(ast.NodeTransformer):
         stmts = self.flatten_list(node.body)
         return syntax.While(test_stmts, test, stmts)
 
+    # XXX We are just flattening "with x as y:" into "y = x" (this works in some simple cases with open()).
+    def visit_With(self, node):
+        assert node.optional_vars
+        expr = self.flatten_node(node.context_expr)
+        stmts = [syntax.Store(node.optional_vars.id, expr, self.get_binding(node.optional_vars.id))]
+        stmts += self.flatten_list(node.body)
+        return stmts
+
     def visit_Comprehension(self, node, comp_type):
         assert len(node.generators) == 1
         gen = node.generators[0]
