@@ -230,8 +230,8 @@ class Tuple(Node):
             ctx.statements += [
                 'node_list %s' % list_name,
                 'node *%s = %s->__iter__()' % (iter_name, self.items),
-                'while (node *item = %s->next()) %s.push_back(item)' % (iter_name, iter_name, list_name),
-                Assign(name, Ref('tuple', list_name), target_type='tuple')
+                'while (node *item = %s->next()) %s.push_back(item)' % (iter_name, list_name),
+                Assign(name, Ref('tuple', '%s.size()' % list_name, '&%s[0]' % list_name), target_type='tuple')
             ]
         return name
 

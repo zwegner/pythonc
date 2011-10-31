@@ -1245,15 +1245,57 @@ public:
     int_class_def_singleton(): builtin_class_def_singleton("int") {}
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("int", 1);
+        NO_KWARGS_MAX_ARGS("int", 2);
         if (!args->len())
             return new(allocator) int_const(0);
         node *arg = args->__getitem__(0);
-        if (arg->is_int_const())
+        if (arg->is_int_const()) {
+            if (args->len() != 1)
+                error("int() cannot accept a base when passed an int");
             return arg;
+        }
         if (arg->is_string()) {
-            std::string s = arg->string_value();
-            return new(allocator) int_const(atoi(s.c_str()));
+            int_t base = 10;
+            if (args->len() == 2) {
+                node *base_node = args->__getitem__(1);
+                if (!base_node->is_int_const())
+                    error("base must be an int");
+                base = base_node->int_value();
+                if ((base < 0) || (base == 1) || (base > 36))
+                    error("base must be 0 or 2-36");
+                if (base == 0)
+                    error("base 0 unsupported at present");
+            }
+            std::string str = arg->string_value();
+            const char *s = str.c_str();
+            while (isspace(*s))
+                continue;
+            int_t sign = 1;
+            if (*s == '-') {
+                s++;
+                sign = -1;
+            }
+            else if (*s == '+')
+                s++;
+            int_t value = 0;
+            for (;;) {
+                int_t digit;
+                char c = *s++;
+                if (c == 0)
+                    break;
+                if ((c >= '0') && (c <= '9'))
+                    digit = c - '0';
+                else if ((c >= 'a') && (c <= 'z'))
+                    digit = c - 'a' + 10;
+                else if ((c >= 'A') && (c <= 'Z'))
+                    digit = c - 'A' + 10;
+                else
+                    error("unexpected digit");
+                if (digit >= base)
+                    error("digit not valid in base");
+                value = value*base + digit;
+            }
+            return new(allocator) int_const(sign*value);
         }
         error("don't know how to handle argument to int()");
     }

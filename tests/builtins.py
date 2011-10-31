@@ -10,8 +10,11 @@ for x in [0, 1]:
 for x in [range(5)]:
     print(list(enumerate(x)))
 
-for x in [0, 1, '0', '1', '10', '15']:
+for x in [0, 1, '0', '1', '10', '15', '-123', '+714']:
     print(int(x))
+
+for x in [('10', 16), ('ff', 16), ('-abc', 36)]:
+    print(int(*x))
 
 for x in ['', [], {}, set(), 'a', [1], {'b'}, {1: 2}]:
     print(len(x))
