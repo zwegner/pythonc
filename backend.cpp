@@ -1254,6 +1254,11 @@ public:
                 error("int() cannot accept a base when passed an int");
             return arg;
         }
+        if (arg->is_bool()) {
+            if (args->len() != 1)
+                error("int() cannot accept a base when passed a bool");
+            return new(allocator) int_const(arg->int_value());
+        }
         if (arg->is_string()) {
             int_t base = 10;
             if (args->len() == 2) {

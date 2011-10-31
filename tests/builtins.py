@@ -10,7 +10,7 @@ for x in [0, 1]:
 for x in [range(5)]:
     print(list(enumerate(x)))
 
-for x in [0, 1, '0', '1', '10', '15', '-123', '+714']:
+for x in [0, 1, False, True, '0', '1', '10', '15', '-123', '+714']:
     print(int(x))
 
 for x in [('10', 16), ('ff', 16), ('-abc', 36)]:
@@ -44,7 +44,7 @@ for x in [[5, 3, 1], (1, 3, 2), {10, 5, 0}]:
 for x in [[], range(1), range(5)]:
     print(tuple(x))
 
-for x in [0, 'a', []]:
+for x in [0, False, True, None, 'a', []]:
     print(str(x))
 
 print(list(zip([1, 2], [3, 4])))
