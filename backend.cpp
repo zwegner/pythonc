@@ -1197,6 +1197,38 @@ public:
 };
 
 class enumerate_class_def_singleton: public builtin_class_def_singleton {
+private:
+    class enumerate_obj: public node {
+    private:
+        node *iter;
+        int_t i;
+
+    public:
+        enumerate_obj(node *iter) {
+            this->iter = iter;
+            this->i = 0;
+        }
+        const char *node_type() { return "enumerate_obj"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->iter->mark_live();
+        }
+
+        virtual node *__iter__() { return this; }
+        virtual node *next() {
+            node *item = this->iter->next();
+            if (!item)
+                return NULL;
+            node *pair[2];
+            pair[0] = new(allocator) int_const(this->i++);
+            pair[1] = item;
+            return new(allocator) tuple(2, pair);
+        }
+
+        virtual std::string repr() { return "<enumerate object>"; }
+    };
+
 public:
     enumerate_class_def_singleton(): builtin_class_def_singleton("enumerate") {}
 
@@ -1204,15 +1236,7 @@ public:
         NO_KWARGS_N_ARGS("enumerate", 1);
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
-        list *ret = new(allocator) list;
-        int i = 0;
-        while (node *item = iter->next()) {
-            node *pair[2];
-            pair[0] = new(allocator) int_const(i++);
-            pair[1] = item;
-            ret->append(new(allocator) tuple(2, pair));
-        }
-        return ret;
+        return new(allocator) enumerate_obj(iter);
     }
 };
 
@@ -1288,6 +1312,37 @@ public:
 };
 
 class reversed_class_def_singleton: public builtin_class_def_singleton {
+private:
+    class reversed_obj: public node {
+    private:
+        node *parent;
+        int_t i;
+        int_t len;
+
+    public:
+        reversed_obj(node *parent, int_t len) {
+            this->parent = parent;
+            this->i = 0;
+            this->len = len;
+        }
+        const char *node_type() { return "reversed_obj"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *__iter__() { return this; }
+        virtual node *next() {
+            if (i >= len)
+                return NULL;
+            int_t cur = this->i++;
+            return this->parent->__getitem__(this->len - 1 - cur);
+        }
+
+        virtual std::string repr() { return "<reversed object>"; }
+    };
+
 public:
     reversed_class_def_singleton(): builtin_class_def_singleton("reversed") {}
 
@@ -1299,10 +1354,7 @@ public:
         NO_KWARGS_N_ARGS("reversed", 1);
         node *item = args->__getitem__(0);
         int_t len = item->len();
-        node *new_list[len];
-        for (int_t i = 0; i < len; i++)
-            new_list[len-1-i] = item->__getitem__(i);
-        return new(allocator) list(len, new_list);
+        return new(allocator) reversed_obj(item, len);
     }
 };
 
