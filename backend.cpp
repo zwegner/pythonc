@@ -556,8 +556,11 @@ public:
     node_list::iterator begin() { return items.begin(); }
     node_list::iterator end() { return items.end(); }
     int_t index(int_t base) {
+        int_t size = items.size();
+        if ((base >= size) || (base < -size))
+            error("list index out of range");
         if (base < 0)
-            base = items.size() + base;
+            base += size;
         return base;
     }
 
@@ -680,8 +683,11 @@ public:
     }
 
     int_t index(int_t base) {
+        int_t size = items.size();
+        if ((base >= size) || (base < -size))
+            error("tuple index out of range");
         if (base < 0)
-            base = items.size() + base;
+            base += size;
         return base;
     }
 
