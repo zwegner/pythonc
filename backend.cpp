@@ -61,6 +61,8 @@ typedef std::vector<node *> node_list;
 #define LIST_BUILTIN_CLASS_METHODS(x) \
     x(dict, get) \
     x(dict, keys) \
+    x(file, read) \
+    x(file, write) \
     x(list, append) \
     x(list, index) \
     x(list, pop) \
@@ -393,6 +395,7 @@ public:
     virtual std::string string_value() { return this->value; }
     virtual bool bool_value() { return this->len() != 0; }
 
+    const char *c_str() { return value.c_str(); }
     std::string::iterator begin() { return value.begin(); }
     std::string::iterator end() { return value.end(); }
 
@@ -967,8 +970,15 @@ public:
         std::string s(buf, ret);
         return new(allocator) string_const(s);
     }
+    void write(string_const *data) {
+        size_t len = data->len();
+        const char *buf = data->c_str();
+        (void)fwrite(buf, 1, len, this->f);
+    }
 
     virtual bool is_file() { return true; }
+
+    virtual node *getattr(const char *key);
 };
 
 class range: public node {
@@ -1701,6 +1711,15 @@ node *string_const::__mul__(node *rhs) {
     return new(allocator) string_const(new_string);
 }
 
+node *file::getattr(const char *key) {
+    if (!strcmp(key, "read"))
+        return new(allocator) bound_method(this, &builtin_method_file_read);
+    if (!strcmp(key, "write"))
+        return new(allocator) bound_method(this, &builtin_method_file_write);
+    error("file has no attribute %s", key);
+    return NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Builtins ////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1745,13 +1764,23 @@ node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwarg
     return plist;
 }
 
-node *builtin_fread(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("fread", 2);
+node *builtin_file_read(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("file.read", 2);
     node *f = args->__getitem__(0);
     node *len = args->__getitem__(1);
     if (!f->is_file() || !len->is_int_const())
-        error("bad arguments to fread()");
+        error("bad arguments to file.read()");
     return ((file *)f)->read(len->int_value());
+}
+
+node *builtin_file_write(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("file.write", 2);
+    node *f = args->__getitem__(0);
+    node *data = args->__getitem__(1);
+    if (!f->is_file() || !data->is_string())
+        error("bad arguments to file.write()");
+    ((file *)f)->write((string_const *)data);
+    return &none_singleton;
 }
 
 node *builtin_isinstance(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1889,7 +1918,7 @@ node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwarg
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
     if (!self->is_string() || !item->is_string() || (item->len() != 1))
-        error("bad argument to str.upper()");
+        error("bad argument to str.split()");
     string_const *str = (string_const *)self;
     char split = item->string_value()[0];
     list *ret = new(allocator) list;

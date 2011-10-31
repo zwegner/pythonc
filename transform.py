@@ -27,7 +27,6 @@ import sys
 import syntax
 
 builtin_functions = [
-    'fread',
     'isinstance',
     'len',
     'open',
