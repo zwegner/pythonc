@@ -1425,26 +1425,49 @@ public:
 };
 
 class zip_class_def_singleton: public builtin_class_def_singleton {
+private:
+    class zip_obj: public node {
+    private:
+        node *iter1;
+        node *iter2;
+
+    public:
+        zip_obj(node *iter1, node *iter2) {
+            this->iter1 = iter1;
+            this->iter2 = iter2;
+        }
+        const char *node_type() { return "zip_obj"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this))) {
+                this->iter1->mark_live();
+                this->iter2->mark_live();
+            }
+        }
+
+        virtual node *__iter__() { return this; }
+        virtual node *next() {
+            node *item1 = this->iter1->next();
+            node *item2 = this->iter2->next();
+            if (!item1 || !item2)
+                return NULL;
+            node *pair[2];
+            pair[0] = item1;
+            pair[1] = item2;
+            return new(allocator) tuple(2, pair);
+        }
+
+        virtual std::string repr() { return "<zip object>"; }
+    };
+
 public:
     zip_class_def_singleton(): builtin_class_def_singleton("zip") {}
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("zip", 2);
-        node *list1 = args->__getitem__(0);
-        node *list2 = args->__getitem__(1);
-
-        if (!list1->is_list() || !list2->is_list() || list1->len() != list2->len())
-            error("bad arguments to zip()");
-
-        list *plist = new(allocator) list();
-        for (int_t i = 0; i < list1->len(); i++) {
-            node *pair[2];
-            pair[0] = list1->__getitem__(i);
-            pair[1] = list2->__getitem__(i);
-            plist->append(new(allocator) tuple(2, pair));
-        }
-
-        return plist;
+        node *iter1 = args->__getitem__(0)->__iter__();
+        node *iter2 = args->__getitem__(1)->__iter__();
+        return new(allocator) zip_obj(iter1, iter2);
     }
 };
 
