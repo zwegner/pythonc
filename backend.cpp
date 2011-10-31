@@ -1153,9 +1153,11 @@ inline node *create_bool_const(bool b) {
     if (args->len() != n_args) \
         error("wrong number of arguments to " name "()")
 
-#define NO_KWARGS_MAX_ARGS(name, max_args) \
+#define NO_KWARGS_MIN_MAX_ARGS(name, min_args, max_args) \
     if (kwargs->len()) \
         error(name "() does not take keyword arguments"); \
+    if (args->len() < min_args) \
+        error("too few arguments to " name "()"); \
     if (args->len() > max_args) \
         error("too many arguments to " name "()")
 
@@ -1185,7 +1187,7 @@ public:
     bool_class_def_singleton(): builtin_class_def_singleton("bool") {}
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("bool", 1);
+        NO_KWARGS_MIN_MAX_ARGS("bool", 0, 1);
         if (!args->len())
             return &bool_singleton_False;
         node *arg = args->__getitem__(0);
@@ -1261,7 +1263,7 @@ public:
     int_class_def_singleton(): builtin_class_def_singleton("int") {}
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("int", 2);
+        NO_KWARGS_MIN_MAX_ARGS("int", 0, 2);
         if (!args->len())
             return new(allocator) int_const(0);
         node *arg = args->__getitem__(0);
@@ -1337,7 +1339,7 @@ public:
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("list", 1);
+        NO_KWARGS_MIN_MAX_ARGS("list", 0, 1);
         list *ret = new(allocator) list();
         if (!args->len())
             return ret;
@@ -1433,7 +1435,7 @@ public:
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("set", 1);
+        NO_KWARGS_MIN_MAX_ARGS("set", 0, 1);
         set *ret = new(allocator) set();
         if (!args->len())
             return ret;
@@ -1462,7 +1464,7 @@ public:
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("str", 1);
+        NO_KWARGS_MIN_MAX_ARGS("str", 0, 1);
         if (!args->len())
             return new(allocator) string_const("");
         node *arg = args->__getitem__(0);
@@ -1475,7 +1477,7 @@ public:
     tuple_class_def_singleton(): builtin_class_def_singleton("tuple") {}
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_MAX_ARGS("tuple", 1);
+        NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
         if (!args->len())
             return new(allocator) tuple;
         node *arg = args->__getitem__(0);
@@ -1914,9 +1916,12 @@ node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs
 }
 
 node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("str.split", 2);
+    NO_KWARGS_MIN_MAX_ARGS("str.split", 1, 2);
     node *self = args->__getitem__(0);
-    node *item = args->__getitem__(1);
+    node *item = (args->len() == 2) ? args->__getitem__(1) : &none_singleton;
+    // XXX Implement correct behavior for missing separator (not the same as ' ')
+    if (item == &none_singleton)
+        item = new(allocator) string_const(" ");
     if (!self->is_string() || !item->is_string() || (item->len() != 1))
         error("bad argument to str.split()");
     string_const *str = (string_const *)self;
