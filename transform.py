@@ -151,7 +151,9 @@ class Transformer(ast.NodeTransformer):
             scope = 'class'
         else:
             scope = 'global'
-        return (scope, self.symbol_idx[scope][name])
+        if name in self.symbol_idx[scope]:
+            return (scope, self.symbol_idx[scope][name])
+        return (scope, self.symbol_idx[scope]['$undefined'])
 
     def generic_visit(self, node):
         print(node.lineno)
@@ -550,6 +552,7 @@ class Transformer(ast.NodeTransformer):
         all_class_syms = set()
         self.index_global_class_symbols(node, all_global_syms, all_class_syms)
 
+        all_global_syms.add('$undefined')
         all_global_syms |= set(builtin_symbols)
 
         self.symbol_idx = {
