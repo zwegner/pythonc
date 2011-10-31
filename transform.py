@@ -111,6 +111,9 @@ class Transformer(ast.NodeTransformer):
         elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
             globals_set.add(node.name)
             class_set.add(node.name)
+        elif isinstance(node, ast.Import):
+            for name in node.names:
+                globals_set.add(name.name)
         elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
             ast.GeneratorExp)):
             # HACK: set self.iter_temp for the space in the symbol table
@@ -459,6 +462,11 @@ class Transformer(ast.NodeTransformer):
         expr = self.flatten_node(node.test)
         return syntax.Assert(expr, node.lineno)
 
+    def visit_Raise(self, node):
+        assert not node.cause
+        expr = self.flatten_node(node.exc)
+        return syntax.Raise(expr, node.lineno)
+
     def visit_arguments(self, node):
         assert not node.vararg
         assert not node.kwarg
@@ -513,6 +521,15 @@ class Transformer(ast.NodeTransformer):
 
         c = syntax.ClassDef(node.name, self.get_binding(node.name), body)
         return c.flatten(self)
+
+    # XXX This just turns "import x" into "x = 0".  It's certainly not what we really want...
+    def visit_Import(self, node):
+        statements = []
+        for name in node.names:
+            assert not name.asname
+            assert name.name
+            statements.append(syntax.Store(name.name, syntax.IntConst(0), self.get_binding(name.name)))
+        return statements
 
     def visit_Expr(self, node):
         return self.visit(node.value)

@@ -556,6 +556,14 @@ class Assert(Node):
 """.format(expr=self.expr, lineno=self.lineno)
         return body
 
+class Raise(Node):
+    def __init__(self, expr, lineno):
+        self.expr = expr
+        self.lineno = lineno
+
+    def __str__(self):
+        return 'error("exception %%p raised at line %%d", %s, %d)' % (self.expr, self.lineno)
+
 class Arguments(Node):
     def __init__(self, args, binding, defaults):
         self.args = args
