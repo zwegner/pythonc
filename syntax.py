@@ -607,7 +607,7 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args)
         body = """
 node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {{
-    node *local_syms[{local_count}];
+    node *local_syms[{local_count}] = {{0}};
     context ctx(parent_ctx, {local_count}, local_syms);
 {arg_unpacking}
 {stmts}
