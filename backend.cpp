@@ -202,7 +202,10 @@ public:
         this->symbols[idx] = obj;
     }
     node *load(uint32_t idx) {
-        return this->symbols[idx];
+        node *ret = this->symbols[idx];
+        if (!ret)
+            error("name is not defined");
+        return ret;
     }
 };
 
