@@ -1743,6 +1743,28 @@ public:
     }
 };
 
+node *builtin_all(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("all", 1);
+    node *arg = args->__getitem__(0);
+    node *iter = arg->__iter__();
+    while (node *item = iter->next()) {
+        if (!item->bool_value())
+            return &bool_singleton_False;
+    }
+    return &bool_singleton_True;
+}
+
+node *builtin_any(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("any", 1);
+    node *arg = args->__getitem__(0);
+    node *iter = arg->__iter__();
+    while (node *item = iter->next()) {
+        if (item->bool_value())
+            return &bool_singleton_True;
+    }
+    return &bool_singleton_False;
+}
+
 node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.get", 3);
     node *self = args->__getitem__(0);

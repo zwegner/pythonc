@@ -27,6 +27,8 @@ import sys
 import syntax
 
 builtin_functions = [
+    'all',
+    'any',
     'isinstance',
     'len',
     'open',
