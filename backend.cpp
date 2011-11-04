@@ -103,6 +103,7 @@ public:
     virtual bool bool_value() { error("bool_value unimplemented for %s", this->node_type()); return false; }
     virtual int_t int_value() { error("int_value unimplemented for %s", this->node_type()); return 0; }
     virtual std::string string_value() { error("string_value unimplemented for %s", this->node_type()); return NULL; }
+    virtual const char *c_str() { error("c_str unimplemented for %s", this->node_type()); }
     virtual node_list *list_value() { error("list_value unimplemented for %s", this->node_type()); return NULL; }
 
 #define UNIMP_OP(NAME) \
@@ -397,8 +398,8 @@ public:
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
     virtual bool bool_value() { return this->len() != 0; }
+    virtual const char *c_str() { return this->value.c_str(); }
 
-    const char *c_str() { return value.c_str(); }
     std::string::iterator begin() { return value.begin(); }
     std::string::iterator end() { return value.end(); }
 
@@ -1364,8 +1365,7 @@ public:
                 if (base == 0)
                     error("base 0 unsupported at present");
             }
-            std::string str = arg->string_value();
-            const char *s = str.c_str();
+            const char *s = arg->c_str();
             while (isspace(*s))
                 continue;
             int_t sign = 1;
@@ -1618,7 +1618,7 @@ LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 node *node::__getattr__(node *key) {
     if (!key->is_string())
         error("getattr with non-string");
-    return this->getattr(key->string_value().c_str());
+    return this->getattr(key->c_str());
 }
 
 node *node::__hash__() {
@@ -1757,7 +1757,7 @@ node *string_const::__mod__(node *rhs) {
                 *fmt = 0;
                 int_t char_value;
                 if (arg->is_string())
-                    char_value = (unsigned char)arg->string_value()[0];
+                    char_value = (unsigned char)arg->c_str()[0];
                 else
                     char_value = arg->int_value();
                 sprintf(buf, fmt_buf, char_value);
@@ -1931,7 +1931,7 @@ node *builtin_open(context *globals, context *ctx, tuple *args, dict *kwargs) {
     node *mode = args->__getitem__(1);
     if (!path->is_string() || !mode->is_string())
         error("bad arguments to open()");
-    file *f = new(allocator) file(path->string_value().c_str(), mode->string_value().c_str());
+    file *f = new(allocator) file(path->c_str(), mode->c_str());
     return f;
 }
 
@@ -1940,7 +1940,7 @@ node *builtin_ord(context *globals, context *ctx, tuple *args, dict *kwargs) {
     node *arg = args->__getitem__(0);
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
-    return new(allocator) int_const((unsigned char)arg->string_value()[0]);
+    return new(allocator) int_const((unsigned char)arg->c_str()[0]);
 }
 
 node *builtin_print(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -2006,7 +2006,7 @@ node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs
         if (first)
             first = false;
         else
-            s += self->string_value();
+            s += self->c_str();
         s += item->str();
     }
     return new(allocator) string_const(s);
@@ -2023,7 +2023,7 @@ node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwarg
         error("bad argument to str.split()");
     string_const *str = (string_const *)self;
     // XXX Implement correct behavior for this too--delimiter strings can have len>1
-    char split = item->string_value()[0];
+    char split = item->c_str()[0];
     list *ret = new(allocator) list;
     std::string s;
     for (std::string::iterator c = str->begin(); c != str->end(); ++c) {
