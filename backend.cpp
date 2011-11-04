@@ -1047,8 +1047,6 @@ public:
         }
     }
 
-    virtual bool is_function() { return true; } // XXX is it?
-
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t len = args->len();
         node *new_args[len + 1];
@@ -1935,6 +1933,7 @@ node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwarg
     if (!self->is_string() || !item->is_string() || (item->len() != 1))
         error("bad argument to str.split()");
     string_const *str = (string_const *)self;
+    // XXX Implement correct behavior for this too--delimiter strings can have len>1
     char split = item->string_value()[0];
     list *ret = new(allocator) list;
     std::string s;
