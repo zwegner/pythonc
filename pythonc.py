@@ -13,12 +13,18 @@ args = sys.argv[1:]
 
 gcc_flags = ['-g', '-Wall']
 quiet = False
-if args and args[0] == '-O':
-    gcc_flags += ['-O3']
-    args = args[1:]
-if args and args[0] == '-q':
-    quiet = True
-    args = args[1:]
+compile_only = False
+while args:
+    arg = args.pop(0)
+    if arg == '-O':
+        gcc_flags += ['-O3']
+    elif arg == '-c':
+        compile_only = True
+    elif arg == '-q':
+        quiet = True
+    else:
+        args = [arg] + args
+        break
 
 if not args:
     usage()
@@ -38,8 +44,9 @@ elapsed = time.time() - start
 if not quiet:
     print('Compile time: %.4fs' % elapsed)
 
-start = time.time()
-subprocess.check_call(['./%s' % base] + args[1:])
-elapsed = time.time() - start
-if not quiet:
-    print('Run time: %.4fs' % elapsed)
+if not compile_only:
+    start = time.time()
+    subprocess.check_call(['./%s' % base] + args[1:])
+    elapsed = time.time() - start
+    if not quiet:
+        print('Run time: %.4fs' % elapsed)
