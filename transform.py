@@ -40,6 +40,7 @@ builtin_functions = [
 ]
 builtin_classes = [
     'bool',
+    'bytes',
     'dict',
     'enumerate',
     'int',
@@ -181,7 +182,8 @@ class Transformer(ast.NodeTransformer):
         return syntax.StringConst(node.s)
 
     def visit_Bytes(self, node):
-        raise RuntimeError('Pythonc currently does not support bytes literals')
+        assert isinstance(node.s, bytes)
+        return syntax.BytesConst(node.s)
 
     # Unary Ops
     def visit_Invert(self, node): return '__invert__'

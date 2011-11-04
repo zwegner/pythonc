@@ -46,13 +46,19 @@ def register_string(value):
     all_strings[value] = (len(all_strings), hashkey)
     return all_strings[value][0]
 
+all_bytes = {}
+def register_bytes(value):
+    global all_bytes
+    if value in all_bytes:
+        return all_bytes[value]
+    all_bytes[value] = len(all_bytes)
+    return all_bytes[value]
+
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
 def export_consts(f):
-    global all_ints, all_strings
-
-    for i in all_ints:
+    for i in sorted(all_ints):
         f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
 
     char_escape = {
@@ -65,6 +71,10 @@ def export_consts(f):
     for k, (v, hashkey) in all_strings.items():
         c_str = ''.join(char_escape.get(c, c) for c in k)
         f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, c_str, hashkey))
+
+    for k, v in all_bytes.items():
+        f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
+        f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
 class Node:
     def is_atom(self):
@@ -108,6 +118,17 @@ class StringConst(Node):
 
     def __str__(self):
         return '(&string_singleton_%s)' % self.id
+
+class BytesConst(Node):
+    def __init__(self, value):
+        self.value = value
+        self.id = register_bytes(value)
+
+    def is_atom(self):
+        return True
+
+    def __str__(self):
+        return '(&bytes_singleton_%s)' % self.id
 
 class Identifier(Node):
     def __init__(self, name):

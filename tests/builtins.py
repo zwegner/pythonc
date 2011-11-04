@@ -1,11 +1,14 @@
-for x in [bool, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, zip]:
+for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, zip]:
     print(x)
 
-for x in [bool, dict, int, list, set, str, tuple]:
+for x in [bool, bytes, dict, int, list, set, str, tuple]:
     print(x())
 
 for x in [0, 1]:
     print(bool(x))
+
+for x in [[], range(256), 0, 1, 10]:
+    print(bytes(x))
 
 for x in [range(5)]:
     print(list(enumerate(x)))

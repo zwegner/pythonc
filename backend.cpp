@@ -502,6 +502,66 @@ public:
     }
 };
 
+class bytes: public node {
+private:
+    std::vector<uint8_t> value;
+
+public:
+    bytes() {}
+    bytes(size_t len, const uint8_t *data): value(len) {
+        memcpy(&value[0], data, len);
+    }
+
+    const char *node_type() { return "bytes"; }
+
+    MARK_LIVE_FN
+
+    void append(uint8_t x) { this->value.push_back(x); }
+
+    virtual bool bool_value() { return this->len() != 0; }
+
+    virtual int_t len() { return this->value.size(); }
+
+    virtual std::string repr() {
+        std::string s("b'");
+        for (size_t i = 0; i < this->value.size(); i++) {
+            uint8_t x = this->value[i];
+            char buf[5];
+            if (x == '\n')
+                s += "\\n";
+            else if (x == '\r')
+                s += "\\r";
+            else if (x == '\t')
+                s += "\\t";
+            else if (x == '\'')
+                s += "\\'";
+            else if (x == '\\')
+                s += "\\\\";
+            else if ((x >= 0x20) && (x < 0x7F)) {
+                buf[0] = x;
+                buf[1] = 0;
+                s += std::string(buf);
+            }
+            else {
+                buf[0] = '\\';
+                buf[1] = 'x';
+                buf[2] = "0123456789abcdef"[x >> 4];
+                buf[3] = "0123456789abcdef"[x & 15];
+                buf[4] = 0;
+                s += std::string(buf);
+            }
+        }
+        return s + "'";
+    }
+};
+
+class bytes_singleton: public bytes {
+public:
+    bytes_singleton(size_t len, const uint8_t *data): bytes(len, data) {}
+
+    MARK_LIVE_SINGLETON_FN
+};
+
 class list : public node {
 private:
     class list_iter: public node {
@@ -1178,6 +1238,35 @@ public:
             return &bool_singleton_False;
         node *arg = args->__getitem__(0);
         return create_bool_const(arg->bool_value());
+    }
+};
+
+class bytes_class_def_singleton: public builtin_class_def_singleton {
+public:
+    bytes_class_def_singleton(): builtin_class_def_singleton("bytes") {}
+
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+        NO_KWARGS_MIN_MAX_ARGS("bytes", 0, 1);
+        bytes *ret = new(allocator) bytes;
+        if (!args->len())
+            return ret;
+        node *arg = args->__getitem__(0);
+        if (arg->is_int_const()) {
+            int_t value = arg->int_value();
+            if (value < 0)
+                error("negative count");
+            for (int_t i = 0; i < value; i++)
+                ret->append(0);
+            return ret;
+        }
+        node *iter = arg->__iter__();
+        while (node *item = iter->next()) {
+            int_t i = item->int_value();
+            if ((i < 0) || (i >= 256))
+                error("invalid byte value");
+            ret->append(i);
+        }
+        return ret;
     }
 };
 
