@@ -202,7 +202,6 @@ class List(Node):
     def flatten(self, ctx):
         list_name = ctx.get_temp()
         name = ctx.get_temp()
-        # XXX HACK: add just some C++ text instead of syntax nodes...
         ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
         for i, item in enumerate(self.items):
             ctx.statements += ['%s[%d] = %s' % (list_name, i, item)]
@@ -219,7 +218,6 @@ class Tuple(Node):
     def flatten(self, ctx):
         list_name = ctx.get_temp()
         name = ctx.get_temp()
-        # XXX HACK: add just some C++ text instead of syntax nodes...
         if isinstance(self.items, list):
             ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
             for i, item in enumerate(self.items):
@@ -247,7 +245,6 @@ class Dict(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('dict'), target_type='dict')]
         for k, v in zip(self.keys, self.values):
-            # XXX HACK: add just some C++ text instead of syntax nodes...
             ctx.statements += ['%s->__setitem__(%s, %s)' % (name, k, v)]
         return name
 
@@ -262,7 +259,6 @@ class Set(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('set'), target_type='set')]
         for i in self.items:
-            # XXX HACK: add just some C++ text instead of syntax nodes...
             ctx.statements += ['%s->add(%s)' % (name, i)]
         return name
 

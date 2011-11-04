@@ -25,4 +25,4 @@ for i in os.listdir('tests'):
         time_p = mid - start
         time_c = end - mid
         # XXX timing should factor out translation time
-        print('%s: pythonc=%ss cpython=%ss (%.3fx)' % (i, time_p, time_c, time_p / time_c))
+        print('%s: pythonc=%.3fs cpython=%.3fs (%.3fx)' % (i, time_p, time_c, time_p / time_c))

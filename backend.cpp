@@ -814,12 +814,7 @@ public:
         return this->items.size();
     }
     virtual void __setitem__(node *key, node *value) {
-        int_t hashkey;
-        if (key->is_int_const())
-            hashkey = key->int_value();
-        else
-            hashkey = key->hash();
-        items[hashkey] = node_pair(key, value);
+        items[key->hash()] = node_pair(key, value);
     }
     virtual std::string repr() {
         std::string new_string = "{";
@@ -879,23 +874,13 @@ public:
     }
 
     node *lookup(node *key) {
-        int_t hashkey;
-        if (key->is_int_const())
-            hashkey = key->int_value();
-        else
-            hashkey = key->hash();
-        node_set::const_iterator v = this->items.find(hashkey);
+        node_set::const_iterator v = this->items.find(key->hash());
         if (v == this->items.end() || !v->second->_eq(key))
             return NULL;
         return v->second;
     }
     void add(node *key) {
-        int_t hashkey;
-        if (key->is_int_const())
-            hashkey = key->int_value();
-        else
-            hashkey = key->hash();
-        items[hashkey] = key;
+        items[key->hash()] = key;
     }
 
     virtual bool is_set() { return true; }
