@@ -1379,18 +1379,28 @@ public:
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
 
-void _dummy__create_(class_def *ctx) {}
-
-class builtin_class_def_singleton: public class_def {
+class builtin_class_def_singleton: public node {
 public:
-    builtin_class_def_singleton(std::string name): class_def(name, _dummy__create_) {}
+    virtual const char *node_type() { return "type"; }
+
+    virtual const char *type_name() = 0;
 
     MARK_LIVE_SINGLETON_FN
+
+    virtual node *getattr(const char *key) {
+        if (!strcmp(key, "__name__"))
+            return new(allocator) string_const(this->type_name());
+        error("%s has no attribute %s", this->type_name(), key);
+    }
+
+    virtual std::string repr() {
+        return std::string("<class '") + this->type_name() + "'>";
+    }
 };
 
 class bool_class_def_singleton: public builtin_class_def_singleton {
 public:
-    bool_class_def_singleton(): builtin_class_def_singleton("bool") {}
+    virtual const char *type_name() { return "bool"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("bool", 0, 1);
@@ -1403,7 +1413,7 @@ public:
 
 class bytes_class_def_singleton: public builtin_class_def_singleton {
 public:
-    bytes_class_def_singleton(): builtin_class_def_singleton("bytes") {}
+    virtual const char *type_name() { return "bytes"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("bytes", 0, 1);
@@ -1432,7 +1442,7 @@ public:
 
 class dict_class_def_singleton: public builtin_class_def_singleton {
 public:
-    dict_class_def_singleton(): builtin_class_def_singleton("dict") {}
+    virtual const char *type_name() { return "dict"; }
 
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "get"))
@@ -1443,7 +1453,7 @@ public:
             return &builtin_method_dict_items;
         if (!strcmp(key, "values"))
             return &builtin_method_dict_values;
-        error("dict has no attribute %s", key);
+        return builtin_class_def_singleton::getattr(key);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1499,7 +1509,7 @@ private:
     };
 
 public:
-    enumerate_class_def_singleton(): builtin_class_def_singleton("enumerate") {}
+    virtual const char *type_name() { return "enumerate"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("enumerate", 1);
@@ -1511,7 +1521,7 @@ public:
 
 class int_class_def_singleton: public builtin_class_def_singleton {
 public:
-    int_class_def_singleton(): builtin_class_def_singleton("int") {}
+    virtual const char *type_name() { return "int"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("int", 0, 2);
@@ -1576,7 +1586,7 @@ public:
 
 class list_class_def_singleton: public builtin_class_def_singleton {
 public:
-    list_class_def_singleton(): builtin_class_def_singleton("list") {}
+    virtual const char *type_name() { return "list"; }
 
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "append"))
@@ -1585,7 +1595,7 @@ public:
             return &builtin_method_list_index;
         if (!strcmp(key, "pop"))
             return &builtin_method_list_pop;
-        error("list has no attribute %s", key);
+        return builtin_class_def_singleton::getattr(key);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1603,7 +1613,7 @@ public:
 
 class range_class_def_singleton: public builtin_class_def_singleton {
 public:
-    range_class_def_singleton(): builtin_class_def_singleton("range") {}
+    virtual const char *type_name() { return "range"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t start = 0, end, step = 1;
@@ -1659,7 +1669,7 @@ private:
     };
 
 public:
-    reversed_class_def_singleton(): builtin_class_def_singleton("reversed") {}
+    virtual const char *type_name() { return "reversed"; }
 
     // XXX This will actually work on dictionaries if they have keys of 0..len-1.
     // Logically speaking it doesn't make sense to have reversed() of a dictionary
@@ -1675,12 +1685,12 @@ public:
 
 class set_class_def_singleton: public builtin_class_def_singleton {
 public:
-    set_class_def_singleton(): builtin_class_def_singleton("set") {}
+    virtual const char *type_name() { return "set"; }
 
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "add"))
             return &builtin_method_set_add;
-        error("set has no attribute %s", key);
+        return builtin_class_def_singleton::getattr(key);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1698,7 +1708,7 @@ public:
 
 class str_class_def_singleton: public builtin_class_def_singleton {
 public:
-    str_class_def_singleton(): builtin_class_def_singleton("str") {}
+    virtual const char *type_name() { return "str"; }
 
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "join"))
@@ -1709,7 +1719,7 @@ public:
             return &builtin_method_str_upper;
         if (!strcmp(key, "startswith"))
             return &builtin_method_str_startswith;
-        error("str has no attribute %s", key);
+        return builtin_class_def_singleton::getattr(key);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1723,7 +1733,7 @@ public:
 
 class tuple_class_def_singleton: public builtin_class_def_singleton {
 public:
-    tuple_class_def_singleton(): builtin_class_def_singleton("tuple") {}
+    virtual const char *type_name() { return "tuple"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
@@ -1776,7 +1786,7 @@ private:
     };
 
 public:
-    zip_class_def_singleton(): builtin_class_def_singleton("zip") {}
+    virtual const char *type_name() { return "zip"; }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("zip", 2);

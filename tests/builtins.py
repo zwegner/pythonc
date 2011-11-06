@@ -2,6 +2,7 @@ for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, p
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
+    print(x.__name__)
     print(x())
     print(x().__class__)
 
