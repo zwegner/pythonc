@@ -407,9 +407,8 @@ private:
     std::string value;
 
 public:
-    string_const(std::string value) {
-        this->value = value;
-    }
+    string_const(const char *x): value(x) {}
+    string_const(std::string x): value(x) {}
     const char *node_type() { return "str"; }
 
     MARK_LIVE_FN
