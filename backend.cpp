@@ -769,6 +769,8 @@ public:
         }
     }
 
+    void append(node *obj) { this->items.push_back(obj); }
+
     int_t index(int_t base) {
         int_t size = items.size();
         if ((base >= size) || (base < -size))
@@ -1741,14 +1743,14 @@ public:
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
+        tuple *ret = new(allocator) tuple;
         if (!args->len())
-            return new(allocator) tuple;
+            return ret;
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
-        node_list l;
         while (node *item = iter->next())
-            l.push_back(item);
-        return new(allocator) tuple(l.size(), &l[0]);
+            ret->append(item);
+        return ret;
     }
 };
 
