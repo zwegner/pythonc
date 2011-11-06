@@ -437,7 +437,7 @@ public:
     // FNV-1a algorithm
     virtual int_t hash() {
         int_t hashkey = 14695981039346656037ull;
-        for (std::string::iterator c = this->begin(); c != this->end(); c++) {
+        for (auto c = this->begin(); c != this->end(); c++) {
             hashkey ^= *c;
             hashkey *= 1099511628211ll;
         }
@@ -461,7 +461,7 @@ public:
     virtual std::string repr() {
         bool has_single_quotes = false;
         bool has_double_quotes = false;
-        for (std::string::iterator it = this->begin(); it != this->end(); ++it) {
+        for (auto it = this->begin(); it != this->end(); ++it) {
             char c = *it;
             if (c == '\'')
                 has_single_quotes = true;
@@ -470,7 +470,7 @@ public:
         }
         bool use_double_quotes = has_single_quotes && !has_double_quotes;
         std::string s(use_double_quotes ? "\"" : "'");
-        for (std::string::iterator it = this->begin(); it != this->end(); ++it) {
+        for (auto it = this->begin(); it != this->end(); ++it) {
             char c = *it;
             if (c == '\n')
                 s += "\\n";
@@ -656,7 +656,7 @@ public:
             error("delitem unimplemented");
             return;
         }
-        node_list::iterator f = items.begin() + this->index(rhs->int_value());
+        auto f = items.begin() + this->index(rhs->int_value());
         items.erase(f);
     }
     virtual node *__getitem__(int idx) {
@@ -694,7 +694,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "[";
         bool first = true;
-        for (node_list::iterator i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -790,7 +790,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "(";
         bool first = true;
-        for (node_list::iterator i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -891,7 +891,7 @@ public:
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
-            for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
+            for (auto i = this->items.begin(); i != this->items.end(); i++) {
                 i->second.first->mark_live();
                 i->second.second->mark_live();
             }
@@ -936,7 +936,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "{";
         bool first = true;
-        for (node_dict::iterator i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -973,7 +973,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_keys([";
         bool first = true;
-        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -1004,7 +1004,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_items([";
         bool first = true;
-        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -1039,7 +1039,7 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_values([";
         bool first = true;
-        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -1086,7 +1086,7 @@ public:
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
-            for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++)
+            for (auto i = this->items.begin(); i != this->items.end(); i++)
                 i->second->mark_live();
         }
     }
@@ -1115,7 +1115,7 @@ public:
             return "set()";
         std::string new_string = "{";
         bool first = true;
-        for (node_set::iterator i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto i = this->items.begin(); i != this->items.end(); i++) {
             if (!first)
                 new_string += ", ";
             first = false;
@@ -1328,9 +1328,10 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (node_dict::iterator i = items->begin(); i != items->end(); i++)
+        for (auto i = items->begin(); i != items->end(); i++) {
             if (i->second.second->is_function())
                 obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
+        }
 
         ((list *)args)->prepend(obj);
         init->__call__(globals, ctx, args, kwargs);
@@ -1854,9 +1855,9 @@ node *list::__add__(node *rhs) {
         error("list add error");
     list *plist = new(allocator) list();
     node_list *rhs_list = rhs->list_value();
-    for (node_list::iterator i = this->begin(); i != this->end(); i++)
+    for (auto i = this->begin(); i != this->end(); i++)
         plist->append(*i);
-    for (node_list::iterator i = rhs_list->begin(); i != rhs_list->end(); i++)
+    for (auto i = rhs_list->begin(); i != rhs_list->end(); i++)
         plist->append(*i);
     return plist;
 }
@@ -1865,9 +1866,10 @@ node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
     list *plist = new(allocator) list();
-    for (int_t x = rhs->int_value(); x > 0; x--)
-        for (node_list::iterator i = this->begin(); i != this->end(); i++)
+    for (int_t x = rhs->int_value(); x > 0; x--) {
+        for (auto i = this->begin(); i != this->end(); i++)
             plist->append(*i);
+    }
     return plist;
 }
 
@@ -2241,7 +2243,7 @@ node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwarg
     char split = item->c_str()[0];
     list *ret = new(allocator) list;
     std::string s;
-    for (std::string::iterator c = str->begin(); c != str->end(); ++c) {
+    for (auto c = str->begin(); c != str->end(); ++c) {
         if (*c == split) {
             ret->append(new(allocator) string_const(s));
             s.clear();
@@ -2262,7 +2264,7 @@ node *builtin_str_upper(context *globals, context *ctx, tuple *args, dict *kwarg
     string_const *str = (string_const *)self;
 
     std::string new_string;
-    for (std::string::iterator c = str->begin(); c != str->end(); c++)
+    for (auto c = str->begin(); c != str->end(); c++)
         new_string += toupper(*c);
 
     return new(allocator) string_const(new_string);

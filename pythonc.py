@@ -11,7 +11,7 @@ def usage():
 
 args = sys.argv[1:]
 
-gcc_flags = ['-g', '-Wall']
+gcc_flags = ['-g', '-Wall', '-std=c++0x']
 quiet = False
 compile_only = False
 while args:
