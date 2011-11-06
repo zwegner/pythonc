@@ -58,21 +58,37 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
-#define LIST_BUILTIN_CLASS_METHODS(x) \
+#define LIST_dict_CLASS_METHODS(x) \
     x(dict, get) \
     x(dict, keys) \
     x(dict, items) \
     x(dict, values) \
+
+#define LIST_file_CLASS_METHODS(x) \
     x(file, read) \
     x(file, write) \
+
+#define LIST_list_CLASS_METHODS(x) \
     x(list, append) \
+    x(list, extend) \
     x(list, index) \
     x(list, pop) \
+
+#define LIST_set_CLASS_METHODS(x) \
     x(set, add) \
+
+#define LIST_str_CLASS_METHODS(x) \
     x(str, join) \
     x(str, split) \
     x(str, upper) \
     x(str, startswith) \
+
+#define LIST_BUILTIN_CLASS_METHODS(x) \
+    LIST_dict_CLASS_METHODS(x) \
+    LIST_file_CLASS_METHODS(x) \
+    LIST_list_CLASS_METHODS(x) \
+    LIST_set_CLASS_METHODS(x) \
+    LIST_str_CLASS_METHODS(x) \
 
 #define BUILTIN_METHOD(class_name, method_name) \
     node *builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
@@ -1445,14 +1461,9 @@ public:
     virtual const char *type_name() { return "dict"; }
 
     virtual node *getattr(const char *key) {
-        if (!strcmp(key, "get"))
-            return &builtin_method_dict_get;
-        if (!strcmp(key, "keys"))
-            return &builtin_method_dict_keys;
-        if (!strcmp(key, "items"))
-            return &builtin_method_dict_items;
-        if (!strcmp(key, "values"))
-            return &builtin_method_dict_values;
+#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
+        LIST_dict_CLASS_METHODS(GET_METHOD)
+#undef GET_METHOD
         return builtin_class_def_singleton::getattr(key);
     }
 
@@ -1589,12 +1600,9 @@ public:
     virtual const char *type_name() { return "list"; }
 
     virtual node *getattr(const char *key) {
-        if (!strcmp(key, "append"))
-            return &builtin_method_list_append;
-        if (!strcmp(key, "index"))
-            return &builtin_method_list_index;
-        if (!strcmp(key, "pop"))
-            return &builtin_method_list_pop;
+#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
+        LIST_list_CLASS_METHODS(GET_METHOD)
+#undef GET_METHOD
         return builtin_class_def_singleton::getattr(key);
     }
 
@@ -1688,8 +1696,9 @@ public:
     virtual const char *type_name() { return "set"; }
 
     virtual node *getattr(const char *key) {
-        if (!strcmp(key, "add"))
-            return &builtin_method_set_add;
+#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
+        LIST_set_CLASS_METHODS(GET_METHOD)
+#undef GET_METHOD
         return builtin_class_def_singleton::getattr(key);
     }
 
@@ -1711,14 +1720,9 @@ public:
     virtual const char *type_name() { return "str"; }
 
     virtual node *getattr(const char *key) {
-        if (!strcmp(key, "join"))
-            return &builtin_method_str_join;
-        if (!strcmp(key, "split"))
-            return &builtin_method_str_split;
-        if (!strcmp(key, "upper"))
-            return &builtin_method_str_upper;
-        if (!strcmp(key, "startswith"))
-            return &builtin_method_str_startswith;
+#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
+        LIST_str_CLASS_METHODS(GET_METHOD)
+#undef GET_METHOD
         return builtin_class_def_singleton::getattr(key);
     }
 
@@ -2127,9 +2131,17 @@ node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwa
     NO_KWARGS_N_ARGS("list.append", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
-
     ((list *)self)->append(item);
+    return &none_singleton;
+}
 
+node *builtin_list_extend(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("list.extend", 2);
+    node *self = args->__getitem__(0);
+    node *arg = args->__getitem__(1);
+    node *iter = arg->__iter__();
+    while (node *item = iter->next())
+        ((list *)self)->append(item);
     return &none_singleton;
 }
 
@@ -2137,12 +2149,11 @@ node *builtin_list_index(context *globals, context *ctx, tuple *args, dict *kwar
     NO_KWARGS_N_ARGS("list.index", 2);
     node *self = args->__getitem__(0);
     node *key = args->__getitem__(1);
-
-    for (int_t i = 0; i < self->len(); i++)
+    for (int_t i = 0; i < self->len(); i++) {
         if (self->__getitem__(i)->_eq(key))
             return new(allocator) int_const(i);
+    }
     error("item not found in list");
-    return &none_singleton;
 }
 
 node *builtin_list_pop(context *globals, context *ctx, tuple *args, dict *kwargs) {
