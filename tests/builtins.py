@@ -3,6 +3,7 @@ for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, p
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
     print(x())
+    print(x().__class__)
 
 for x in [0, 1]:
     print(bool(x))
@@ -15,6 +16,7 @@ for x in [[(1,2)]]:
 
 for x in [range(5)]:
     print(list(enumerate(x)))
+print(enumerate([]).__class__)
 
 for x in [0, 1, False, True, '0', '1', '10', '15', '-123', '+714']:
     print(int(x))
@@ -34,6 +36,7 @@ for x in ['a', ' ', '+']:
 for x in [0, 1, 5, 10]:
     print(range(x))
     print(list(range(x)))
+print(range(5).__class__)
 
 for x in [0, 1, [], {}, set(), '', 'a', '\n', '\r', '\t', '\\', '"', '"\'', '\'"', "'", (), (1,), (1, 2)]:
     print(repr(x))
@@ -56,6 +59,7 @@ for x in [0, False, True, None, 'a', []]:
 print(list(zip([1, 2], [3, 4])))
 print(list(zip([1, 2, 3], [4, 5])))
 print(list(zip([1, 2,], [3, 4, 5])))
+print(zip([], []).__class__)
 
 for x in [[], ['a'], ['a', 'b', 'c'], ('x', 'y', 'z')]:
     print(','.join(x))

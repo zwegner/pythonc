@@ -352,6 +352,7 @@ public:
     BOOL_OP(ge, >=)
 
     virtual int_t hash() { return (int_t)this->value; }
+    virtual node *getattr(const char *key);
     virtual std::string repr();
 };
 
@@ -522,6 +523,7 @@ public:
     virtual bool bool_value() { return this->len() != 0; }
 
     virtual int_t len() { return this->value.size(); }
+    virtual node *getattr(const char *key);
 
     virtual std::string repr() {
         std::string s("b'");
@@ -782,6 +784,7 @@ public:
     virtual int_t len() {
         return this->items.size();
     }
+    virtual node *getattr(const char *key);
     virtual std::string repr() {
         std::string new_string = "(";
         bool first = true;
@@ -1075,6 +1078,7 @@ public:
 
     virtual node *__iter__() { return new(allocator) range_iter(this); }
 
+    virtual node *getattr(const char *key);
     virtual std::string repr() {
         char buf[128];
         if (step == 1) {
@@ -1281,7 +1285,6 @@ public:
         if (!strcmp(key, "keys"))
             return &builtin_method_dict_keys;
         error("dict has no attribute %s", key);
-        return NULL;
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1332,6 +1335,7 @@ private:
             return new(allocator) tuple(2, pair);
         }
 
+        virtual node *getattr(const char *key);
         virtual std::string repr() { return "<enumerate object>"; }
     };
 
@@ -1518,7 +1522,6 @@ public:
         if (!strcmp(key, "add"))
             return &builtin_method_set_add;
         error("set has no attribute %s", key);
-        return NULL;
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1609,6 +1612,7 @@ private:
             return new(allocator) tuple(2, pair);
         }
 
+        virtual node *getattr(const char *key);
         virtual std::string repr() { return "<zip object>"; }
     };
 
@@ -1669,13 +1673,18 @@ node *int_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_int;
     error("int has no attribute %s", key);
-    return NULL;
 }
 
 std::string int_const::repr() {
     char buf[32];
     sprintf(buf, "%" PRId64, this->value);
     return std::string(buf);
+}
+
+node *bool_const::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_bool;
+    error("bool has no attribute %s", key);
 }
 
 std::string bool_const::repr() {
@@ -1708,6 +1717,12 @@ node *list::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_list;
     return new(allocator) bound_method(this, builtin_class_list.getattr(key));
+}
+
+node *tuple::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_tuple;
+    error("tuple has no attribute %s", key);
 }
 
 node *dict::getattr(const char *key) {
@@ -1806,7 +1821,30 @@ node *file::getattr(const char *key) {
     if (!strcmp(key, "write"))
         return new(allocator) bound_method(this, &builtin_method_file_write);
     error("file has no attribute %s", key);
-    return NULL;
+}
+
+node *bytes::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_bytes;
+    error("bytes has no attribute %s", key);
+}
+
+node *range::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_range;
+    error("range has no attribute %s", key);
+}
+
+node *enumerate_class_def_singleton::enumerate_obj::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_enumerate;
+    error("enumerate_obj has no attribute %s", key);
+}
+
+node *zip_class_def_singleton::zip_obj::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return &builtin_class_zip;
+    error("zip_obj has no attribute %s", key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
