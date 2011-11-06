@@ -10,6 +10,9 @@ for x in [0, 1]:
 for x in [[], range(256), 0, 1, 10]:
     print(bytes(x))
 
+for x in [[(1,2)]]:
+    print(dict(x))
+
 for x in [range(5)]:
     print(list(enumerate(x)))
 

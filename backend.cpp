@@ -1285,8 +1285,20 @@ public:
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("dict", 0);
-        return new(allocator) dict();
+        NO_KWARGS_MIN_MAX_ARGS("dict", 0, 1);
+        dict *ret = new(allocator) dict();
+        if (!args->len())
+            return ret;
+        node *arg = args->__getitem__(0);
+        node *iter = arg->__iter__();
+        while (node *item = iter->next()) {
+            if (item->len() != 2)
+                error("dictionary update sequence must have length 2");
+            node *key = item->__getitem__(0);
+            node *value = item->__getitem__(1);
+            ret->__setitem__(key, value);
+        }
+        return ret;
     }
 };
 
