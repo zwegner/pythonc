@@ -804,17 +804,17 @@ public:
 
 class dict : public node {
 private:
-    class dict_iter: public node {
+    class dict_keys_iter: public node {
     private:
         dict *parent;
         node_dict::iterator it;
 
     public:
-        dict_iter(dict *d) {
+        dict_keys_iter(dict *d) {
             this->parent = d;
             it = d->items.begin();
         }
-        const char *node_type() { return "dict_iter"; }
+        const char *node_type() { return "dict_keys_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live(this, sizeof(*this)))
@@ -893,7 +893,40 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
-    virtual node *__iter__() { return new(allocator) dict_iter(this); }
+    virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
+
+    friend class dict_keys;
+};
+
+class dict_keys: public node {
+private:
+    dict *parent;
+
+public:
+    dict_keys(dict *d) {
+        this->parent = d;
+    }
+    const char *node_type() { return "dict_keys"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this)))
+            this->parent->mark_live();
+    }
+
+    virtual int_t len() { return this->parent->items.size(); }
+    virtual node *__iter__() { return new(allocator) dict::dict_keys_iter(this->parent); }
+    virtual std::string repr() {
+        std::string new_string = "dict_keys([";
+        bool first = true;
+        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+            if (!first)
+                new_string += ", ";
+            first = false;
+            new_string += i->second.first->repr();
+        }
+        new_string += "])";
+        return new_string;
+    }
 };
 
 class set : public node {
@@ -1905,12 +1938,7 @@ node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs
 node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("dict.keys", 1);
     dict *self = (dict *)args->__getitem__(0);
-
-    list *plist = new(allocator) list();
-    for (node_dict::iterator i = self->begin(); i != self->end(); i++)
-        plist->append(i->second.first);
-
-    return plist;
+    return new(allocator) dict_keys(self);
 }
 
 node *builtin_file_read(context *globals, context *ctx, tuple *args, dict *kwargs) {

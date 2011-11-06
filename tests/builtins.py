@@ -61,6 +61,17 @@ print(list(zip([1, 2, 3], [4, 5])))
 print(list(zip([1, 2,], [3, 4, 5])))
 print(zip([], []).__class__)
 
+x = {x: x*x for x in range(10)}
+print(x.get(0, 5))
+print(x.get(10, 20))
+print(x.get(-1, 'a'))
+print(x)
+print(x.keys())
+print(sorted(x))
+print(sorted(x.keys()))
+print(len(x))
+print(len(x.keys()))
+
 for x in [[], ['a'], ['a', 'b', 'c'], ('x', 'y', 'z')]:
     print(','.join(x))
 for x in ['', 'a', ':', 'a:', 'a:b', 'a:b:c']:
