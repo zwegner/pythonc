@@ -61,6 +61,8 @@ typedef std::vector<node *> node_list;
 #define LIST_BUILTIN_CLASS_METHODS(x) \
     x(dict, get) \
     x(dict, keys) \
+    x(dict, items) \
+    x(dict, values) \
     x(file, read) \
     x(file, write) \
     x(list, append) \
@@ -829,6 +831,57 @@ private:
             return ret;
         }
     };
+    class dict_items_iter: public node {
+    private:
+        dict *parent;
+        node_dict::iterator it;
+
+    public:
+        dict_items_iter(dict *d) {
+            this->parent = d;
+            it = d->items.begin();
+        }
+        const char *node_type() { return "dict_items_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *pair[2] = {this->it->second.first, this->it->second.second};
+            node *ret = new(allocator) tuple(2, pair);
+            ++this->it;
+            return ret;
+        }
+    };
+    class dict_values_iter: public node {
+    private:
+        dict *parent;
+        node_dict::iterator it;
+
+    public:
+        dict_values_iter(dict *d) {
+            this->parent = d;
+            it = d->items.begin();
+        }
+        const char *node_type() { return "dict_values_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *next() {
+            if (this->it == this->parent->items.end())
+                return NULL;
+            node *ret = this->it->second.second;
+            ++this->it;
+            return ret;
+        }
+    };
 
     node_dict items;
 
@@ -896,6 +949,8 @@ public:
     virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
 
     friend class dict_keys;
+    friend class dict_items;
+    friend class dict_values;
 };
 
 class dict_keys: public node {
@@ -923,6 +978,72 @@ public:
                 new_string += ", ";
             first = false;
             new_string += i->second.first->repr();
+        }
+        new_string += "])";
+        return new_string;
+    }
+};
+
+class dict_items: public node {
+private:
+    dict *parent;
+
+public:
+    dict_items(dict *d) {
+        this->parent = d;
+    }
+    const char *node_type() { return "dict_items"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this)))
+            this->parent->mark_live();
+    }
+
+    virtual int_t len() { return this->parent->items.size(); }
+    virtual node *__iter__() { return new(allocator) dict::dict_items_iter(this->parent); }
+    virtual std::string repr() {
+        std::string new_string = "dict_items([";
+        bool first = true;
+        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+            if (!first)
+                new_string += ", ";
+            first = false;
+            new_string += "(";
+            new_string += i->second.first->repr();
+            new_string += ", ";
+            new_string += i->second.second->repr();
+            new_string += ")";
+        }
+        new_string += "])";
+        return new_string;
+    }
+};
+
+class dict_values: public node {
+private:
+    dict *parent;
+
+public:
+    dict_values(dict *d) {
+        this->parent = d;
+    }
+    const char *node_type() { return "dict_values"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this)))
+            this->parent->mark_live();
+    }
+
+    virtual int_t len() { return this->parent->items.size(); }
+    virtual node *__iter__() { return new(allocator) dict::dict_values_iter(this->parent); }
+    virtual std::string repr() {
+        std::string new_string = "dict_values([";
+        bool first = true;
+        for (node_dict::iterator i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+            if (!first)
+                new_string += ", ";
+            first = false;
+            new_string += i->second.second->repr();
         }
         new_string += "])";
         return new_string;
@@ -1317,6 +1438,10 @@ public:
             return &builtin_method_dict_get;
         if (!strcmp(key, "keys"))
             return &builtin_method_dict_keys;
+        if (!strcmp(key, "items"))
+            return &builtin_method_dict_items;
+        if (!strcmp(key, "values"))
+            return &builtin_method_dict_values;
         error("dict has no attribute %s", key);
     }
 
@@ -1939,6 +2064,18 @@ node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwarg
     NO_KWARGS_N_ARGS("dict.keys", 1);
     dict *self = (dict *)args->__getitem__(0);
     return new(allocator) dict_keys(self);
+}
+
+node *builtin_dict_items(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("dict.items", 1);
+    dict *self = (dict *)args->__getitem__(0);
+    return new(allocator) dict_items(self);
+}
+
+node *builtin_dict_values(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("dict.values", 1);
+    dict *self = (dict *)args->__getitem__(0);
+    return new(allocator) dict_values(self);
 }
 
 node *builtin_file_read(context *globals, context *ctx, tuple *args, dict *kwargs) {
