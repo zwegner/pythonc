@@ -77,6 +77,7 @@ typedef std::vector<node *> node_list;
 
 #define LIST_set_CLASS_METHODS(x) \
     x(set, add) \
+    x(set, update) \
 
 #define LIST_str_CLASS_METHODS(x) \
     x(str, join) \
@@ -2248,9 +2249,17 @@ node *builtin_set_add(context *globals, context *ctx, tuple *args, dict *kwargs)
     NO_KWARGS_N_ARGS("set.add", 2);
     node *self = args->__getitem__(0);
     node *item = args->__getitem__(1);
-
     ((set *)self)->add(item);
+    return &none_singleton;
+}
 
+node *builtin_set_update(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("set.update", 2);
+    node *self = args->__getitem__(0);
+    node *arg = args->__getitem__(1);
+    node *iter = arg->__iter__();
+    while (node *item = iter->next())
+        ((set *)self)->add(item);
     return &none_singleton;
 }
 

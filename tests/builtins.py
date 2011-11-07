@@ -87,6 +87,11 @@ x.append(1)
 x.extend([2, 3])
 print(x)
 
+x = set()
+x.add(1)
+x.update([2, 3])
+print(x)
+
 for x in [[], ['a'], ['a', 'b', 'c'], ('x', 'y', 'z')]:
     print(','.join(x))
 for x in ['', 'a', ':', 'a:', 'a:b', 'a:b:c']:
