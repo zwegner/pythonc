@@ -191,11 +191,7 @@ public:
 
     // unwrapped versions
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
-    virtual node *getattr(const char *key) {
-        if (!strcmp(key, "__class__"))
-            return type();
-        error("%s has no attribute %s", node_type(), key);
-    }
+    virtual node *getattr(const char *key);
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
     virtual std::string repr() { error("repr unimplemented for %s", this->node_type()); return NULL; }
     virtual std::string str() { return repr(); }
@@ -451,8 +447,6 @@ public:
     virtual node *__mod__(node *rhs);
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
-
-    virtual node *getattr(const char *key);
 
     virtual node *__getitem__(node *rhs) {
         if (!rhs->is_int_const()) {
@@ -728,7 +722,6 @@ public:
         new_string += "]";
         return new_string;
     }
-    virtual node *getattr(const char *key);
     virtual node *type();
     virtual node *__iter__() { return new(allocator) list_iter(this); }
 };
@@ -973,7 +966,6 @@ public:
         new_string += "}";
         return new_string;
     }
-    virtual node *getattr(const char *key);
     virtual node *type();
     virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
 
@@ -1153,7 +1145,6 @@ public:
         new_string += "}";
         return new_string;
     }
-    virtual node *getattr(const char *key);
     virtual node *type();
     virtual node *__iter__() { return new(allocator) set_iter(this); }
 };
@@ -1492,10 +1483,13 @@ public:
 
     MARK_LIVE_SINGLETON_FN
 
+    // Don't call node::getattr as a fallback -- this will result in infinite recursion
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "__name__"))
             return new(allocator) string_const(this->type_name());
-        return node::getattr(key);
+        if (!strcmp(key, "__class__"))
+            return type();
+        error("%s has no attribute %s", type_name(), key);
     }
 
     virtual std::string repr() {
@@ -1821,6 +1815,12 @@ node *node::__getattr__(node *key) {
     return this->getattr(key->c_str());
 }
 
+node *node::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return type();
+    return new(allocator) bound_method(this, type()->getattr(key));
+}
+
 node *node::__hash__() {
     return new(allocator) int_const(this->hash());
 }
@@ -1894,12 +1894,6 @@ node *list::__mul__(node *rhs) {
     return plist;
 }
 
-node *list::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
-}
-
 node *list::type() {
     return &builtin_class_list;
 }
@@ -1908,30 +1902,12 @@ node *tuple::type() {
     return &builtin_class_tuple;
 }
 
-node *dict::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
-}
-
 node *dict::type() {
     return &builtin_class_dict;
 }
 
-node *set::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
-}
-
 node *set::type() {
     return &builtin_class_set;
-}
-
-node *string_const::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
 }
 
 node *string_const::type() {
