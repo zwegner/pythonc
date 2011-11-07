@@ -1,4 +1,4 @@
-for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, zip]:
+for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
@@ -53,6 +53,9 @@ for x in [[5, 3, 1], (1, 3, 2), {10, 5, 0}]:
 
 for x in [[], range(1), range(5)]:
     print(tuple(x))
+
+for x in [0, False, int, type]:
+    print(type(x))
 
 for x in [0, False, True, None, 'a', []]:
     print(str(x))

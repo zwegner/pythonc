@@ -50,6 +50,7 @@ builtin_classes = [
     'set',
     'str',
     'tuple',
+    'type',
     'zip',
 ]
 builtin_symbols = builtin_functions + builtin_classes + [

@@ -195,6 +195,7 @@ public:
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
     virtual std::string repr() { error("repr unimplemented for %s", this->node_type()); return NULL; }
     virtual std::string str() { return repr(); }
+    virtual node *type() { error("type unimplemented for %s", this->node_type()); }
 };
 
 class context {
@@ -308,6 +309,7 @@ public:
     virtual int_t hash() { return this->value; }
     virtual node *getattr(const char *key);
     virtual std::string repr();
+    virtual node *type();
 };
 
 class int_const_singleton : public int_const {
@@ -379,6 +381,7 @@ public:
     virtual int_t hash() { return (int_t)this->value; }
     virtual node *getattr(const char *key);
     virtual std::string repr();
+    virtual node *type();
 };
 
 class string_const : public node {
@@ -1414,12 +1417,15 @@ public:
     virtual node *getattr(const char *key) {
         if (!strcmp(key, "__name__"))
             return new(allocator) string_const(this->type_name());
+        if (!strcmp(key, "__class__"))
+            return type();
         error("%s has no attribute %s", this->type_name(), key);
     }
 
     virtual std::string repr() {
         return std::string("<class '") + this->type_name() + "'>";
     }
+    virtual node *type();
 };
 
 class bool_class_def_singleton: public builtin_class_def_singleton {
@@ -1727,6 +1733,16 @@ public:
     }
 };
 
+class type_class_def_singleton: public builtin_class_def_singleton {
+public:
+    virtual const char *type_name();
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+        NO_KWARGS_N_ARGS("type", 1);
+        node *arg = args->__getitem__(0);
+        return arg->type();
+    }
+};
+
 class zip_class_def_singleton: public builtin_class_def_singleton {
 private:
     class zip_obj: public node {
@@ -1842,6 +1858,10 @@ std::string int_const::repr() {
     return std::string(buf);
 }
 
+node *int_const::type() {
+    return &builtin_class_int;
+}
+
 node *bool_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_bool;
@@ -1850,6 +1870,10 @@ node *bool_const::getattr(const char *key) {
 
 std::string bool_const::repr() {
     return std::string(this->value ? "True" : "False");
+}
+
+node *bool_const::type() {
+    return &builtin_class_bool;
 }
 
 node *list::__add__(node *rhs) {
@@ -1995,6 +2019,10 @@ node *range::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return &builtin_class_range;
     error("range has no attribute %s", key);
+}
+
+node *builtin_class_def_singleton::type() {
+    return &builtin_class_type;
 }
 
 node *enumerate_class_def_singleton::enumerate_obj::getattr(const char *key) {
