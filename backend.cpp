@@ -83,6 +83,13 @@ typedef std::vector<node *> node_list;
     x(str, upper) \
     x(str, startswith) \
 
+// XXX There is still some ugliness with file objects, so they're not included
+#define LIST_BUILTIN_CLASSES_WITH_METHODS(x) \
+    x(dict) \
+    x(list) \
+    x(set) \
+    x(str) \
+
 #define LIST_BUILTIN_CLASS_METHODS(x) \
     LIST_dict_CLASS_METHODS(x) \
     LIST_file_CLASS_METHODS(x) \
@@ -1417,8 +1424,7 @@ public:
 
 class bool_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "bool"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("bool", 0, 1);
         if (!args->len())
@@ -1430,8 +1436,7 @@ public:
 
 class bytes_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "bytes"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("bytes", 0, 1);
         bytes *ret = new(allocator) bytes;
@@ -1459,15 +1464,8 @@ public:
 
 class dict_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "dict"; }
-
-    virtual node *getattr(const char *key) {
-#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
-        LIST_dict_CLASS_METHODS(GET_METHOD)
-#undef GET_METHOD
-        return builtin_class_def_singleton::getattr(key);
-    }
-
+    virtual const char *type_name();
+    virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("dict", 0, 1);
         dict *ret = new(allocator) dict();
@@ -1521,8 +1519,7 @@ private:
     };
 
 public:
-    virtual const char *type_name() { return "enumerate"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("enumerate", 1);
         node *arg = args->__getitem__(0);
@@ -1533,7 +1530,7 @@ public:
 
 class int_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "int"; }
+    virtual const char *type_name();
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("int", 0, 2);
@@ -1598,15 +1595,8 @@ public:
 
 class list_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "list"; }
-
-    virtual node *getattr(const char *key) {
-#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
-        LIST_list_CLASS_METHODS(GET_METHOD)
-#undef GET_METHOD
-        return builtin_class_def_singleton::getattr(key);
-    }
-
+    virtual const char *type_name();
+    virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("list", 0, 1);
         list *ret = new(allocator) list();
@@ -1622,8 +1612,7 @@ public:
 
 class range_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "range"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t start = 0, end, step = 1;
 
@@ -1678,7 +1667,7 @@ private:
     };
 
 public:
-    virtual const char *type_name() { return "reversed"; }
+    virtual const char *type_name();
 
     // XXX This will actually work on dictionaries if they have keys of 0..len-1.
     // Logically speaking it doesn't make sense to have reversed() of a dictionary
@@ -1694,15 +1683,8 @@ public:
 
 class set_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "set"; }
-
-    virtual node *getattr(const char *key) {
-#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
-        LIST_set_CLASS_METHODS(GET_METHOD)
-#undef GET_METHOD
-        return builtin_class_def_singleton::getattr(key);
-    }
-
+    virtual const char *type_name();
+    virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("set", 0, 1);
         set *ret = new(allocator) set();
@@ -1718,15 +1700,8 @@ public:
 
 class str_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "str"; }
-
-    virtual node *getattr(const char *key) {
-#define GET_METHOD(class_name, method_name) if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
-        LIST_str_CLASS_METHODS(GET_METHOD)
-#undef GET_METHOD
-        return builtin_class_def_singleton::getattr(key);
-    }
-
+    virtual const char *type_name();
+    virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("str", 0, 1);
         if (!args->len())
@@ -1738,8 +1713,7 @@ public:
 
 class tuple_class_def_singleton: public builtin_class_def_singleton {
 public:
-    virtual const char *type_name() { return "tuple"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
         tuple *ret = new(allocator) tuple;
@@ -1791,8 +1765,7 @@ private:
     };
 
 public:
-    virtual const char *type_name() { return "zip"; }
-
+    virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("zip", 2);
         node *iter1 = args->__getitem__(0)->__iter__();
@@ -1801,7 +1774,21 @@ public:
     }
 };
 
-#define BUILTIN_CLASS(name) name##_class_def_singleton builtin_class_##name;
+#define GET_METHOD(class_name, method_name) \
+    if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
+#define DEFINE_GETATTR(class_name) \
+    node *class_name##_class_def_singleton::getattr(const char *key) {  \
+        LIST_##class_name##_CLASS_METHODS(GET_METHOD) \
+        return builtin_class_def_singleton::getattr(key); \
+    }
+LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
+#undef GET_METHOD
+#undef DEFINE_GETATTR
+
+
+#define BUILTIN_CLASS(name) \
+    const char *name##_class_def_singleton::type_name() { return #name; } \
+    name##_class_def_singleton builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
