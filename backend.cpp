@@ -1211,17 +1211,17 @@ public:
     virtual node *getattr(const char *key);
 };
 
-class enumerate_obj: public node {
+class enumerate: public node {
 private:
     node *iter;
     int_t i;
 
 public:
-    enumerate_obj(node *iter) {
+    enumerate(node *iter) {
         this->iter = iter;
         this->i = 0;
     }
-    const char *node_type() { return "enumerate_obj"; }
+    const char *node_type() { return "enumerate"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this)))
@@ -1301,17 +1301,47 @@ public:
     }
 };
 
-class zip_obj: public node {
+class reversed: public node {
+private:
+    node *parent;
+    int_t i;
+    int_t len;
+
+public:
+    reversed(node *parent, int_t len) {
+        this->parent = parent;
+        this->i = 0;
+        this->len = len;
+    }
+    const char *node_type() { return "reversed"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this)))
+            this->parent->mark_live();
+    }
+
+    virtual node *__iter__() { return this; }
+    virtual node *next() {
+        if (i >= len)
+            return NULL;
+        int_t cur = this->i++;
+        return this->parent->__getitem__(this->len - 1 - cur);
+    }
+
+    virtual std::string repr() { return "<reversed object>"; }
+};
+
+class zip: public node {
 private:
     node *iter1;
     node *iter2;
 
 public:
-    zip_obj(node *iter1, node *iter2) {
+    zip(node *iter1, node *iter2) {
         this->iter1 = iter1;
         this->iter2 = iter2;
     }
-    const char *node_type() { return "zip_obj"; }
+    const char *node_type() { return "zip"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live(this, sizeof(*this))) {
@@ -1475,7 +1505,7 @@ public:
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
 
-class builtin_class_def_singleton: public node {
+class builtin_class: public node {
 public:
     virtual const char *node_type() { return "type"; }
 
@@ -1498,7 +1528,7 @@ public:
     virtual node *type();
 };
 
-class bool_class_def_singleton: public builtin_class_def_singleton {
+class bool_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1510,7 +1540,7 @@ public:
     }
 };
 
-class bytes_class_def_singleton: public builtin_class_def_singleton {
+class bytes_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1538,7 +1568,7 @@ public:
     }
 };
 
-class dict_class_def_singleton: public builtin_class_def_singleton {
+class dict_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
@@ -1560,18 +1590,18 @@ public:
     }
 };
 
-class enumerate_class_def_singleton: public builtin_class_def_singleton {
+class enumerate_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("enumerate", 1);
         node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
-        return new(allocator) enumerate_obj(iter);
+        return new(allocator) enumerate(iter);
     }
 };
 
-class int_class_def_singleton: public builtin_class_def_singleton {
+class int_class: public builtin_class {
 public:
     virtual const char *type_name();
 
@@ -1636,7 +1666,7 @@ public:
     }
 };
 
-class list_class_def_singleton: public builtin_class_def_singleton {
+class list_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
@@ -1653,7 +1683,7 @@ public:
     }
 };
 
-class range_class_def_singleton: public builtin_class_def_singleton {
+class range_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1677,38 +1707,7 @@ public:
     }
 };
 
-class reversed_class_def_singleton: public builtin_class_def_singleton {
-private:
-    class reversed_obj: public node {
-    private:
-        node *parent;
-        int_t i;
-        int_t len;
-
-    public:
-        reversed_obj(node *parent, int_t len) {
-            this->parent = parent;
-            this->i = 0;
-            this->len = len;
-        }
-        const char *node_type() { return "reversed_obj"; }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
-                this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (i >= len)
-                return NULL;
-            int_t cur = this->i++;
-            return this->parent->__getitem__(this->len - 1 - cur);
-        }
-
-        virtual std::string repr() { return "<reversed object>"; }
-    };
-
+class reversed_class: public builtin_class {
 public:
     virtual const char *type_name();
 
@@ -1720,11 +1719,11 @@ public:
         NO_KWARGS_N_ARGS("reversed", 1);
         node *item = args->__getitem__(0);
         int_t len = item->len();
-        return new(allocator) reversed_obj(item, len);
+        return new(allocator) reversed(item, len);
     }
 };
 
-class set_class_def_singleton: public builtin_class_def_singleton {
+class set_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
@@ -1741,7 +1740,7 @@ public:
     }
 };
 
-class str_class_def_singleton: public builtin_class_def_singleton {
+class str_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
@@ -1754,7 +1753,7 @@ public:
     }
 };
 
-class tuple_class_def_singleton: public builtin_class_def_singleton {
+class tuple_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1770,7 +1769,7 @@ public:
     }
 };
 
-class type_class_def_singleton: public builtin_class_def_singleton {
+class type_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1780,23 +1779,23 @@ public:
     }
 };
 
-class zip_class_def_singleton: public builtin_class_def_singleton {
+class zip_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_N_ARGS("zip", 2);
         node *iter1 = args->__getitem__(0)->__iter__();
         node *iter2 = args->__getitem__(1)->__iter__();
-        return new(allocator) zip_obj(iter1, iter2);
+        return new(allocator) zip(iter1, iter2);
     }
 };
 
 #define GET_METHOD(class_name, method_name) \
     if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
 #define DEFINE_GETATTR(class_name) \
-    node *class_name##_class_def_singleton::getattr(const char *key) {  \
+    node *class_name##_class::getattr(const char *key) {  \
         LIST_##class_name##_CLASS_METHODS(GET_METHOD) \
-        return builtin_class_def_singleton::getattr(key); \
+        return builtin_class::getattr(key); \
     }
 LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
 #undef GET_METHOD
@@ -1804,8 +1803,8 @@ LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
 
 
 #define BUILTIN_CLASS(name) \
-    const char *name##_class_def_singleton::type_name() { return #name; } \
-    name##_class_def_singleton builtin_class_##name;
+    const char *name##_class::type_name() { return #name; } \
+    name##_class builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
@@ -1998,7 +1997,7 @@ node *bytes::type() {
     return &builtin_class_bytes;
 }
 
-node *enumerate_obj::type() {
+node *enumerate::type() {
     return &builtin_class_enumerate;
 }
 
@@ -2006,11 +2005,11 @@ node *range::type() {
     return &builtin_class_range;
 }
 
-node *zip_obj::type() {
+node *zip::type() {
     return &builtin_class_zip;
 }
 
-node *builtin_class_def_singleton::type() {
+node *builtin_class::type() {
     return &builtin_class_type;
 }
 
