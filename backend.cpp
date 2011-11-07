@@ -792,13 +792,17 @@ public:
 
     virtual bool bool_value() { return this->len() != 0; }
 
+    virtual node *__add__(node *rhs);
+    virtual node *__mul__(node *rhs);
+
     virtual node *__contains__(node *key) {
         bool found = false;
-        for (size_t i = 0; i < this->items.size(); i++)
+        for (size_t i = 0; i < this->items.size(); i++) {
             if (this->items[i]->_eq(key)) {
                 found = true;
                 break;
             }
+        }
         return create_bool_const(found);
     }
     virtual node *__getitem__(int idx) {
@@ -1903,6 +1907,29 @@ node *list::__mul__(node *rhs) {
 
 node *list::type() {
     return &builtin_class_list;
+}
+
+node *tuple::__add__(node *rhs) {
+    if (!rhs->is_tuple())
+        error("tuple add error");
+    tuple *ret = new(allocator) tuple;
+    tuple *rhs_tuple = (tuple *)rhs;
+    for (auto it = this->items.begin(); it != this->items.end(); ++it)
+        ret->append(*it);
+    for (auto it = rhs_tuple->items.begin(); it != rhs_tuple->items.end(); ++it)
+        ret->append(*it);
+    return ret;
+}
+
+node *tuple::__mul__(node *rhs) {
+    if (!rhs->is_int_const())
+        error("list mul error");
+    tuple *ret = new(allocator) tuple;
+    for (int_t x = rhs->int_value(); x > 0; x--) {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            ret->append(*it);
+    }
+    return ret;
 }
 
 node *tuple::type() {
