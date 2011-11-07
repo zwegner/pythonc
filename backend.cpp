@@ -514,6 +514,7 @@ public:
         return s;
     }
     virtual std::string str() { return this->value; }
+    virtual node *type();
     virtual node *__iter__() { return new(allocator) str_iter(this); }
 };
 
@@ -551,6 +552,7 @@ public:
 
     virtual int_t len() { return this->value.size(); }
     virtual node *getattr(const char *key);
+    virtual node *type();
 
     virtual std::string repr() {
         std::string s("b'");
@@ -729,6 +731,7 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *type();
     virtual node *__iter__() { return new(allocator) list_iter(this); }
 };
 
@@ -814,6 +817,7 @@ public:
         return this->items.size();
     }
     virtual node *getattr(const char *key);
+    virtual node *type();
     virtual std::string repr() {
         std::string new_string = "(";
         bool first = true;
@@ -973,6 +977,7 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *type();
     virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
 
     friend class dict_keys;
@@ -1152,6 +1157,7 @@ public:
         return new_string;
     }
     virtual node *getattr(const char *key);
+    virtual node *type();
     virtual node *__iter__() { return new(allocator) set_iter(this); }
 };
 
@@ -1174,6 +1180,9 @@ public:
 
     virtual node *getattr(const char *key) {
         return items->__getitem__(new(allocator) string_const(key));
+    }
+    virtual node *type() {
+        return this->getattr("__class__");
     }
     virtual void __setattr__(node *key, node *value) {
         items->__setitem__(key, value);
@@ -1260,6 +1269,7 @@ public:
     virtual node *__iter__() { return new(allocator) range_iter(this); }
 
     virtual node *getattr(const char *key);
+    virtual node *type();
     virtual std::string repr() {
         char buf[128];
         if (step == 1) {
@@ -1521,6 +1531,7 @@ private:
         }
 
         virtual node *getattr(const char *key);
+        virtual node *type();
         virtual std::string repr() { return "<enumerate object>"; }
     };
 
@@ -1777,6 +1788,7 @@ private:
         }
 
         virtual node *getattr(const char *key);
+        virtual node *type();
         virtual std::string repr() { return "<zip object>"; }
     };
 
@@ -1848,7 +1860,7 @@ bool none_const::_eq(node *rhs) {
 
 node *int_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_int;
+        return type();
     error("int has no attribute %s", key);
 }
 
@@ -1864,7 +1876,7 @@ node *int_const::type() {
 
 node *bool_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_bool;
+        return type();
     error("bool has no attribute %s", key);
 }
 
@@ -1901,32 +1913,52 @@ node *list::__mul__(node *rhs) {
 
 node *list::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_list;
+        return type();
     return new(allocator) bound_method(this, builtin_class_list.getattr(key));
+}
+
+node *list::type() {
+    return &builtin_class_list;
 }
 
 node *tuple::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_tuple;
+        return type();
     error("tuple has no attribute %s", key);
+}
+
+node *tuple::type() {
+    return &builtin_class_tuple;
 }
 
 node *dict::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_dict;
+        return type();
     return new(allocator) bound_method(this, builtin_class_dict.getattr(key));
+}
+
+node *dict::type() {
+    return &builtin_class_dict;
 }
 
 node *set::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_set;
+        return type();
     return new(allocator) bound_method(this, builtin_class_set.getattr(key));
+}
+
+node *set::type() {
+    return &builtin_class_set;
 }
 
 node *string_const::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_str;
+        return type();
     return new(allocator) bound_method(this, builtin_class_str.getattr(key));
+}
+
+node *string_const::type() {
+    return &builtin_class_str;
 }
 
 // This entire function is very stupidly implemented.
@@ -2011,14 +2043,22 @@ node *file::getattr(const char *key) {
 
 node *bytes::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_bytes;
+        return type();
     error("bytes has no attribute %s", key);
+}
+
+node *bytes::type() {
+    return &builtin_class_bytes;
 }
 
 node *range::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_range;
+        return type();
     error("range has no attribute %s", key);
+}
+
+node *range::type() {
+    return &builtin_class_range;
 }
 
 node *builtin_class_def_singleton::type() {
@@ -2027,14 +2067,22 @@ node *builtin_class_def_singleton::type() {
 
 node *enumerate_class_def_singleton::enumerate_obj::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_enumerate;
+        return type();
     error("enumerate_obj has no attribute %s", key);
+}
+
+node *enumerate_class_def_singleton::enumerate_obj::type() {
+    return &builtin_class_enumerate;
 }
 
 node *zip_class_def_singleton::zip_obj::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
-        return &builtin_class_zip;
+        return type();
     error("zip_obj has no attribute %s", key);
+}
+
+node *zip_class_def_singleton::zip_obj::type() {
+    return &builtin_class_zip;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2133,8 +2181,7 @@ node *builtin_isinstance(context *globals, context *ctx, tuple *args, dict *kwar
     NO_KWARGS_N_ARGS("isinstance", 2);
     node *obj = args->__getitem__(0);
     node *arg_class = args->__getitem__(1);
-
-    node *obj_class = obj->getattr("__class__");
+    node *obj_class = obj->type();
     return create_bool_const(obj_class == arg_class);
 }
 
