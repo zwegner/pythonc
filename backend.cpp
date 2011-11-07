@@ -1220,6 +1220,39 @@ public:
     virtual node *getattr(const char *key);
 };
 
+class enumerate_obj: public node {
+private:
+    node *iter;
+    int_t i;
+
+public:
+    enumerate_obj(node *iter) {
+        this->iter = iter;
+        this->i = 0;
+    }
+    const char *node_type() { return "enumerate_obj"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this)))
+            this->iter->mark_live();
+    }
+
+    virtual node *__iter__() { return this; }
+    virtual node *next() {
+        node *item = this->iter->next();
+        if (!item)
+            return NULL;
+        node *pair[2];
+        pair[0] = new(allocator) int_const(this->i++);
+        pair[1] = item;
+        return new(allocator) tuple(2, pair);
+    }
+
+    virtual node *getattr(const char *key);
+    virtual node *type();
+    virtual std::string repr() { return "<enumerate object>"; }
+};
+
 class range: public node {
 private:
     class range_iter: public node {
@@ -1277,6 +1310,42 @@ public:
         }
         return buf;
     }
+};
+
+class zip_obj: public node {
+private:
+    node *iter1;
+    node *iter2;
+
+public:
+    zip_obj(node *iter1, node *iter2) {
+        this->iter1 = iter1;
+        this->iter2 = iter2;
+    }
+    const char *node_type() { return "zip_obj"; }
+
+    virtual void mark_live() {
+        if (!allocator->mark_live(this, sizeof(*this))) {
+            this->iter1->mark_live();
+            this->iter2->mark_live();
+        }
+    }
+
+    virtual node *__iter__() { return this; }
+    virtual node *next() {
+        node *item1 = this->iter1->next();
+        node *item2 = this->iter2->next();
+        if (!item1 || !item2)
+            return NULL;
+        node *pair[2];
+        pair[0] = item1;
+        pair[1] = item2;
+        return new(allocator) tuple(2, pair);
+    }
+
+    virtual node *getattr(const char *key);
+    virtual node *type();
+    virtual std::string repr() { return "<zip object>"; }
 };
 
 typedef node *(*fptr)(context *globals, context *parent_ctx, tuple *args, dict *kwargs);
@@ -1503,40 +1572,6 @@ public:
 };
 
 class enumerate_class_def_singleton: public builtin_class_def_singleton {
-private:
-    class enumerate_obj: public node {
-    private:
-        node *iter;
-        int_t i;
-
-    public:
-        enumerate_obj(node *iter) {
-            this->iter = iter;
-            this->i = 0;
-        }
-        const char *node_type() { return "enumerate_obj"; }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
-                this->iter->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            node *item = this->iter->next();
-            if (!item)
-                return NULL;
-            node *pair[2];
-            pair[0] = new(allocator) int_const(this->i++);
-            pair[1] = item;
-            return new(allocator) tuple(2, pair);
-        }
-
-        virtual node *getattr(const char *key);
-        virtual node *type();
-        virtual std::string repr() { return "<enumerate object>"; }
-    };
-
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1757,43 +1792,6 @@ public:
 };
 
 class zip_class_def_singleton: public builtin_class_def_singleton {
-private:
-    class zip_obj: public node {
-    private:
-        node *iter1;
-        node *iter2;
-
-    public:
-        zip_obj(node *iter1, node *iter2) {
-            this->iter1 = iter1;
-            this->iter2 = iter2;
-        }
-        const char *node_type() { return "zip_obj"; }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this))) {
-                this->iter1->mark_live();
-                this->iter2->mark_live();
-            }
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            node *item1 = this->iter1->next();
-            node *item2 = this->iter2->next();
-            if (!item1 || !item2)
-                return NULL;
-            node *pair[2];
-            pair[0] = item1;
-            pair[1] = item2;
-            return new(allocator) tuple(2, pair);
-        }
-
-        virtual node *getattr(const char *key);
-        virtual node *type();
-        virtual std::string repr() { return "<zip object>"; }
-    };
-
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -2053,6 +2051,16 @@ node *bytes::type() {
     return &builtin_class_bytes;
 }
 
+node *enumerate_obj::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return type();
+    error("enumerate_obj has no attribute %s", key);
+}
+
+node *enumerate_obj::type() {
+    return &builtin_class_enumerate;
+}
+
 node *range::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return type();
@@ -2063,28 +2071,18 @@ node *range::type() {
     return &builtin_class_range;
 }
 
-node *builtin_class_def_singleton::type() {
-    return &builtin_class_type;
-}
-
-node *enumerate_class_def_singleton::enumerate_obj::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    error("enumerate_obj has no attribute %s", key);
-}
-
-node *enumerate_class_def_singleton::enumerate_obj::type() {
-    return &builtin_class_enumerate;
-}
-
-node *zip_class_def_singleton::zip_obj::getattr(const char *key) {
+node *zip_obj::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return type();
     error("zip_obj has no attribute %s", key);
 }
 
-node *zip_class_def_singleton::zip_obj::type() {
+node *zip_obj::type() {
     return &builtin_class_zip;
+}
+
+node *builtin_class_def_singleton::type() {
+    return &builtin_class_type;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
