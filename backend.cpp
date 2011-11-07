@@ -642,9 +642,6 @@ public:
     void append(node *obj) {
         items.push_back(obj);
     }
-    void prepend(node *obj) {
-        items.insert(items.begin(), obj);
-    }
     node *pop() {
         // would be nice if STL wasn't stupid, and this was one line...
         node *popped = items.back();
@@ -1370,7 +1367,12 @@ public:
                 obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
         }
 
-        ((list *)args)->prepend(obj);
+        int_t len = args->len();
+        node *new_args[len + 1];
+        new_args[0] = obj;
+        for (int_t i = 0; i < len; i++)
+            new_args[i+1] = args->__getitem__(i);
+        args = new(allocator) tuple(len + 1, new_args);
         init->__call__(globals, ctx, args, kwargs);
         return obj;
     }
