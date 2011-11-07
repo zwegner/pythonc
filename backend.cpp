@@ -409,6 +409,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->value.end())
                 return NULL;
@@ -616,6 +617,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -753,6 +755,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -856,6 +859,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -881,6 +885,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -907,6 +912,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -1102,6 +1108,7 @@ private:
                 this->parent->mark_live();
         }
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
@@ -1271,6 +1278,7 @@ private:
  
         MARK_LIVE_FN
 
+        virtual node *__iter__() { return this; }
         virtual node *next() {
             if (step > 0) {
                 if (this->start >= this->end)
@@ -2147,6 +2155,11 @@ node *builtin_isinstance(context *globals, context *ctx, tuple *args, dict *kwar
     node *arg_class = args->__getitem__(1);
     node *obj_class = obj->type();
     return create_bool_const(obj_class == arg_class);
+}
+
+node *builtin_iter(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("iter", 1);
+    return args->__getitem__(0)->__iter__();
 }
 
 node *builtin_len(context *globals, context *ctx, tuple *args, dict *kwargs) {

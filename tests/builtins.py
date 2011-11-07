@@ -1,4 +1,4 @@
-for x in [bool, bytes, dict, enumerate, int, isinstance, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
+for x in [bool, bytes, dict, enumerate, int, isinstance, iter, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
@@ -24,6 +24,9 @@ for x in [0, 1, False, True, '0', '1', '10', '15', '-123', '+714']:
 
 for x in [('10', 16), ('ff', 16), ('-abc', 36)]:
     print(int(*x))
+
+for x in [[1], (2,), {3: 4}]:
+    print(list(iter(x)))
 
 for x in ['', [], {}, set(), 'a', [1], {'b'}, {1: 2}]:
     print(len(x))

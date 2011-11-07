@@ -30,6 +30,7 @@ builtin_functions = [
     'all',
     'any',
     'isinstance',
+    'iter',
     'len',
     'open',
     'ord',
