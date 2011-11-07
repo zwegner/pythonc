@@ -70,6 +70,7 @@ typedef std::vector<node *> node_list;
 
 #define LIST_list_CLASS_METHODS(x) \
     x(list, append) \
+    x(list, count) \
     x(list, extend) \
     x(list, index) \
     x(list, pop) \
@@ -80,8 +81,12 @@ typedef std::vector<node *> node_list;
 #define LIST_str_CLASS_METHODS(x) \
     x(str, join) \
     x(str, split) \
-    x(str, upper) \
     x(str, startswith) \
+    x(str, upper) \
+
+#define LIST_tuple_CLASS_METHODS(x) \
+    x(tuple, count) \
+    x(tuple, index) \
 
 // XXX There is still some ugliness with file objects, so they're not included
 #define LIST_BUILTIN_CLASSES_WITH_METHODS(x) \
@@ -89,6 +94,7 @@ typedef std::vector<node *> node_list;
     x(list) \
     x(set) \
     x(str) \
+    x(tuple) \
 
 #define LIST_BUILTIN_CLASS_METHODS(x) \
     LIST_dict_CLASS_METHODS(x) \
@@ -96,6 +102,7 @@ typedef std::vector<node *> node_list;
     LIST_list_CLASS_METHODS(x) \
     LIST_set_CLASS_METHODS(x) \
     LIST_str_CLASS_METHODS(x) \
+    LIST_tuple_CLASS_METHODS(x) \
 
 #define BUILTIN_METHOD(class_name, method_name) \
     node *builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
@@ -1756,6 +1763,7 @@ public:
 class tuple_class: public builtin_class {
 public:
     virtual const char *type_name();
+    virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
         tuple *ret = new(allocator) tuple;
@@ -2126,6 +2134,18 @@ node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwa
     return &none_singleton;
 }
 
+node *builtin_list_count(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("list.count", 2);
+    node *self = args->__getitem__(0);
+    node *key = args->__getitem__(1);
+    int_t n = 0;
+    for (int_t i = 0; i < self->len(); i++) {
+        if (self->__getitem__(i)->_eq(key))
+            n++;
+    }
+    return new(allocator) int_const(n);
+}
+
 node *builtin_list_extend(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("list.extend", 2);
     node *self = args->__getitem__(0);
@@ -2292,6 +2312,29 @@ node *builtin_str_startswith(context *globals, context *ctx, tuple *args, dict *
     std::string s1 = self->string_value();
     std::string s2 = prefix->string_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
+}
+
+node *builtin_tuple_count(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("tuple.count", 2);
+    node *self = args->__getitem__(0);
+    node *key = args->__getitem__(1);
+    int_t n = 0;
+    for (int_t i = 0; i < self->len(); i++) {
+        if (self->__getitem__(i)->_eq(key))
+            n++;
+    }
+    return new(allocator) int_const(n);
+}
+
+node *builtin_tuple_index(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("tuple.index", 2);
+    node *self = args->__getitem__(0);
+    node *key = args->__getitem__(1);
+    for (int_t i = 0; i < self->len(); i++) {
+        if (self->__getitem__(i)->_eq(key))
+            return new(allocator) int_const(i);
+    }
+    error("item not found in tuple");
 }
 
 #define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, builtin_##name);
