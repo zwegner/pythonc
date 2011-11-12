@@ -109,7 +109,8 @@ public:
         return block;
     }
 
-    void *allocate(uint64_t bytes) {
+    template<size_t bytes>
+    void *allocate() {
         switch (bytes) {
 #define OBJ_CASE(size) \
             case size: { \
@@ -141,7 +142,8 @@ public:
         FOR_EACH_OBJ_SIZE(MARK_DEAD)
 #undef MARK_DEAD
     }
-    bool mark_live(void *object, uint64_t bytes) {
+    template<size_t bytes>
+    bool mark_live(void *object) {
         uint32_t idx = ((uint64_t)object & (BLOCK_SIZE - 1)) / bytes;
         void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));
         switch (bytes) {
@@ -157,6 +159,12 @@ public:
 
 arena allocator[1];
 
-void *operator new(size_t bytes, arena *a) {
-    return a->allocate(bytes);
+inline void *operator new(const size_t bytes, arena *a) {
+    switch (bytes) {
+#define OBJ_CASE(size) case size: return a->allocate<size>();
+        FOR_EACH_OBJ_SIZE(OBJ_CASE)
+        default:
+            printf("bad obj size %" PRIu64 "\n", bytes);
+            exit(1);
+    }
 }

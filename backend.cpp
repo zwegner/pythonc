@@ -120,7 +120,7 @@ public:
 
     virtual void mark_live() { error("mark_live unimplemented for %s", this->node_type()); }
 #define MARK_LIVE_FN \
-    virtual void mark_live() { allocator->mark_live(this, sizeof(*this)); }
+    virtual void mark_live() { allocator->mark_live<sizeof(*this)>(this); }
 #define MARK_LIVE_SINGLETON_FN virtual void mark_live() { }
 
     virtual bool is_bool() { return false; }
@@ -405,7 +405,7 @@ private:
         const char *node_type() { return "str_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -552,7 +552,7 @@ private:
         const char *node_type() { return "bytes_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -641,7 +641,7 @@ private:
         const char *node_type() { return "list_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -666,7 +666,7 @@ public:
     const char *node_type() { return "list"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             for (size_t i = 0; i < this->items.size(); i++)
                 this->items[i]->mark_live();
         }
@@ -779,7 +779,7 @@ private:
         const char *node_type() { return "tuple_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -805,7 +805,7 @@ public:
     virtual bool is_tuple() { return true; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             for (size_t i = 0; i < this->items.size(); i++)
                 this->items[i]->mark_live();
         }
@@ -883,7 +883,7 @@ private:
         const char *node_type() { return "dict_keys_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -909,7 +909,7 @@ private:
         const char *node_type() { return "dict_items_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -936,7 +936,7 @@ private:
         const char *node_type() { return "dict_values_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -957,7 +957,7 @@ public:
     const char *node_type() { return "dict"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             for (auto i = this->items.begin(); i != this->items.end(); i++) {
                 i->second.first->mark_live();
                 i->second.second->mark_live();
@@ -1031,7 +1031,7 @@ public:
     const char *node_type() { return "dict_keys"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->parent->mark_live();
     }
 
@@ -1062,7 +1062,7 @@ public:
     const char *node_type() { return "dict_items"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->parent->mark_live();
     }
 
@@ -1097,7 +1097,7 @@ public:
     const char *node_type() { return "dict_values"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->parent->mark_live();
     }
 
@@ -1132,7 +1132,7 @@ private:
         const char *node_type() { return "set_iter"; }
 
         virtual void mark_live() {
-            if (!allocator->mark_live(this, sizeof(*this)))
+            if (!allocator->mark_live<sizeof(*this)>(this))
                 this->parent->mark_live();
         }
 
@@ -1153,7 +1153,7 @@ public:
     const char *node_type() { return "set"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             for (auto i = this->items.begin(); i != this->items.end(); i++)
                 i->second->mark_live();
         }
@@ -1207,7 +1207,7 @@ public:
     const char *node_type() { return "object"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->items->mark_live();
     }
 
@@ -1271,7 +1271,7 @@ public:
     const char *node_type() { return "enumerate"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->iter->mark_live();
     }
 
@@ -1364,7 +1364,7 @@ public:
     const char *node_type() { return "reversed"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->parent->mark_live();
     }
 
@@ -1392,7 +1392,7 @@ public:
     const char *node_type() { return "zip"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             this->iter1->mark_live();
             this->iter2->mark_live();
         }
@@ -1429,7 +1429,7 @@ public:
     const char *node_type() { return "bound_method"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this))) {
+        if (!allocator->mark_live<sizeof(*this)>(this)) {
             this->self->mark_live();
             this->function->mark_live();
         }
@@ -1479,7 +1479,7 @@ public:
     const char *node_type() { return "class"; }
 
     virtual void mark_live() {
-        if (!allocator->mark_live(this, sizeof(*this)))
+        if (!allocator->mark_live<sizeof(*this)>(this))
             this->items->mark_live();
     }
 
