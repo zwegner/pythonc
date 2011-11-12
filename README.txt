@@ -1,12 +1,13 @@
 Pythonc--Python to C++ translator
 
-Copyright 2011 Zach Wegner
+Copyright 2011 Zach Wegner, Matt Craighead
 
 Pythonc is pronounced like "Pie Thonk", for obvious reasons.
 
 It currently translates some nontrivial subset of Python code into C++. No
-claims are made about the correctness or efficiency of the generated code.
-You have been warned.
+claims are made about the correctness or efficiency of the generated code,
+though it should be much faster than CPython (and will get even faster in
+the near future). You have been warned.
 
 The translator is released under the GPLv3.
 
@@ -34,16 +35,16 @@ Use C instead of C++
 
 Python support
 ==============
-Pythonc has only been tested to work with Python 3. It could quite possibly
-work for Python 2 though. The subset of Python implemented is hardly distinguishable
-as Python 2 or 3, except that "print" is a function.
+Pythonc only officially supports Python 3, and it will probably stay that way.
+It might not be too hard to get it to work with Python 2, but we haven't tried
+and we don't care.
 
-It uses the Python ast module to parse the Python code.
+It uses the Python ast module to parse the Python code. At some point we
+will want to write our own parser, for various reasons (making Pythonc
+self-hosting, eval(), not having to do all the transform stuff, ...).
 
 There are just a few places with incompatibilities:
 All integers are signed 64-bit ints
-Str/bytes are the same thing
-Tuples/lists are the same thing
 Genexps/list comprehensions are the same thing
 Probably a bunch of other little things
 
