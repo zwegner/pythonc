@@ -539,6 +539,33 @@ public:
 
 class bytes: public node {
 private:
+    class bytes_iter: public node {
+    private:
+        bytes *parent;
+        std::vector<uint8_t>::iterator it;
+
+    public:
+        bytes_iter(bytes *b) {
+            this->parent = b;
+            it = b->value.begin();
+        }
+        const char *node_type() { return "bytes_iter"; }
+
+        virtual void mark_live() {
+            if (!allocator->mark_live(this, sizeof(*this)))
+                this->parent->mark_live();
+        }
+
+        virtual node *__iter__() { return this; }
+        virtual node *next() {
+            if (this->it == this->parent->value.end())
+                return NULL;
+            uint8_t ret = *this->it;
+            ++this->it;
+            return new(allocator) int_const(ret);
+        }
+    };
+
     std::vector<uint8_t> value;
 
 public:
@@ -589,6 +616,7 @@ public:
         }
         return s + "'";
     }
+    virtual node *__iter__() { return new(allocator) bytes_iter(this); }
 };
 
 class bytes_singleton: public bytes {
