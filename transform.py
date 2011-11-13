@@ -59,20 +59,7 @@ builtin_functions_and_methods = {
     'tuple.count': 2,
     'tuple.index': 2,
 }
-builtin_functions = [
-    'abs',
-    'all',
-    'any',
-    'isinstance',
-    'iter',
-    'len',
-    'open',
-    'ord',
-    'print',
-    'print_nonl',
-    'repr',
-    'sorted',
-]
+builtin_functions = sorted(x for x in builtin_functions_and_methods if '.' not in x)
 builtin_classes = [
     'bool',
     'bytes',
