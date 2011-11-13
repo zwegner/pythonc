@@ -559,11 +559,12 @@ class Arguments(Node):
         for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
             self.defaults, self.name_strings)):
             if default:
-                arg_unpacking += [Edge(self, Store(arg, '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) '
-                    ': (args->len() > %s ? args->__getitem__(%s) : %s)' %
-                    (name(), name(), i, i, default()), binding))]
+                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : (args->len() > %s ? args->__getitem__(%s) : %s)' % \
+                    (name(), name(), i, i, default())
             else:
-                arg_unpacking += [Edge(self, Store(arg, 'args->__getitem__(%s)' % i, binding))]
+                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : args->__getitem__(%s)' % \
+                    (name(), name(), i)
+            arg_unpacking += [Edge(self, Store(arg, arg_value, binding))]
         return block_str(arg_unpacking)
 
 @node('name, &args, &*stmts, exp_name, binding, local_count')
