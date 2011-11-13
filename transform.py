@@ -725,7 +725,7 @@ with open(sys.argv[2], 'w') as f:
         n_args = builtin_classes[name]
         f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
         args = print_arg_logic(f, n_args)
-        f.write('    return call(%s);\n' % args)
+        f.write('    return %s_init(%s);\n' % (name, args))
         f.write('}\n')
 
     syntax.export_consts(f)

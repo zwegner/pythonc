@@ -180,6 +180,17 @@ name##_class builtin_class_##name;
 LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_HIDDEN_CLASS)
 #undef BUILTIN_HIDDEN_CLASS
 
+#define BUILTIN_CLASS(name) \
+class name##_class: public builtin_class { \
+public: \
+    virtual const char *type_name() { return #name; } \
+    virtual node *getattr(const char *key); \
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs); \
+}; \
+name##_class builtin_class_##name;
+LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
+#undef BUILTIN_CLASS
+
 class context {
 private:
     uint32_t sym_len;
@@ -1504,249 +1515,178 @@ public:
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
 
-class bool_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        if (!arg)
-            return &bool_singleton_False;
-        return create_bool_const(arg->bool_value());
-    }
-};
+inline node *bool_init(node *arg) {
+    if (!arg)
+        return &bool_singleton_False;
+    return create_bool_const(arg->bool_value());
+}
 
-class bytes_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        bytes *ret = new(allocator) bytes;
-        if (!arg)
-            return ret;
-        if (arg->is_int_const()) {
-            int_t value = arg->int_value();
-            if (value < 0)
-                error("negative count");
-            for (int_t i = 0; i < value; i++)
-                ret->append(0);
-            return ret;
-        }
-        node *iter = arg->__iter__();
-        while (node *item = iter->next()) {
-            int_t i = item->int_value();
-            if ((i < 0) || (i >= 256))
-                error("invalid byte value");
-            ret->append(i);
-        }
+inline node *bytes_init(node *arg) {
+    bytes *ret = new(allocator) bytes;
+    if (!arg)
+        return ret;
+    if (arg->is_int_const()) {
+        int_t value = arg->int_value();
+        if (value < 0)
+            error("negative count");
+        for (int_t i = 0; i < value; i++)
+            ret->append(0);
         return ret;
     }
-};
+    node *iter = arg->__iter__();
+    while (node *item = iter->next()) {
+        int_t i = item->int_value();
+        if ((i < 0) || (i >= 256))
+            error("invalid byte value");
+        ret->append(i);
+    }
+    return ret;
+}
 
-class dict_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        dict *ret = new(allocator) dict;
-        if (!arg)
-            return ret;
-        node *iter = arg->__iter__();
-        while (node *item = iter->next()) {
-            if (item->len() != 2)
-                error("dictionary update sequence must have length 2");
-            node *key = item->__getitem__(0);
-            node *value = item->__getitem__(1);
-            ret->__setitem__(key, value);
-        }
+inline node *dict_init(node *arg) {
+    dict *ret = new(allocator) dict;
+    if (!arg)
         return ret;
+    node *iter = arg->__iter__();
+    while (node *item = iter->next()) {
+        if (item->len() != 2)
+            error("dictionary update sequence must have length 2");
+        node *key = item->__getitem__(0);
+        node *value = item->__getitem__(1);
+        ret->__setitem__(key, value);
     }
-};
+    return ret;
+}
 
-class enumerate_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        node *iter = arg->__iter__();
-        return new(allocator) enumerate(iter);
+inline node *enumerate_init(node *arg) {
+    node *iter = arg->__iter__();
+    return new(allocator) enumerate(iter);
+}
+
+inline node *int_init(node *arg0, node *arg1) {
+    if (!arg0)
+        return new(allocator) int_const(0);
+    if (arg0->is_int_const()) {
+        if (arg1)
+            error("int() cannot accept a base when passed an int");
+        return arg0;
     }
-};
-
-class int_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg0, node *arg1) {
-        if (!arg0)
-            return new(allocator) int_const(0);
-        if (arg0->is_int_const()) {
-            if (arg1)
-                error("int() cannot accept a base when passed an int");
-            return arg0;
-        }
-        if (arg0->is_bool()) {
-            if (arg1)
-                error("int() cannot accept a base when passed a bool");
-            return new(allocator) int_const(arg0->int_value());
-        }
-        if (arg0->is_string()) {
-            int_t base = 10;
-            if (arg1) {
-                if (!arg1->is_int_const())
-                    error("base must be an int");
-                base = arg1->int_value();
-                if ((base < 0) || (base == 1) || (base > 36))
-                    error("base must be 0 or 2-36");
-                if (base == 0)
-                    error("base 0 unsupported at present");
-            }
-            const char *s = arg0->c_str();
-            while (isspace(*s))
-                continue;
-            int_t sign = 1;
-            if (*s == '-') {
-                s++;
-                sign = -1;
-            }
-            else if (*s == '+')
-                s++;
-            int_t value = 0;
-            for (;;) {
-                int_t digit;
-                char c = *s++;
-                if (c == 0)
-                    break;
-                if ((c >= '0') && (c <= '9'))
-                    digit = c - '0';
-                else if ((c >= 'a') && (c <= 'z'))
-                    digit = c - 'a' + 10;
-                else if ((c >= 'A') && (c <= 'Z'))
-                    digit = c - 'A' + 10;
-                else
-                    error("unexpected digit");
-                if (digit >= base)
-                    error("digit not valid in base");
-                value = value*base + digit;
-            }
-            return new(allocator) int_const(sign*value);
-        }
-        error("don't know how to handle argument to int()");
+    if (arg0->is_bool()) {
+        if (arg1)
+            error("int() cannot accept a base when passed a bool");
+        return new(allocator) int_const(arg0->int_value());
     }
-};
+    if (arg0->is_string()) {
+        int_t base = 10;
+        if (arg1) {
+            if (!arg1->is_int_const())
+                error("base must be an int");
+            base = arg1->int_value();
+            if ((base < 0) || (base == 1) || (base > 36))
+                error("base must be 0 or 2-36");
+            if (base == 0)
+                error("base 0 unsupported at present");
+        }
+        const char *s = arg0->c_str();
+        while (isspace(*s))
+            continue;
+        int_t sign = 1;
+        if (*s == '-') {
+            s++;
+            sign = -1;
+        }
+        else if (*s == '+')
+            s++;
+        int_t value = 0;
+        for (;;) {
+            int_t digit;
+            char c = *s++;
+            if (c == 0)
+                break;
+            if ((c >= '0') && (c <= '9'))
+                digit = c - '0';
+            else if ((c >= 'a') && (c <= 'z'))
+                digit = c - 'a' + 10;
+            else if ((c >= 'A') && (c <= 'Z'))
+                digit = c - 'A' + 10;
+            else
+                error("unexpected digit");
+            if (digit >= base)
+                error("digit not valid in base");
+            value = value*base + digit;
+        }
+        return new(allocator) int_const(sign*value);
+    }
+    error("don't know how to handle argument to int()");
+}
 
-class list_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        list *ret = new(allocator) list;
-        if (!arg)
-            return ret;
-        node *iter = arg->__iter__();
-        while (node *item = iter->next())
-            ret->append(item);
+inline node *list_init(node *arg) {
+    list *ret = new(allocator) list;
+    if (!arg)
         return ret;
+    node *iter = arg->__iter__();
+    while (node *item = iter->next())
+        ret->append(item);
+    return ret;
+}
+
+inline node *range_init(node *arg0, node *arg1, node *arg2) {
+    int_t start = 0, end, step = 1;
+    if (!arg1)
+        end = arg0->int_value();
+    else {
+        start = arg0->int_value();
+        end = arg1->int_value();
+        if (arg2)
+            step = arg2->int_value();
     }
-};
+    return new(allocator) range(start, end, step);
+}
 
-class range_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg0, node *arg1, node *arg2) {
-        int_t start = 0, end, step = 1;
-        if (!arg1)
-            end = arg0->int_value();
-        else {
-            start = arg0->int_value();
-            end = arg1->int_value();
-            if (arg2)
-                step = arg2->int_value();
-        }
-        return new(allocator) range(start, end, step);
-    }
-};
+// XXX This will actually work on dictionaries if they have keys of 0..len-1.
+// Logically speaking it doesn't make sense to have reversed() of a dictionary
+// do anything, but the Python docs imply that __len__ and __getitem__ are
+// sufficient.  This seems like a documentation error.
+inline node *reversed_init(node *arg) {
+    int_t len = arg->len();
+    return new(allocator) reversed(arg, len);
+}
 
-class reversed_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-
-    // XXX This will actually work on dictionaries if they have keys of 0..len-1.
-    // Logically speaking it doesn't make sense to have reversed() of a dictionary
-    // do anything, but the Python docs imply that __len__ and __getitem__ are
-    // sufficient.  This seems like a documentation error.
-    inline node *call(node *arg) {
-        int_t len = arg->len();
-        return new(allocator) reversed(arg, len);
-    }
-};
-
-class set_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        set *ret = new(allocator) set;
-        if (!arg)
-            return ret;
-        node *iter = arg->__iter__();
-        while (node *item = iter->next())
-            ret->add(item);
+inline node *set_init(node *arg) {
+    set *ret = new(allocator) set;
+    if (!arg)
         return ret;
-    }
-};
+    node *iter = arg->__iter__();
+    while (node *item = iter->next())
+        ret->add(item);
+    return ret;
+}
 
-class str_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        if (!arg)
-            return new(allocator) string_const("");
-        return arg->__str__();
-    }
-};
+inline node *str_init(node *arg) {
+    if (!arg)
+        return new(allocator) string_const("");
+    return arg->__str__();
+}
 
-class tuple_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        tuple *ret = new(allocator) tuple;
-        if (!arg)
-            return ret;
-        node *iter = arg->__iter__();
-        while (node *item = iter->next())
-            ret->append(item);
+inline node *tuple_init(node *arg) {
+    tuple *ret = new(allocator) tuple;
+    if (!arg)
         return ret;
-    }
-};
+    node *iter = arg->__iter__();
+    while (node *item = iter->next())
+        ret->append(item);
+    return ret;
+}
 
-class type_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg) {
-        return arg->type();
-    }
-};
+inline node *type_init(node *arg) {
+    return arg->type();
+}
 
-class zip_class: public builtin_class {
-public:
-    virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(node *arg0, node *arg1) {
-        node *iter1 = arg0->__iter__();
-        node *iter2 = arg1->__iter__();
-        return new(allocator) zip(iter1, iter2);
-    }
-};
+inline node *zip_init(node *arg0, node *arg1) {
+    node *iter1 = arg0->__iter__();
+    node *iter2 = arg1->__iter__();
+    return new(allocator) zip(iter1, iter2);
+}
 
 #define GET_METHOD(class_name, method_name) \
     if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
@@ -1760,11 +1700,16 @@ LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
 #undef DEFINE_GETATTR
 
 
-#define BUILTIN_CLASS(name) \
-    const char *name##_class::type_name() { return #name; } \
-    name##_class builtin_class_##name;
-LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
-#undef BUILTIN_CLASS
+// XXX clean this up
+node *bool_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *bytes_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *enumerate_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *int_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *range_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *reversed_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *type_class::getattr(const char *key) { return builtin_class::getattr(key); }
+node *zip_class::getattr(const char *key) { return builtin_class::getattr(key); }
+
 
 node *node::__contains__(node *rhs) {
     return create_bool_const(this->contains(rhs));
