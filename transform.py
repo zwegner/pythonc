@@ -637,6 +637,11 @@ transformer = Transformer()
 node = transformer.visit(node)
 
 with open(sys.argv[2], 'w') as f:
+    f.write('class node;\n')
+    f.write('class tuple;\n')
+    f.write('class dict;\n')
+    f.write('class context;\n')
+
     f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
         ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
     f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
@@ -656,6 +661,14 @@ with open(sys.argv[2], 'w') as f:
 
     for x in builtin_symbols:
         f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
+
+    for name in sorted(builtin_functions):
+        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
+    for class_name in sorted(builtin_methods):
+        methods = builtin_methods[class_name]
+        for name in sorted(methods):
+            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
+
     f.write('#include "backend.cpp"\n')
 
     for name in sorted(builtin_functions):

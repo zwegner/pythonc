@@ -44,11 +44,7 @@ __attribute((noreturn)) void error(const char *msg, ...) {
     exit(1);
 }
 
-class node;
-class dict;
 class list;
-class tuple;
-class context;
 class string_const;
 
 typedef int64_t int_t;
@@ -57,16 +53,6 @@ typedef std::pair<node *, node *> node_pair;
 typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
-
-#define BUILTIN_FUNCTION(name) \
-    node *wrapped_builtin_##name(context *globals, context *ctx, tuple *args, dict *kwargs);
-LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
-#undef BUILTIN_FUNCTION
-
-#define BUILTIN_METHOD(class_name, method_name) \
-    node *wrapped_builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
-LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
-#undef BUILTIN_METHOD
 
 inline node *create_bool_const(bool b);
 
@@ -125,8 +111,6 @@ public:
     UNIMP_CMP_OP(gt)
     UNIMP_CMP_OP(ge)
 
-    UNIMP_OP(contains)
-
 #define UNIMP_UNOP(NAME) \
     virtual node *__##NAME##__() { error(#NAME " unimplemented for %s", this->node_type()); return NULL; }
 
@@ -135,16 +119,16 @@ public:
     UNIMP_UNOP(neg)
     UNIMP_UNOP(abs)
 
+    node *__contains__(node *rhs);
     node *__len__();
     node *__hash__();
     node *__getattr__(node *rhs);
+    node *__ncontains__(node *rhs);
     node *__not__();
     node *__is__(node *rhs);
     node *__isnot__(node *rhs);
     node *__repr__();
     node *__str__();
-
-    virtual node *__ncontains__(node *rhs) { return this->__contains__(rhs)->__not__(); }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", this->node_type()); }
@@ -157,6 +141,7 @@ public:
     virtual node *__slice__(node *start, node *end, node *step) { error("slice unimplemented for %s", this->node_type()); return NULL; }
 
     // unwrapped versions
+    virtual bool contains(node *rhs) { error("contains unimplemented for %s", this->node_type()); }
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
     virtual node *getattr(const char *key);
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
@@ -663,14 +648,12 @@ public:
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
 
-    virtual node *__contains__(node *key) {
-        bool found = false;
-        for (size_t i = 0; i < this->items.size(); i++)
-            if (this->items[i]->_eq(key)) {
-                found = true;
-                break;
-            }
-        return create_bool_const(found);
+    virtual bool contains(node *key) {
+        for (size_t i = 0; i < this->items.size(); i++) {
+            if (this->items[i]->_eq(key))
+                return true;
+        }
+        return false;
     }
     virtual void __delitem__(node *rhs) {
         if (!rhs->is_int_const()) {
@@ -791,15 +774,12 @@ public:
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
 
-    virtual node *__contains__(node *key) {
-        bool found = false;
+    virtual bool contains(node *key) {
         for (size_t i = 0; i < this->items.size(); i++) {
-            if (this->items[i]->_eq(key)) {
-                found = true;
-                break;
-            }
+            if (this->items[i]->_eq(key))
+                return true;
         }
-        return create_bool_const(found);
+        return false;
     }
     virtual node *__getitem__(int idx) {
         return this->items[this->index(idx)];
@@ -949,8 +929,8 @@ public:
     virtual bool is_dict() { return true; }
     virtual bool bool_value() { return this->len() != 0; }
 
-    virtual node *__contains__(node *key) {
-        return create_bool_const(this->lookup(key) != NULL);
+    virtual bool contains(node *key) {
+        return this->lookup(key) != NULL;
     }
     virtual node *__getitem__(node *key) {
         node *value = this->lookup(key);
@@ -1136,8 +1116,8 @@ public:
     virtual bool is_set() { return true; }
     virtual bool bool_value() { return this->len() != 0; }
 
-    virtual node *__contains__(node *key) {
-        return create_bool_const(this->lookup(key) != NULL);
+    virtual bool contains(node *key) {
+        return this->lookup(key) != NULL;
     }
     virtual int_t len() {
         return this->items.size();
@@ -1794,6 +1774,10 @@ LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
+node *node::__contains__(node *rhs) {
+    return create_bool_const(this->contains(rhs));
+}
+
 node *node::__getattr__(node *key) {
     if (!key->is_string())
         error("getattr with non-string");
@@ -1812,6 +1796,10 @@ node *node::__hash__() {
 
 node *node::__len__() {
     return new(allocator) int_const(this->len());
+}
+
+node *node::__ncontains__(node *rhs) {
+    return create_bool_const(!this->contains(rhs));
 }
 
 node *node::__not__() {
