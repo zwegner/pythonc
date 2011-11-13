@@ -26,6 +26,39 @@ import sys
 
 import syntax
 
+builtin_functions_and_methods = {
+    'abs': 1,
+    'all': 1,
+    'any': 1,
+    'dict.get': 3,
+    'dict.keys': 1,
+    'dict.items': 1,
+    'dict.values': 1,
+    'file.read': 2,
+    'file.write': 2,
+    'list.append': 2,
+    'list.count': 2,
+    'list.extend': 2,
+    'list.index': 2,
+    'list.pop': 1,
+    'isinstance': 2,
+    'iter': 1,
+    'len': 1,
+    'open': 2,
+    'ord': 1,
+    'print': -1,
+    'print_nonl': 1,
+    'repr': 1,
+    'set.add': 2,
+    'set.update': 2,
+    'sorted': 1,
+    'str.join': 2,
+    'str.split': -1,
+    'str.upper': 1,
+    'str.startswith': 2,
+    'tuple.count': 2,
+    'tuple.index': 2,
+}
 builtin_functions = [
     'abs',
     'all',
@@ -588,6 +621,22 @@ with open(sys.argv[2], 'w') as f:
     for x in builtin_symbols:
         f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
     f.write('#include "backend.cpp"\n')
+
+    for name in sorted(builtin_functions_and_methods):
+        n_args = builtin_functions_and_methods[name]
+        mangled_name = name.replace('.', '_')
+        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % mangled_name)
+        if n_args < 0:
+            f.write('    if (kwargs->len())\n')
+            f.write('        error("%s() does not take keyword arguments");\n' % name)
+            f.write('    return builtin_%s(args);\n' % mangled_name)
+        else:
+            f.write('    NO_KWARGS_N_ARGS("%s", %d);\n' % (name, n_args))
+            for i in range(n_args):
+                f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+            f.write('    return builtin_%s(%s);\n' % (mangled_name, ', '.join('arg%d' % i for i in range(n_args))))
+        f.write('}\n')
+
     syntax.export_consts(f)
 
     for func in transformer.functions:

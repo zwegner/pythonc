@@ -105,8 +105,13 @@ typedef std::vector<node *> node_list;
     LIST_str_CLASS_METHODS(x) \
     LIST_tuple_CLASS_METHODS(x) \
 
+#define BUILTIN_FUNCTION(name) \
+    node *wrapped_builtin_##name(context *globals, context *ctx, tuple *args, dict *kwargs);
+LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
+#undef BUILTIN_FUNCTION
+
 #define BUILTIN_METHOD(class_name, method_name) \
-    node *builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
+    node *wrapped_builtin_##class_name##_##method_name(context *globals, context *ctx, tuple *args, dict *kwargs);
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
 
@@ -1555,7 +1560,7 @@ public:
     MARK_LIVE_SINGLETON_FN
 };
 
-#define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(builtin_##class_name##_##method_name);
+#define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(wrapped_builtin_##class_name##_##method_name);
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
 
@@ -2112,15 +2117,11 @@ public:
     }
 };
 
-node *builtin_abs(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("abs", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_abs(node *arg) {
     return arg->__abs__();
 }
 
-node *builtin_all(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("all", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_all(node *arg) {
     node *iter = arg->__iter__();
     while (node *item = iter->next()) {
         if (!item->bool_value())
@@ -2129,9 +2130,7 @@ node *builtin_all(context *globals, context *ctx, tuple *args, dict *kwargs) {
     return &bool_singleton_True;
 }
 
-node *builtin_any(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("any", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_any(node *arg) {
     node *iter = arg->__iter__();
     while (node *item = iter->next()) {
         if (item->bool_value())
@@ -2140,140 +2139,124 @@ node *builtin_any(context *globals, context *ctx, tuple *args, dict *kwargs) {
     return &bool_singleton_False;
 }
 
-node *builtin_dict_get(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("dict.get", 3);
-    node *self = args->__getitem__(0);
-    node *key = args->__getitem__(1);
-
-    node *value = ((dict *)self)->lookup(key);
+inline node *builtin_dict_get(node *self_arg, node *arg0, node *arg1) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.get()");
+    dict *self = (dict *)self_arg;
+    node *value = self->lookup(arg0);
     if (!value)
-        value = args->__getitem__(2);
-
+        value = arg1;
     return value;
 }
 
-node *builtin_dict_keys(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("dict.keys", 1);
-    dict *self = (dict *)args->__getitem__(0);
+inline node *builtin_dict_keys(node *self_arg) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.keys()");
+    dict *self = (dict *)self_arg;
     return new(allocator) dict_keys(self);
 }
 
-node *builtin_dict_items(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("dict.items", 1);
-    dict *self = (dict *)args->__getitem__(0);
+inline node *builtin_dict_items(node *self_arg) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.items()");
+    dict *self = (dict *)self_arg;
     return new(allocator) dict_items(self);
 }
 
-node *builtin_dict_values(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("dict.values", 1);
-    dict *self = (dict *)args->__getitem__(0);
+inline node *builtin_dict_values(node *self_arg) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.values()");
+    dict *self = (dict *)self_arg;
     return new(allocator) dict_values(self);
 }
 
-node *builtin_file_read(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("file.read", 2);
-    node *f = args->__getitem__(0);
-    node *len = args->__getitem__(1);
-    if (!f->is_file() || !len->is_int_const())
+inline node *builtin_file_read(node *self_arg, node *arg) {
+    if (!self_arg->is_file() || !arg->is_int_const())
         error("bad arguments to file.read()");
-    return ((file *)f)->read(len->int_value());
+    return ((file *)self_arg)->read(arg->int_value());
 }
 
-node *builtin_file_write(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("file.write", 2);
-    node *f = args->__getitem__(0);
-    node *data = args->__getitem__(1);
-    if (!f->is_file() || !data->is_string())
+inline node *builtin_file_write(node *self_arg, node *arg) {
+    if (!self_arg->is_file() || !arg->is_string())
         error("bad arguments to file.write()");
-    ((file *)f)->write((string_const *)data);
+    ((file *)self_arg)->write((string_const *)arg);
     return &none_singleton;
 }
 
-node *builtin_isinstance(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("isinstance", 2);
-    node *obj = args->__getitem__(0);
-    node *arg_class = args->__getitem__(1);
-    node *obj_class = obj->type();
-    return create_bool_const(obj_class == arg_class);
+inline node *builtin_isinstance(node *arg0, node *arg1) {
+    node *obj_class = arg0->type();
+    return create_bool_const(obj_class == arg1);
 }
 
-node *builtin_iter(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("iter", 1);
-    return args->__getitem__(0)->__iter__();
+inline node *builtin_iter(node *arg) {
+    return arg->__iter__();
 }
 
-node *builtin_len(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("len", 1);
-    return args->__getitem__(0)->__len__();
+inline node *builtin_len(node *arg) {
+    return arg->__len__();
 }
 
-node *builtin_list_append(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("list.append", 2);
-    node *self = args->__getitem__(0);
-    node *item = args->__getitem__(1);
-    ((list *)self)->append(item);
+inline node *builtin_list_append(node *self_arg, node *arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.append()");
+    list *self = (list *)self_arg;
+    self->append(arg);
     return &none_singleton;
 }
 
-node *builtin_list_count(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("list.count", 2);
-    node *self = args->__getitem__(0);
-    node *key = args->__getitem__(1);
+inline node *builtin_list_count(node *self_arg, node *arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.count()");
+    list *self = (list *)self_arg;
     int_t n = 0;
     for (int_t i = 0; i < self->len(); i++) {
-        if (self->__getitem__(i)->_eq(key))
+        if (self->__getitem__(i)->_eq(arg))
             n++;
     }
     return new(allocator) int_const(n);
 }
 
-node *builtin_list_extend(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("list.extend", 2);
-    node *self = args->__getitem__(0);
-    node *arg = args->__getitem__(1);
+inline node *builtin_list_extend(node *self_arg, node *arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.extend()");
+    list *self = (list *)self_arg;
     node *iter = arg->__iter__();
     while (node *item = iter->next())
-        ((list *)self)->append(item);
+        self->append(item);
     return &none_singleton;
 }
 
-node *builtin_list_index(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("list.index", 2);
-    node *self = args->__getitem__(0);
-    node *key = args->__getitem__(1);
+inline node *builtin_list_index(node *self_arg, node *arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.index()");
+    list *self = (list *)self_arg;
     for (int_t i = 0; i < self->len(); i++) {
-        if (self->__getitem__(i)->_eq(key))
+        if (self->__getitem__(i)->_eq(arg))
             return new(allocator) int_const(i);
     }
     error("item not found in list");
 }
 
-node *builtin_list_pop(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("pop", 1);
-    list *self = (list *)args->__getitem__(0);
-
+inline node *builtin_list_pop(node *self_arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.pop()");
+    list *self = (list *)self_arg;
     return self->pop();
 }
 
-node *builtin_open(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("open", 2);
-    node *path = args->__getitem__(0);
-    node *mode = args->__getitem__(1);
-    if (!path->is_string() || !mode->is_string())
+inline node *builtin_open(node *arg0, node *arg1) {
+    if (!arg0->is_string() || !arg1->is_string())
         error("bad arguments to open()");
-    file *f = new(allocator) file(path->c_str(), mode->c_str());
-    return f;
+    return new(allocator) file(arg0->c_str(), arg1->c_str());
 }
 
-node *builtin_ord(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("ord", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_ord(node *arg) {
     if (!arg->is_string() || arg->len() != 1)
         error("bad arguments to ord()");
     return new(allocator) int_const((unsigned char)arg->c_str()[0]);
 }
 
-node *builtin_print(context *globals, context *ctx, tuple *args, dict *kwargs) {
+inline node *builtin_print(tuple *args) {
     std::string new_string;
     for (int_t i = 0; i < args->len(); i++) {
         if (i)
@@ -2285,44 +2268,38 @@ node *builtin_print(context *globals, context *ctx, tuple *args, dict *kwargs) {
     return &none_singleton;
 }
 
-node *builtin_print_nonl(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("print_nonl", 1);
-    node *s = args->__getitem__(0);
-    printf("%s", s->str().c_str());
+inline node *builtin_print_nonl(node *arg) {
+    printf("%s", arg->str().c_str());
     return &none_singleton;
 }
 
-node *builtin_repr(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("repr", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_repr(node *arg) {
     return arg->__repr__();
 }
 
-node *builtin_set_add(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("set.add", 2);
-    node *self = args->__getitem__(0);
-    node *item = args->__getitem__(1);
-    ((set *)self)->add(item);
+inline node *builtin_set_add(node *self_arg, node *arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.add()");
+    set *self = (set *)self_arg;
+    self->add(arg);
     return &none_singleton;
 }
 
-node *builtin_set_update(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("set.update", 2);
-    node *self = args->__getitem__(0);
-    node *arg = args->__getitem__(1);
+inline node *builtin_set_update(node *self_arg, node *arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.update()");
+    set *self = (set *)self_arg;
     node *iter = arg->__iter__();
     while (node *item = iter->next())
-        ((set *)self)->add(item);
+        self->add(item);
     return &none_singleton;
 }
 
-bool compare_nodes(node *lhs, node *rhs) {
+static bool compare_nodes(node *lhs, node *rhs) {
     return lhs->_lt(rhs);
 }
 
-node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("sorted", 1);
-    node *arg = args->__getitem__(0);
+inline node *builtin_sorted(node *arg) {
     node *iter = arg->__iter__();
     node_list new_list;
     while (node *item = iter->next())
@@ -2331,13 +2308,11 @@ node *builtin_sorted(context *globals, context *ctx, tuple *args, dict *kwargs) 
     return new(allocator) list(new_list.size(), &new_list[0]);
 }
 
-node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("str.join", 2);
-    node *self = args->__getitem__(0);
-    node *joined = args->__getitem__(1);
-    if (!self->is_string())
+inline node *builtin_str_join(node *self_arg, node *arg) {
+    if (!self_arg->is_string())
         error("bad arguments to str.join()");
-    node *iter = joined->__iter__();
+    string_const *self = (string_const *)self_arg;
+    node *iter = arg->__iter__();
     std::string s;
     bool first = true;
     while (node *item = iter->next()) {
@@ -2350,10 +2325,14 @@ node *builtin_str_join(context *globals, context *ctx, tuple *args, dict *kwargs
     return new(allocator) string_const(s);
 }
 
-node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_MIN_MAX_ARGS("str.split", 1, 2);
+inline node *builtin_str_split(tuple *args) {
+    size_t args_len = args->len();
+    if (args_len < 1)
+        error("too few arguments to str.split()");
+    if (args_len > 2)
+        error("too many arguments to str.split()");
     node *self = args->__getitem__(0);
-    node *item = (args->len() == 2) ? args->__getitem__(1) : &none_singleton;
+    node *item = (args_len == 2) ? args->__getitem__(1) : &none_singleton;
     // XXX Implement correct behavior for missing separator (not the same as ' ')
     if (item == &none_singleton)
         item = new(allocator) string_const(" ");
@@ -2377,56 +2356,48 @@ node *builtin_str_split(context *globals, context *ctx, tuple *args, dict *kwarg
     return ret;
 }
 
-node *builtin_str_upper(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("str.upper", 1);
-    node *self = args->__getitem__(0);
-    if (!self->is_string())
+inline node *builtin_str_upper(node *self_arg) {
+    if (!self_arg->is_string())
         error("bad argument to str.upper()");
-    string_const *str = (string_const *)self;
-
+    string_const *self = (string_const *)self_arg;
     std::string new_string;
-    for (auto c = str->begin(); c != str->end(); c++)
-        new_string += toupper(*c);
-
+    for (auto it = self->begin(); it != self->end(); ++it)
+        new_string += toupper(*it);
     return new(allocator) string_const(new_string);
 }
 
-node *builtin_str_startswith(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("str.startswith", 2);
-    node *self = args->__getitem__(0);
-    node *prefix = args->__getitem__(1);
-    if (!self->is_string() || !prefix->is_string())
+inline node *builtin_str_startswith(node *self_arg, node *arg) {
+    if (!self_arg->is_string() || !arg->is_string())
         error("bad arguments to str.startswith()");
-
-    std::string s1 = self->string_value();
-    std::string s2 = prefix->string_value();
+    std::string s1 = self_arg->string_value();
+    std::string s2 = arg->string_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
-node *builtin_tuple_count(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("tuple.count", 2);
-    node *self = args->__getitem__(0);
-    node *key = args->__getitem__(1);
+inline node *builtin_tuple_count(node *self_arg, node *arg) {
+    if (!self_arg->is_tuple())
+        error("bad argument to tuple.count()");
+    tuple *self = (tuple *)self_arg;
     int_t n = 0;
     for (int_t i = 0; i < self->len(); i++) {
-        if (self->__getitem__(i)->_eq(key))
+        if (self->__getitem__(i)->_eq(arg))
             n++;
     }
     return new(allocator) int_const(n);
 }
 
-node *builtin_tuple_index(context *globals, context *ctx, tuple *args, dict *kwargs) {
-    NO_KWARGS_N_ARGS("tuple.index", 2);
-    node *self = args->__getitem__(0);
-    node *key = args->__getitem__(1);
+inline node *builtin_tuple_index(node *self_arg, node *arg) {
+    if (!self_arg->is_tuple())
+        error("bad argument to tuple.index()");
+    tuple *self = (tuple *)self_arg;
     for (int_t i = 0; i < self->len(); i++) {
-        if (self->__getitem__(i)->_eq(key))
+        if (self->__getitem__(i)->_eq(arg))
             return new(allocator) int_const(i);
     }
     error("item not found in tuple");
 }
 
-#define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, builtin_##name);
+#define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, wrapped_builtin_##name);
 LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
