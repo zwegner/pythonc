@@ -350,19 +350,20 @@ class Transformer(ast.NodeTransformer):
 
         if node.starargs:
             assert not node.args
-            assert not node.kwargs
             args = syntax.Tuple(self.flatten_node(node.starargs))
-            args = args.flatten(self)
-            kwargs = syntax.Dict([], [])
         else:
             args = syntax.Tuple([self.flatten_node(a) for a in node.args])
-            args = args.flatten(self)
+        args = args.flatten(self)
 
+        assert not node.kwargs
+        if node.keywords:
             keys = [syntax.StringConst(i.arg) for i in node.keywords]
             values = [self.flatten_node(i.value) for i in node.keywords]
             kwargs = syntax.Dict(keys, values)
+            kwargs = kwargs.flatten(self)
+        else:
+            kwargs = syntax.NullConst()
 
-        kwargs = kwargs.flatten(self)
         return syntax.Call(fn, args, kwargs)
 
     def visit_Assign(self, node):
@@ -616,7 +617,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Global(self, node): pass
 
 def print_arg_logic(f, n_args):
-    f.write('    if (kwargs->len())\n')
+    f.write('    if (kwargs && kwargs->len())\n')
     f.write('        error("%s() does not take keyword arguments");\n' % name)
 
     if isinstance(n_args, tuple):

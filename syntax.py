@@ -156,6 +156,11 @@ def node(argstr='', atom=False):
     return attach
 
 @node(atom=True)
+class NullConst(Node):
+    def __str__(self):
+        return 'NULL'
+
+@node(atom=True)
 class NoneConst(Node):
     def __str__(self):
         return '(&none_singleton)'
@@ -559,7 +564,7 @@ class Arguments(Node):
         for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
             self.defaults, self.name_strings)):
             if default:
-                arg_unpacking += [Edge(self, Store(arg, 'kwargs->lookup(%s) ? kwargs->lookup(%s) '
+                arg_unpacking += [Edge(self, Store(arg, '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) '
                     ': (args->len() > %s ? args->__getitem__(%s) : %s)' %
                     (name(), name(), i, i, default()), binding))]
             else:
