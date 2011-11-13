@@ -305,7 +305,7 @@ public:
 
     virtual int_t hash() { return this->value; }
     virtual std::string repr();
-    virtual node *type();
+    virtual node *type() { return &builtin_class_int; }
 };
 
 class int_const_singleton : public int_const {
@@ -315,7 +315,7 @@ public:
     MARK_LIVE_SINGLETON_FN
 };
 
-class bool_const : public node {
+class bool_const: public node {
 private:
     bool value;
 
@@ -375,7 +375,7 @@ public:
 
     virtual int_t hash() { return (int_t)this->value; }
     virtual std::string repr();
-    virtual node *type();
+    virtual node *type() { return &builtin_class_bool; }
 };
 
 class string_const : public node {
@@ -506,7 +506,7 @@ public:
         return s;
     }
     virtual std::string str() { return this->value; }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_str; }
     virtual node *__iter__() { return new(allocator) str_iter(this); }
 };
 
@@ -568,7 +568,7 @@ public:
     virtual bool bool_value() { return this->len() != 0; }
 
     virtual int_t len() { return this->value.size(); }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_bytes; }
 
     virtual std::string repr() {
         std::string s("b'");
@@ -611,7 +611,7 @@ public:
     MARK_LIVE_SINGLETON_FN
 };
 
-class list : public node {
+class list: public node {
 private:
     class list_iter: public node {
     private:
@@ -744,7 +744,7 @@ public:
         new_string += "]";
         return new_string;
     }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_list; }
     virtual node *__iter__() { return new(allocator) list_iter(this); }
 };
 
@@ -830,7 +830,7 @@ public:
     virtual int_t len() {
         return this->items.size();
     }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_tuple; }
     virtual std::string repr() {
         std::string new_string = "(";
         bool first = true;
@@ -848,7 +848,7 @@ public:
     virtual node *__iter__() { return new(allocator) tuple_iter(this); }
 };
 
-class dict : public node {
+class dict: public node {
 private:
     class dict_keys_iter: public node {
     private:
@@ -991,7 +991,7 @@ public:
         new_string += "}";
         return new_string;
     }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_dict; }
     virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
 
     friend class dict_keys;
@@ -1173,7 +1173,7 @@ public:
         new_string += "}";
         return new_string;
     }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_set; }
     virtual node *__iter__() { return new(allocator) set_iter(this); }
 };
 
@@ -1265,7 +1265,7 @@ public:
         return new(allocator) tuple(2, pair);
     }
 
-    virtual node *type();
+    virtual node *type() { return &builtin_class_enumerate; }
 };
 
 class range: public node {
@@ -1313,7 +1313,7 @@ public:
 
     virtual node *__iter__() { return new(allocator) range_iter(this); }
 
-    virtual node *type();
+    virtual node *type() { return &builtin_class_range; }
     virtual std::string repr() {
         char buf[128];
         if (step == 1) {
@@ -1352,7 +1352,7 @@ public:
         return this->parent->__getitem__(this->len - 1 - cur);
     }
 
-    virtual node *type();
+    virtual node *type() { return &builtin_class_reversed; }
 };
 
 class zip: public node {
@@ -1385,7 +1385,7 @@ public:
         return new(allocator) tuple(2, pair);
     }
 
-    virtual node *type();
+    virtual node *type() { return &builtin_class_zip; }
 };
 
 typedef node *(*fptr)(context *globals, context *parent_ctx, tuple *args, dict *kwargs);
@@ -1490,7 +1490,7 @@ public:
     virtual std::string repr() {
         return std::string("<class '") + this->name + "'>";
     }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_type; }
 };
 
 bool_const bool_singleton_True(true);
@@ -1784,16 +1784,8 @@ std::string int_const::repr() {
     return std::string(buf);
 }
 
-node *int_const::type() {
-    return &builtin_class_int;
-}
-
 std::string bool_const::repr() {
     return std::string(this->value ? "True" : "False");
-}
-
-node *bool_const::type() {
-    return &builtin_class_bool;
 }
 
 node *list::__add__(node *rhs) {
@@ -1839,10 +1831,6 @@ node *list::__imul__(node *rhs) {
     return this;
 }
 
-node *list::type() {
-    return &builtin_class_list;
-}
-
 node *tuple::__add__(node *rhs) {
     if (!rhs->is_tuple())
         error("tuple add error");
@@ -1866,14 +1854,6 @@ node *tuple::__mul__(node *rhs) {
     return ret;
 }
 
-node *tuple::type() {
-    return &builtin_class_tuple;
-}
-
-node *dict::type() {
-    return &builtin_class_dict;
-}
-
 node *set::__or__(node *rhs_arg) {
     if (!rhs_arg->is_set())
         error("set or error");
@@ -1893,14 +1873,6 @@ node *set::__ior__(node *rhs_arg) {
     for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
         this->add(it->second);
     return this;
-}
-
-node *set::type() {
-    return &builtin_class_set;
-}
-
-node *string_const::type() {
-    return &builtin_class_str;
 }
 
 // This entire function is very stupidly implemented.
@@ -1983,31 +1955,7 @@ node *file::getattr(const char *key) {
     error("file has no attribute %s", key);
 }
 
-node *bytes::type() {
-    return &builtin_class_bytes;
-}
-
-node *enumerate::type() {
-    return &builtin_class_enumerate;
-}
-
-node *range::type() {
-    return &builtin_class_range;
-}
-
-node *reversed::type() {
-    return &builtin_class_reversed;
-}
-
-node *zip::type() {
-    return &builtin_class_zip;
-}
-
 node *builtin_class::type() {
-    return &builtin_class_type;
-}
-
-node *class_def::type() {
     return &builtin_class_type;
 }
 
