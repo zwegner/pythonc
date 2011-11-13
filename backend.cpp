@@ -1539,14 +1539,10 @@ inline node *create_bool_const(bool b) {
 }
 
 #define NO_KWARGS_N_ARGS(name, n_args) \
-    if (kwargs->len()) \
-        error(name "() does not take keyword arguments"); \
     if (args->len() != n_args) \
         error("wrong number of arguments to " name "()")
 
 #define NO_KWARGS_MIN_MAX_ARGS(name, min_args, max_args) \
-    if (kwargs->len()) \
-        error(name "() does not take keyword arguments"); \
     if (args->len() < min_args) \
         error("too few arguments to " name "()"); \
     if (args->len() > max_args) \
@@ -1590,7 +1586,8 @@ public:
 class bool_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("bool", 0, 1);
         if (!args->len())
             return &bool_singleton_False;
@@ -1602,7 +1599,8 @@ public:
 class bytes_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("bytes", 0, 1);
         bytes *ret = new(allocator) bytes;
         if (!args->len())
@@ -1631,7 +1629,8 @@ class dict_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("dict", 0, 1);
         dict *ret = new(allocator) dict();
         if (!args->len())
@@ -1652,9 +1651,8 @@ public:
 class enumerate_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("enumerate", 1);
-        node *arg = args->__getitem__(0);
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(node *arg) {
         node *iter = arg->__iter__();
         return new(allocator) enumerate(iter);
     }
@@ -1663,8 +1661,8 @@ public:
 class int_class: public builtin_class {
 public:
     virtual const char *type_name();
-
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("int", 0, 2);
         if (!args->len())
             return new(allocator) int_const(0);
@@ -1729,7 +1727,8 @@ class list_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("list", 0, 1);
         list *ret = new(allocator) list();
         if (!args->len())
@@ -1745,7 +1744,8 @@ public:
 class range_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         int_t start = 0, end, step = 1;
 
         if (args->len() == 1)
@@ -1769,16 +1769,15 @@ public:
 class reversed_class: public builtin_class {
 public:
     virtual const char *type_name();
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
 
     // XXX This will actually work on dictionaries if they have keys of 0..len-1.
     // Logically speaking it doesn't make sense to have reversed() of a dictionary
     // do anything, but the Python docs imply that __len__ and __getitem__ are
     // sufficient.  This seems like a documentation error.
-    node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("reversed", 1);
-        node *item = args->__getitem__(0);
-        int_t len = item->len();
-        return new(allocator) reversed(item, len);
+    inline node *call(node *arg) {
+        int_t len = arg->len();
+        return new(allocator) reversed(arg, len);
     }
 };
 
@@ -1786,7 +1785,8 @@ class set_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("set", 0, 1);
         set *ret = new(allocator) set();
         if (!args->len())
@@ -1803,7 +1803,8 @@ class str_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("str", 0, 1);
         if (!args->len())
             return new(allocator) string_const("");
@@ -1816,7 +1817,8 @@ class tuple_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(tuple *args) {
         NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
         tuple *ret = new(allocator) tuple;
         if (!args->len())
@@ -1832,9 +1834,8 @@ public:
 class type_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("type", 1);
-        node *arg = args->__getitem__(0);
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(node *arg) {
         return arg->type();
     }
 };
@@ -1842,10 +1843,10 @@ public:
 class zip_class: public builtin_class {
 public:
     virtual const char *type_name();
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        NO_KWARGS_N_ARGS("zip", 2);
-        node *iter1 = args->__getitem__(0)->__iter__();
-        node *iter2 = args->__getitem__(1)->__iter__();
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    inline node *call(node *arg0, node *arg1) {
+        node *iter1 = arg0->__iter__();
+        node *iter2 = arg1->__iter__();
         return new(allocator) zip(iter1, iter2);
     }
 };

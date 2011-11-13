@@ -60,22 +60,22 @@ builtin_functions_and_methods = {
     'tuple.index': 2,
 }
 builtin_functions = sorted(x for x in builtin_functions_and_methods if '.' not in x)
-builtin_classes = [
-    'bool',
-    'bytes',
-    'dict',
-    'enumerate',
-    'int',
-    'list',
-    'range',
-    'reversed',
-    'set',
-    'str',
-    'tuple',
-    'type',
-    'zip',
-]
-builtin_symbols = builtin_functions + builtin_classes + [
+builtin_classes = {
+    'bool': -1,
+    'bytes': -1,
+    'dict': -1,
+    'enumerate': 1,
+    'int': -1,
+    'list': -1,
+    'range': -1,
+    'reversed': 1,
+    'set': -1,
+    'str': -1,
+    'tuple': -1,
+    'type': 1,
+    'zip': 2,
+}
+builtin_symbols = builtin_functions + sorted(builtin_classes) + [
     '__name__',
     '__args__',
 ]
@@ -604,7 +604,7 @@ with open(sys.argv[2], 'w') as f:
     f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' % ' '.join('x(%s)' % x
         for x in builtin_functions))
     f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' % ' '.join('x(%s)' % x
-        for x in builtin_classes))
+        for x in sorted(builtin_classes)))
     for x in builtin_symbols:
         f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
     f.write('#include "backend.cpp"\n')
@@ -613,15 +613,31 @@ with open(sys.argv[2], 'w') as f:
         n_args = builtin_functions_and_methods[name]
         mangled_name = name.replace('.', '_')
         f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % mangled_name)
+        f.write('    if (kwargs->len())\n')
+        f.write('        error("%s() does not take keyword arguments");\n' % name)
         if n_args < 0:
-            f.write('    if (kwargs->len())\n')
-            f.write('        error("%s() does not take keyword arguments");\n' % name)
-            f.write('    return builtin_%s(args);\n' % mangled_name)
+            args = 'args'
         else:
             f.write('    NO_KWARGS_N_ARGS("%s", %d);\n' % (name, n_args))
             for i in range(n_args):
                 f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
-            f.write('    return builtin_%s(%s);\n' % (mangled_name, ', '.join('arg%d' % i for i in range(n_args))))
+            args = ', '.join('arg%d' % i for i in range(n_args))
+        f.write('    return builtin_%s(%s);\n' % (mangled_name, args))
+        f.write('}\n')
+
+    for name in sorted(builtin_classes):
+        n_args = builtin_classes[name]
+        f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
+        f.write('    if (kwargs->len())\n')
+        f.write('        error("%s() does not take keyword arguments");\n' % name)
+        if n_args < 0:
+            args = 'args'
+        else:
+            f.write('    NO_KWARGS_N_ARGS("%s", %d);\n' % (name, n_args))
+            for i in range(n_args):
+                f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+            args = ', '.join('arg%d' % i for i in range(n_args))
+        f.write('    return call(%s);\n' % args)
         f.write('}\n')
 
     syntax.export_consts(f)
