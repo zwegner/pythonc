@@ -27,6 +27,7 @@ import sys
 import syntax
 
 builtin_functions = [
+    'abs',
     'all',
     'any',
     'isinstance',

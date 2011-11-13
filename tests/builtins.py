@@ -1,10 +1,13 @@
-for x in [bool, bytes, dict, enumerate, int, isinstance, iter, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
+for x in [abs, bool, bytes, dict, enumerate, int, isinstance, iter, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
     print(x.__name__)
     print(x())
     print(x().__class__)
+
+for x in [-1, 0, 1]:
+    print(abs(x))
 
 for x in [0, 1]:
     print(bool(x))

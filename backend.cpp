@@ -175,6 +175,7 @@ public:
     UNIMP_UNOP(invert)
     UNIMP_UNOP(pos)
     UNIMP_UNOP(neg)
+    UNIMP_UNOP(abs)
 
     node *__len__();
     node *__hash__();
@@ -313,6 +314,11 @@ public:
     INT_UNOP(invert, ~)
     INT_UNOP(pos, +)
     INT_UNOP(neg, -)
+
+    virtual node *__abs__() {
+        int_t ret = (this->value >= 0) ? this->value : -this->value;
+        return new(allocator) int_const(ret);
+    }
 
     virtual int_t hash() { return this->value; }
     virtual std::string repr();
@@ -2105,6 +2111,12 @@ public:
         return std::string("<built-in function ") + this->name + ">";
     }
 };
+
+node *builtin_abs(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    NO_KWARGS_N_ARGS("abs", 1);
+    node *arg = args->__getitem__(0);
+    return arg->__abs__();
+}
 
 node *builtin_all(context *globals, context *ctx, tuple *args, dict *kwargs) {
     NO_KWARGS_N_ARGS("all", 1);
