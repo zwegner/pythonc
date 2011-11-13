@@ -26,21 +26,10 @@ import sys
 
 import syntax
 
-builtin_functions_and_methods = {
+builtin_functions = {
     'abs': 1,
     'all': 1,
     'any': 1,
-    'dict.get': 3,
-    'dict.keys': 1,
-    'dict.items': 1,
-    'dict.values': 1,
-    'file.read': 2,
-    'file.write': 2,
-    'list.append': 2,
-    'list.count': 2,
-    'list.extend': 2,
-    'list.index': 2,
-    'list.pop': 1,
     'isinstance': 2,
     'iter': 1,
     'len': 1,
@@ -49,17 +38,41 @@ builtin_functions_and_methods = {
     'print': -1,
     'print_nonl': 1,
     'repr': 1,
-    'set.add': 2,
-    'set.update': 2,
     'sorted': 1,
-    'str.join': 2,
-    'str.split': (1, 2),
-    'str.upper': 1,
-    'str.startswith': 2,
-    'tuple.count': 2,
-    'tuple.index': 2,
 }
-builtin_functions = sorted(x for x in builtin_functions_and_methods if '.' not in x)
+builtin_methods = {
+    'dict': {
+        'get': 3,
+        'keys': 1,
+        'items': 1,
+        'values': 1,
+    },
+    'file': {
+        'read': 2,
+        'write': 2,
+    },
+    'list': {
+        'append': 2,
+        'count': 2,
+        'extend': 2,
+        'index': 2,
+        'pop': 1,
+    },
+    'set': {
+        'add': 2,
+        'update': 2,
+    },
+    'str': {
+        'join': 2,
+        'split': (1, 2),
+        'upper': 1,
+        'startswith': 2,
+    },
+    'tuple': {
+        'count': 2,
+        'index': 2,
+    },
+}
 builtin_classes = {
     'bool': (0, 1),
     'bytes': (0, 1),
@@ -75,7 +88,7 @@ builtin_classes = {
     'type': 1,
     'zip': 2,
 }
-builtin_symbols = builtin_functions + sorted(builtin_classes) + [
+builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
     '__name__',
     '__args__',
 ]
@@ -624,21 +637,42 @@ transformer = Transformer()
 node = transformer.visit(node)
 
 with open(sys.argv[2], 'w') as f:
-    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' % ' '.join('x(%s)' % x
-        for x in builtin_functions))
-    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' % ' '.join('x(%s)' % x
-        for x in sorted(builtin_classes)))
+    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
+    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
+
+    for class_name in sorted(builtin_methods):
+        methods = builtin_methods[class_name]
+        f.write('#define LIST_%s_CLASS_METHODS(x) %s\n' % (class_name,
+            ' '.join('x(%s, %s)' % (class_name, name) for name in sorted(methods))))
+
+    # XXX There is still some ugliness with file objects, so they're not included
+    f.write('#define LIST_BUILTIN_CLASSES_WITH_METHODS(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_methods) if name != 'file'))
+
+    f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
+        ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
+
     for x in builtin_symbols:
         f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
     f.write('#include "backend.cpp"\n')
 
-    for name in sorted(builtin_functions_and_methods):
-        n_args = builtin_functions_and_methods[name]
-        mangled_name = name.replace('.', '_')
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % mangled_name)
+    for name in sorted(builtin_functions):
+        n_args = builtin_functions[name]
+        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
         args = print_arg_logic(f, n_args)
-        f.write('    return builtin_%s(%s);\n' % (mangled_name, args))
+        f.write('    return builtin_%s(%s);\n' % (name, args))
         f.write('}\n')
+
+    for class_name in sorted(builtin_methods):
+        methods = builtin_methods[class_name]
+        for name in sorted(methods):
+            n_args = methods[name]
+            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
+            args = print_arg_logic(f, n_args)
+            f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
+            f.write('}\n')
 
     for name in sorted(builtin_classes):
         n_args = builtin_classes[name]

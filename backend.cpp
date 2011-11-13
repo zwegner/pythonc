@@ -58,53 +58,6 @@ typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
 typedef std::vector<node *> node_list;
 
-#define LIST_dict_CLASS_METHODS(x) \
-    x(dict, get) \
-    x(dict, keys) \
-    x(dict, items) \
-    x(dict, values) \
-
-#define LIST_file_CLASS_METHODS(x) \
-    x(file, read) \
-    x(file, write) \
-
-#define LIST_list_CLASS_METHODS(x) \
-    x(list, append) \
-    x(list, count) \
-    x(list, extend) \
-    x(list, index) \
-    x(list, pop) \
-
-#define LIST_set_CLASS_METHODS(x) \
-    x(set, add) \
-    x(set, update) \
-
-#define LIST_str_CLASS_METHODS(x) \
-    x(str, join) \
-    x(str, split) \
-    x(str, startswith) \
-    x(str, upper) \
-
-#define LIST_tuple_CLASS_METHODS(x) \
-    x(tuple, count) \
-    x(tuple, index) \
-
-// XXX There is still some ugliness with file objects, so they're not included
-#define LIST_BUILTIN_CLASSES_WITH_METHODS(x) \
-    x(dict) \
-    x(list) \
-    x(set) \
-    x(str) \
-    x(tuple) \
-
-#define LIST_BUILTIN_CLASS_METHODS(x) \
-    LIST_dict_CLASS_METHODS(x) \
-    LIST_file_CLASS_METHODS(x) \
-    LIST_list_CLASS_METHODS(x) \
-    LIST_set_CLASS_METHODS(x) \
-    LIST_str_CLASS_METHODS(x) \
-    LIST_tuple_CLASS_METHODS(x) \
-
 #define BUILTIN_FUNCTION(name) \
     node *wrapped_builtin_##name(context *globals, context *ctx, tuple *args, dict *kwargs);
 LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
