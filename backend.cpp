@@ -208,6 +208,7 @@ public:
     virtual bool _eq(node *rhs);
     virtual int_t hash() { return 0; }
     virtual std::string repr() { return std::string("None"); }
+    virtual node *type();
 };
 
 class int_const : public node {
@@ -1761,6 +1762,14 @@ public:
     }
 };
 
+#define BUILTIN_HIDDEN_CLASS(name) \
+class name##_class: public builtin_class { \
+public: \
+    virtual const char *type_name(); \
+};
+LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_HIDDEN_CLASS)
+#undef BUILTIN_HIDDEN_CLASS
+
 #define GET_METHOD(class_name, method_name) \
     if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
 #define DEFINE_GETATTR(class_name) \
@@ -1777,6 +1786,7 @@ LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
     const char *name##_class::type_name() { return #name; } \
     name##_class builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
+LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
 node *node::__contains__(node *rhs) {
@@ -1829,6 +1839,10 @@ node *node::__str__() {
 
 bool none_const::_eq(node *rhs) {
     return (this == rhs);
+}
+
+node *none_const::type() {
+    return &builtin_class_NoneType;
 }
 
 std::string int_const::repr() {

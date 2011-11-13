@@ -60,7 +60,7 @@ for x in [[5, 3, 1], (1, 3, 2), {10, 5, 0}]:
 for x in [[], range(1), range(5)]:
     print(tuple(x))
 
-for x in [0, False, int, type]:
+for x in [0, False, None, int, type]:
     print(type(x))
 
 for x in [0, False, True, None, 'a', []]:
