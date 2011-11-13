@@ -572,6 +572,8 @@ class Transformer(ast.NodeTransformer):
         self.in_function = True
         args = self.visit(node.args)
         body = self.flatten_list(node.body)
+        if not body or not isinstance(body[-1], syntax.Return):
+            body.append(syntax.Return(None))
         self.globals_set = None
         self.in_function = False
 

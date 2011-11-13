@@ -586,7 +586,6 @@ node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {
     context ctx(parent_ctx, {local_count}, local_syms);
 {arg_unpacking}
 {stmts}
-    return &none_singleton;
 }}""".format(name=self.exp_name, local_count=self.local_count,
         arg_unpacking=arg_unpacking, stmts=stmts)
         return body
