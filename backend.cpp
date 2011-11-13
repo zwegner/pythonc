@@ -754,7 +754,7 @@ public:
         int_t lo = start->is_none() ? 0 : start->int_value();
         int_t hi = end->is_none() ? items.size() : end->int_value();
         int_t st = step->is_none() ? 1 : step->int_value();
-        list *new_list = new(allocator) list();
+        list *new_list = new(allocator) list;
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
             new_list->append(items[lo]);
         return new_list;
@@ -1213,7 +1213,7 @@ private:
 
 public:
     object() {
-        this->items = new(allocator) dict();
+        this->items = new(allocator) dict;
     }
     const char *node_type() { return "object"; }
 
@@ -1484,7 +1484,7 @@ private:
 public:
     class_def(std::string name, void (*creator)(class_def *)) {
         this->name = name;
-        this->items = new(allocator) dict();
+        this->items = new(allocator) dict;
         creator(this);
     }
     const char *node_type() { return "class"; }
@@ -1622,12 +1622,10 @@ public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("dict", 0, 1);
-        dict *ret = new(allocator) dict();
-        if (!args->len())
+    inline node *call(node *arg) {
+        dict *ret = new(allocator) dict;
+        if (!arg)
             return ret;
-        node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
         while (node *item = iter->next()) {
             if (item->len() != 2)
@@ -1654,34 +1652,31 @@ class int_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("int", 0, 2);
-        if (!args->len())
+    inline node *call(node *arg0, node *arg1) {
+        if (!arg0)
             return new(allocator) int_const(0);
-        node *arg = args->__getitem__(0);
-        if (arg->is_int_const()) {
-            if (args->len() != 1)
+        if (arg0->is_int_const()) {
+            if (arg1)
                 error("int() cannot accept a base when passed an int");
-            return arg;
+            return arg0;
         }
-        if (arg->is_bool()) {
-            if (args->len() != 1)
+        if (arg0->is_bool()) {
+            if (arg1)
                 error("int() cannot accept a base when passed a bool");
-            return new(allocator) int_const(arg->int_value());
+            return new(allocator) int_const(arg0->int_value());
         }
-        if (arg->is_string()) {
+        if (arg0->is_string()) {
             int_t base = 10;
-            if (args->len() == 2) {
-                node *base_node = args->__getitem__(1);
-                if (!base_node->is_int_const())
+            if (arg1) {
+                if (!arg1->is_int_const())
                     error("base must be an int");
-                base = base_node->int_value();
+                base = arg1->int_value();
                 if ((base < 0) || (base == 1) || (base > 36))
                     error("base must be 0 or 2-36");
                 if (base == 0)
                     error("base 0 unsupported at present");
             }
-            const char *s = arg->c_str();
+            const char *s = arg0->c_str();
             while (isspace(*s))
                 continue;
             int_t sign = 1;
@@ -1720,12 +1715,10 @@ public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("list", 0, 1);
-        list *ret = new(allocator) list();
-        if (!args->len())
+    inline node *call(node *arg) {
+        list *ret = new(allocator) list;
+        if (!arg)
             return ret;
-        node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
         while (node *item = iter->next())
             ret->append(item);
@@ -1737,23 +1730,16 @@ class range_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
+    inline node *call(node *arg0, node *arg1, node *arg2) {
         int_t start = 0, end, step = 1;
-
-        if (args->len() == 1)
-            end = args->__getitem__(0)->int_value();
-        else if (args->len() == 2) {
-            start = args->__getitem__(0)->int_value();
-            end = args->__getitem__(1)->int_value();
+        if (!arg1)
+            end = arg0->int_value();
+        else {
+            start = arg0->int_value();
+            end = arg1->int_value();
+            if (arg2)
+                step = arg2->int_value();
         }
-        else if (args->len() == 3) {
-            start = args->__getitem__(0)->int_value();
-            end = args->__getitem__(1)->int_value();
-            step = args->__getitem__(2)->int_value();
-        }
-        else
-            error("too many arguments to range()");
-
         return new(allocator) range(start, end, step);
     }
 };
@@ -1778,12 +1764,10 @@ public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("set", 0, 1);
-        set *ret = new(allocator) set();
-        if (!args->len())
+    inline node *call(node *arg) {
+        set *ret = new(allocator) set;
+        if (!arg)
             return ret;
-        node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
         while (node *item = iter->next())
             ret->add(item);
@@ -1796,11 +1780,9 @@ public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("str", 0, 1);
-        if (!args->len())
+    inline node *call(node *arg) {
+        if (!arg)
             return new(allocator) string_const("");
-        node *arg = args->__getitem__(0);
         return arg->__str__();
     }
 };
@@ -1810,12 +1792,10 @@ public:
     virtual const char *type_name();
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        CHECK_MIN_MAX_ARGS("tuple", 0, 1);
+    inline node *call(node *arg) {
         tuple *ret = new(allocator) tuple;
-        if (!args->len())
+        if (!arg)
             return ret;
-        node *arg = args->__getitem__(0);
         node *iter = arg->__iter__();
         while (node *item = iter->next())
             ret->append(item);
@@ -1926,7 +1906,7 @@ node *bool_const::type() {
 node *list::__add__(node *rhs) {
     if (!rhs->is_list())
         error("list add error");
-    list *plist = new(allocator) list();
+    list *plist = new(allocator) list;
     node_list *rhs_list = rhs->list_value();
     for (auto i = this->begin(); i != this->end(); i++)
         plist->append(*i);
@@ -1938,7 +1918,7 @@ node *list::__add__(node *rhs) {
 node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
-    list *plist = new(allocator) list();
+    list *plist = new(allocator) list;
     for (int_t x = rhs->int_value(); x > 0; x--) {
         for (auto i = this->begin(); i != this->end(); i++)
             plist->append(*i);
@@ -2397,7 +2377,7 @@ LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
     ctx->store(sym_id___name__, new(allocator) string_const("__main__"));
-    list *plist = new(allocator) list();
+    list *plist = new(allocator) list;
     for (int_t a = 0; a < argc; a++)
         plist->append(new(allocator) string_const(argv[a]));
     ctx->store(sym_id___args__, plist);
