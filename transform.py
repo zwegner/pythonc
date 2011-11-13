@@ -85,7 +85,7 @@ class Transformer(ast.NodeTransformer):
             r = node
         else:
             temp = self.get_temp()
-            self.statements.append(syntax.Assign(temp, node))
+            self.statements.append(syntax.Assign(temp, node, 'node'))
             r = temp
         self.statements = old_stmts
         return r
@@ -387,7 +387,7 @@ class Transformer(ast.NodeTransformer):
         if node.orelse:
             else_block = self.flatten_list(node.orelse)
         else:
-            else_block = None
+            else_block = []
         return syntax.If(expr, stmts, else_block)
 
     def visit_Break(self, node):
