@@ -114,10 +114,8 @@ builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
 ]
 
 inplace_op_table = {
-    '__add__': '__iadd__',
-    '__and__': '__iand__',
-    '__mul__': '__imul__',
-    '__or__': '__ior__',
+    '__%s__' % x: '__i%s__' % x
+    for x in ['add', 'and', 'floordiv', 'lshift', 'mod', 'mul', 'or', 'pow', 'rshift', 'sub', 'truediv', 'xor']
 }
 
 class Transformer(ast.NodeTransformer):

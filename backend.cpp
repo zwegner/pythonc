@@ -120,10 +120,21 @@ public:
     UNIMP_UNOP(abs)
 
     // By default, in-place ops map to regular ops
-    virtual node *__iadd__(node *rhs) { return __add__(rhs); }
-    virtual node *__iand__(node *rhs) { return __and__(rhs); }
-    virtual node *__imul__(node *rhs) { return __mul__(rhs); }
-    virtual node *__ior__(node *rhs) { return __or__(rhs); }
+#define IN_PLACE_OP(name) \
+    virtual node *__i##name##__(node *rhs) { return __##name##__(rhs); }
+
+    IN_PLACE_OP(add)
+    IN_PLACE_OP(and)
+    IN_PLACE_OP(floordiv)
+    IN_PLACE_OP(lshift)
+    IN_PLACE_OP(mod)
+    IN_PLACE_OP(mul)
+    IN_PLACE_OP(or)
+    IN_PLACE_OP(pow)
+    IN_PLACE_OP(rshift)
+    IN_PLACE_OP(sub)
+    IN_PLACE_OP(truediv)
+    IN_PLACE_OP(xor)
 
     node *__contains__(node *rhs);
     node *__len__();
