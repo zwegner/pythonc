@@ -826,6 +826,9 @@ public:
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
 
+    virtual bool _eq(node *rhs);
+    virtual bool _ne(node *rhs) { return !_eq(rhs); }
+
     virtual bool contains(node *key) {
         for (size_t i = 0; i < this->items.size(); i++) {
             if (this->items[i]->_eq(key))
@@ -1870,6 +1873,20 @@ node *tuple::__mul__(node *rhs) {
             ret->append(*it);
     }
     return ret;
+}
+
+bool tuple::_eq(node *rhs_arg) {
+    if (!rhs_arg->is_tuple())
+        return false;
+    tuple *rhs = (tuple *)rhs_arg;
+    int_t len = this->len();
+    if (len != rhs->len())
+        return false;
+    for (int_t i = 0; i < len; i++) {
+        if (!this->items[i]->_eq(rhs->items[i]))
+            return false;
+    }
+    return true;
 }
 
 node *set::__or__(node *rhs_arg) {
