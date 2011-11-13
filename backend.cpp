@@ -1695,20 +1695,9 @@ inline node *zip_init(node *arg0, node *arg1) {
         LIST_##class_name##_CLASS_METHODS(GET_METHOD) \
         return builtin_class::getattr(key); \
     }
-LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
+LIST_BUILTIN_CLASSES(DEFINE_GETATTR)
 #undef GET_METHOD
 #undef DEFINE_GETATTR
-
-
-// XXX clean this up
-node *bool_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *bytes_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *enumerate_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *int_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *range_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *reversed_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *type_class::getattr(const char *key) { return builtin_class::getattr(key); }
-node *zip_class::getattr(const char *key) { return builtin_class::getattr(key); }
 
 
 node *node::__contains__(node *rhs) {

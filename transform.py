@@ -681,14 +681,10 @@ with open(sys.argv[2], 'w') as f:
     f.write('#define LIST_BUILTIN_HIDDEN_CLASSES(x) %s\n' %
         ' '.join('x(%s)' % name for name in sorted(builtin_hidden_classes)))
 
-    for class_name in sorted(builtin_methods):
-        methods = builtin_methods[class_name]
+    for class_name in sorted(builtin_classes) + ['file']:
+        methods = builtin_methods.get(class_name, [])
         f.write('#define LIST_%s_CLASS_METHODS(x) %s\n' % (class_name,
             ' '.join('x(%s, %s)' % (class_name, name) for name in sorted(methods))))
-
-    # XXX There is still some ugliness with file objects, so they're not included
-    f.write('#define LIST_BUILTIN_CLASSES_WITH_METHODS(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_methods) if name != 'file'))
 
     f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
         ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
