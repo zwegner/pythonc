@@ -624,7 +624,10 @@ def print_arg_logic(f, n_args):
         (min_args, max_args) = n_args
         assert max_args > min_args
         f.write('    size_t args_len = args->len();\n')
-        f.write('    CHECK_MIN_MAX_ARGS("%s", %d, %d);\n' % (name, min_args, max_args))
+        f.write('    if (args_len < %d)\n' % min_args)
+        f.write('        error("too few arguments to %s()");\n' % name)
+        f.write('    if (args_len > %d)\n' % max_args)
+        f.write('        error("too many arguments to %s()");\n' % name)
         for i in range(min_args):
             f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
         for i in range(min_args, max_args):

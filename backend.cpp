@@ -1479,12 +1479,6 @@ inline node *create_bool_const(bool b) {
     return b ? &bool_singleton_True : &bool_singleton_False;
 }
 
-#define CHECK_MIN_MAX_ARGS(name, min_args, max_args) \
-    if (args->len() < min_args) \
-        error("too few arguments to " name "()"); \
-    if (args->len() > max_args) \
-        error("too many arguments to " name "()")
-
 // Builtin classes
 class builtin_method_def: public function_def {
 public:
