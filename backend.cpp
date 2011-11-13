@@ -251,6 +251,8 @@ public:
     virtual bool bool_value() { return false; }
 
     virtual bool _eq(node *rhs);
+    virtual bool _ne(node *rhs) { return !_eq(rhs); }
+
     virtual int_t hash() { return 0; }
     virtual std::string repr() { return std::string("None"); }
     virtual node *type() { return &builtin_class_NoneType; }
@@ -695,6 +697,9 @@ public:
     virtual node *__mul__(node *rhs);
     virtual node *__iadd__(node *rhs);
     virtual node *__imul__(node *rhs);
+
+    virtual bool _eq(node *rhs);
+    virtual bool _ne(node *rhs) { return !_eq(rhs); }
 
     virtual bool contains(node *key) {
         for (size_t i = 0; i < this->items.size(); i++) {
@@ -1213,9 +1218,8 @@ public:
     virtual void __setattr__(node *key, node *value) {
         items->__setitem__(key, value);
     }
-    virtual bool _eq(node *rhs) {
-        return this == rhs;
-    }
+    virtual bool _eq(node *rhs) { return this == rhs; }
+    virtual bool _ne(node *rhs) { return this != rhs; }
 };
 
 class file : public node {
@@ -1829,6 +1833,20 @@ node *list::__imul__(node *rhs) {
             this->append(this->items[i]);
     }
     return this;
+}
+
+bool list::_eq(node *rhs_arg) {
+    if (!rhs_arg->is_list())
+        return false;
+    list *rhs = (list *)rhs_arg;
+    int_t len = this->len();
+    if (len != rhs->len())
+        return false;
+    for (int_t i = 0; i < len; i++) {
+        if (!this->items[i]->_eq(rhs->items[i]))
+            return false;
+    }
+    return true;
 }
 
 node *tuple::__add__(node *rhs) {
