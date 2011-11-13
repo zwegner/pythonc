@@ -93,6 +93,13 @@ builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
     '__args__',
 ]
 
+inplace_op_table = {
+    '__add__': '__iadd__',
+    '__and__': '__iand__',
+    '__mul__': '__imul__',
+    '__or__': '__ior__',
+}
+
 class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
@@ -384,6 +391,7 @@ class Transformer(ast.NodeTransformer):
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
         value = self.flatten_node(node.value)
+        op = inplace_op_table[op]
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place

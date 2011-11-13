@@ -119,6 +119,12 @@ public:
     UNIMP_UNOP(neg)
     UNIMP_UNOP(abs)
 
+    // By default, in-place ops map to regular ops
+    virtual node *__iadd__(node *rhs) { return __add__(rhs); }
+    virtual node *__iand__(node *rhs) { return __and__(rhs); }
+    virtual node *__imul__(node *rhs) { return __mul__(rhs); }
+    virtual node *__ior__(node *rhs) { return __or__(rhs); }
+
     node *__contains__(node *rhs);
     node *__len__();
     node *__hash__();
@@ -647,6 +653,8 @@ public:
 
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
+    virtual node *__iadd__(node *rhs);
+    virtual node *__imul__(node *rhs);
 
     virtual bool contains(node *key) {
         for (size_t i = 0; i < this->items.size(); i++) {
@@ -1865,6 +1873,26 @@ node *list::__mul__(node *rhs) {
             plist->append(*i);
     }
     return plist;
+}
+
+node *list::__iadd__(node *rhs) {
+    if (!rhs->is_list())
+        error("list add error");
+    node_list *rhs_list = rhs->list_value();
+    for (auto i = rhs_list->begin(); i != rhs_list->end(); i++)
+        this->append(*i);
+    return this;
+}
+
+node *list::__imul__(node *rhs) {
+    if (!rhs->is_int_const())
+        error("list mul error");
+    int_t len = this->len();
+    for (int_t x = rhs->int_value() - 1; x > 0; x--) {
+        for (int_t i = 0; i < len; i++)
+            this->append(this->items[i]);
+    }
+    return this;
 }
 
 node *list::type() {
