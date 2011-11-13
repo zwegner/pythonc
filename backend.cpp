@@ -151,7 +151,7 @@ public:
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
     virtual node *getattr(const char *key);
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
-    virtual std::string repr() { error("repr unimplemented for %s", this->node_type()); return NULL; }
+    virtual std::string repr();
     virtual std::string str() { return repr(); }
     virtual node *type() = 0;
     virtual const char *type_name() { error("type_name unimplemented for %s", this->node_type()); }
@@ -1255,7 +1255,6 @@ public:
     }
 
     virtual node *type();
-    virtual std::string repr() { return "<enumerate object>"; }
 };
 
 class range: public node {
@@ -1342,7 +1341,6 @@ public:
         return this->parent->__getitem__(this->len - 1 - cur);
     }
 
-    virtual std::string repr() { return "<reversed object>"; }
     virtual node *type();
 };
 
@@ -1377,7 +1375,6 @@ public:
     }
 
     virtual node *type();
-    virtual std::string repr() { return "<zip object>"; }
 };
 
 typedef node *(*fptr)(context *globals, context *parent_ctx, tuple *args, dict *kwargs);
@@ -1815,6 +1812,12 @@ node *node::__repr__() {
 
 node *node::__str__() {
     return new(allocator) string_const(this->str());
+}
+
+std::string node::repr() {
+    char buf[256];
+    sprintf(buf, "<%s object at %p>", this->type()->type_name(), this);
+    return buf;
 }
 
 // Don't call node::getattr as a fallback -- this will result in infinite recursion
