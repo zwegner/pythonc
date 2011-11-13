@@ -1069,7 +1069,7 @@ public:
     }
 };
 
-class set : public node {
+class set: public node {
 private:
     class set_iter: public node {
     private:
@@ -1123,6 +1123,9 @@ public:
 
     virtual bool is_set() { return true; }
     virtual bool bool_value() { return this->len() != 0; }
+
+    virtual node *__or__(node *rhs);
+    virtual node *__ior__(node *rhs);
 
     virtual bool contains(node *key) {
         return this->lookup(key) != NULL;
@@ -1922,6 +1925,27 @@ node *tuple::type() {
 
 node *dict::type() {
     return &builtin_class_dict;
+}
+
+node *set::__or__(node *rhs_arg) {
+    if (!rhs_arg->is_set())
+        error("set or error");
+    set *rhs = (set *)rhs_arg;
+    set *ret = new(allocator) set;
+    for (auto it = this->items.begin(); it != this->items.end(); ++it)
+        ret->add(it->second);
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        ret->add(it->second);
+    return ret;
+}
+
+node *set::__ior__(node *rhs_arg) {
+    if (!rhs_arg->is_set())
+        error("set or error");
+    set *rhs = (set *)rhs_arg;
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        this->add(it->second);
+    return this;
 }
 
 node *set::type() {
