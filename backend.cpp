@@ -1538,11 +1538,7 @@ inline node *create_bool_const(bool b) {
     return b ? &bool_singleton_True : &bool_singleton_False;
 }
 
-#define NO_KWARGS_N_ARGS(name, n_args) \
-    if (args->len() != n_args) \
-        error("wrong number of arguments to " name "()")
-
-#define NO_KWARGS_MIN_MAX_ARGS(name, min_args, max_args) \
+#define CHECK_MIN_MAX_ARGS(name, min_args, max_args) \
     if (args->len() < min_args) \
         error("too few arguments to " name "()"); \
     if (args->len() > max_args) \
@@ -1587,11 +1583,9 @@ class bool_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("bool", 0, 1);
-        if (!args->len())
+    inline node *call(node *arg) {
+        if (!arg)
             return &bool_singleton_False;
-        node *arg = args->__getitem__(0);
         return create_bool_const(arg->bool_value());
     }
 };
@@ -1600,12 +1594,10 @@ class bytes_class: public builtin_class {
 public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
-    inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("bytes", 0, 1);
+    inline node *call(node *arg) {
         bytes *ret = new(allocator) bytes;
-        if (!args->len())
+        if (!arg)
             return ret;
-        node *arg = args->__getitem__(0);
         if (arg->is_int_const()) {
             int_t value = arg->int_value();
             if (value < 0)
@@ -1631,7 +1623,7 @@ public:
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("dict", 0, 1);
+        CHECK_MIN_MAX_ARGS("dict", 0, 1);
         dict *ret = new(allocator) dict();
         if (!args->len())
             return ret;
@@ -1663,7 +1655,7 @@ public:
     virtual const char *type_name();
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("int", 0, 2);
+        CHECK_MIN_MAX_ARGS("int", 0, 2);
         if (!args->len())
             return new(allocator) int_const(0);
         node *arg = args->__getitem__(0);
@@ -1729,7 +1721,7 @@ public:
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("list", 0, 1);
+        CHECK_MIN_MAX_ARGS("list", 0, 1);
         list *ret = new(allocator) list();
         if (!args->len())
             return ret;
@@ -1787,7 +1779,7 @@ public:
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("set", 0, 1);
+        CHECK_MIN_MAX_ARGS("set", 0, 1);
         set *ret = new(allocator) set();
         if (!args->len())
             return ret;
@@ -1805,7 +1797,7 @@ public:
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("str", 0, 1);
+        CHECK_MIN_MAX_ARGS("str", 0, 1);
         if (!args->len())
             return new(allocator) string_const("");
         node *arg = args->__getitem__(0);
@@ -1819,7 +1811,7 @@ public:
     virtual node *getattr(const char *key);
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
     inline node *call(tuple *args) {
-        NO_KWARGS_MIN_MAX_ARGS("tuple", 0, 1);
+        CHECK_MIN_MAX_ARGS("tuple", 0, 1);
         tuple *ret = new(allocator) tuple;
         if (!args->len())
             return ret;
@@ -2326,25 +2318,18 @@ inline node *builtin_str_join(node *self_arg, node *arg) {
     return new(allocator) string_const(s);
 }
 
-inline node *builtin_str_split(tuple *args) {
-    size_t args_len = args->len();
-    if (args_len < 1)
-        error("too few arguments to str.split()");
-    if (args_len > 2)
-        error("too many arguments to str.split()");
-    node *self = args->__getitem__(0);
-    node *item = (args_len == 2) ? args->__getitem__(1) : &none_singleton;
+inline node *builtin_str_split(node *self_arg, node *arg) {
     // XXX Implement correct behavior for missing separator (not the same as ' ')
-    if (item == &none_singleton)
-        item = new(allocator) string_const(" ");
-    if (!self->is_string() || !item->is_string() || (item->len() != 1))
+    if (!arg || (arg == &none_singleton))
+        arg = new(allocator) string_const(" ");
+    if (!self_arg->is_string() || !arg->is_string() || (arg->len() != 1))
         error("bad argument to str.split()");
-    string_const *str = (string_const *)self;
+    string_const *self = (string_const *)self_arg;
     // XXX Implement correct behavior for this too--delimiter strings can have len>1
-    char split = item->c_str()[0];
+    char split = arg->c_str()[0];
     list *ret = new(allocator) list;
     std::string s;
-    for (auto c = str->begin(); c != str->end(); ++c) {
+    for (auto c = self->begin(); c != self->end(); ++c) {
         if (*c == split) {
             ret->append(new(allocator) string_const(s));
             s.clear();

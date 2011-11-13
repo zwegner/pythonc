@@ -53,7 +53,7 @@ builtin_functions_and_methods = {
     'set.update': 2,
     'sorted': 1,
     'str.join': 2,
-    'str.split': -1,
+    'str.split': (1, 2),
     'str.upper': 1,
     'str.startswith': 2,
     'tuple.count': 2,
@@ -61,8 +61,8 @@ builtin_functions_and_methods = {
 }
 builtin_functions = sorted(x for x in builtin_functions_and_methods if '.' not in x)
 builtin_classes = {
-    'bool': -1,
-    'bytes': -1,
+    'bool': (0, 1),
+    'bytes': (0, 1),
     'dict': -1,
     'enumerate': 1,
     'int': -1,
@@ -594,6 +594,29 @@ class Transformer(ast.NodeTransformer):
     def visit_Store(self, node): pass
     def visit_Global(self, node): pass
 
+def print_arg_logic(f, n_args):
+    f.write('    if (kwargs->len())\n')
+    f.write('        error("%s() does not take keyword arguments");\n' % name)
+
+    if isinstance(n_args, tuple):
+        (min_args, max_args) = n_args
+        assert max_args > min_args
+        f.write('    size_t args_len = args->len();\n')
+        f.write('    CHECK_MIN_MAX_ARGS("%s", %d, %d);\n' % (name, min_args, max_args))
+        for i in range(min_args):
+            f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+        for i in range(min_args, max_args):
+            f.write('    node *arg%d = (args_len > %d) ? args->__getitem__(%d) : NULL;\n' % (i, i, i))
+        return ', '.join('arg%d' % i for i in range(max_args))
+    elif n_args < 0:
+        return 'args'
+    else:
+        f.write('    if (args->len() != %d)\n' % n_args)
+        f.write('        error("wrong number of arguments to %s()");\n' % name)
+        for i in range(n_args):
+            f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+        return ', '.join('arg%d' % i for i in range(n_args))
+
 with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
 
@@ -613,30 +636,14 @@ with open(sys.argv[2], 'w') as f:
         n_args = builtin_functions_and_methods[name]
         mangled_name = name.replace('.', '_')
         f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % mangled_name)
-        f.write('    if (kwargs->len())\n')
-        f.write('        error("%s() does not take keyword arguments");\n' % name)
-        if n_args < 0:
-            args = 'args'
-        else:
-            f.write('    NO_KWARGS_N_ARGS("%s", %d);\n' % (name, n_args))
-            for i in range(n_args):
-                f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
-            args = ', '.join('arg%d' % i for i in range(n_args))
+        args = print_arg_logic(f, n_args)
         f.write('    return builtin_%s(%s);\n' % (mangled_name, args))
         f.write('}\n')
 
     for name in sorted(builtin_classes):
         n_args = builtin_classes[name]
         f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
-        f.write('    if (kwargs->len())\n')
-        f.write('        error("%s() does not take keyword arguments");\n' % name)
-        if n_args < 0:
-            args = 'args'
-        else:
-            f.write('    NO_KWARGS_N_ARGS("%s", %d);\n' % (name, n_args))
-            for i in range(n_args):
-                f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
-            args = ', '.join('arg%d' % i for i in range(n_args))
+        args = print_arg_logic(f, n_args)
         f.write('    return call(%s);\n' % args)
         f.write('}\n')
 
