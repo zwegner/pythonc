@@ -350,7 +350,7 @@ class Call(Node):
 class IfExp(Node):
     def flatten(self, ctx):
         self.temp = ctx.get_temp()
-        ctx.statements += [Assign(self.temp, 'NULL', 'node'), self]
+        ctx.statements += [Assign(self.temp, NullConst(), 'node'), self]
         return self.temp
 
     def __str__(self):
