@@ -90,6 +90,23 @@ builtin_classes = {
 }
 builtin_hidden_classes = {
     'NoneType',
+    'bound_method',
+    'builtin_function_or_method',
+    'bytes_iterator',
+    'dict_itemiterator',
+    'dict_items',
+    'dict_keyiterator',
+    'dict_keys',
+    'dict_valueiterator',
+    'dict_values',
+    'file',
+    'function',
+    'list_iterator',
+    'method_descriptor',
+    'range_iterator',
+    'set_iterator',
+    'str_iterator',
+    'tuple_iterator',
 }
 builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
     '__name__',

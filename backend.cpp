@@ -60,7 +60,7 @@ class node {
 private:
 public:
     node() { }
-    virtual const char *node_type() { return "node"; }
+    const char *node_type() { return type()->type_name(); }
 
     virtual void mark_live() { error("mark_live unimplemented for %s", this->node_type()); }
 #define MARK_LIVE_FN \
@@ -153,8 +153,32 @@ public:
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
     virtual std::string repr() { error("repr unimplemented for %s", this->node_type()); return NULL; }
     virtual std::string str() { return repr(); }
-    virtual node *type() { error("type unimplemented for %s", this->node_type()); }
+    virtual node *type() = 0;
+    virtual const char *type_name() { error("type_name unimplemented for %s", this->node_type()); }
 };
+
+class builtin_class: public node {
+public:
+    virtual const char *type_name() = 0;
+
+    MARK_LIVE_SINGLETON_FN
+
+    virtual node *getattr(const char *key);
+
+    virtual std::string repr() {
+        return std::string("<class '") + this->type_name() + "'>";
+    }
+    virtual node *type();
+};
+
+#define BUILTIN_HIDDEN_CLASS(name) \
+class name##_class: public builtin_class { \
+public: \
+    virtual const char *type_name() { return #name; } \
+}; \
+name##_class builtin_class_##name;
+LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_HIDDEN_CLASS)
+#undef BUILTIN_HIDDEN_CLASS
 
 class context {
 private:
@@ -198,7 +222,6 @@ class none_const : public node {
 public:
     // For some reason this causes errors without an argument to the constructor...
     none_const(int_t value) { }
-    const char *node_type() { return "none"; }
 
     MARK_LIVE_SINGLETON_FN
 
@@ -208,7 +231,7 @@ public:
     virtual bool _eq(node *rhs);
     virtual int_t hash() { return 0; }
     virtual std::string repr() { return std::string("None"); }
-    virtual node *type();
+    virtual node *type() { return &builtin_class_NoneType; }
 };
 
 class int_const : public node {
@@ -219,7 +242,6 @@ public:
     int_const(int_t value) {
         this->value = value;
     }
-    const char *node_type() { return "int"; }
 
     MARK_LIVE_FN
 
@@ -290,7 +312,6 @@ public:
     bool_const(bool value) {
         this->value = value;
     }
-    const char *node_type() { return "bool"; }
 
     MARK_LIVE_SINGLETON_FN
 
@@ -358,7 +379,6 @@ private:
             this->parent = s;
             it = s->value.begin();
         }
-        const char *node_type() { return "str_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -375,6 +395,7 @@ private:
             ++this->it;
             return new(allocator) string_const(ret);
         }
+        virtual node *type() { return &builtin_class_str_iterator; }
     };
 
     std::string value;
@@ -382,7 +403,6 @@ private:
 public:
     string_const(const char *x): value(x) {}
     string_const(std::string x): value(x) {}
-    const char *node_type() { return "str"; }
 
     MARK_LIVE_FN
 
@@ -505,7 +525,6 @@ private:
             this->parent = b;
             it = b->value.begin();
         }
-        const char *node_type() { return "bytes_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -520,6 +539,7 @@ private:
             ++this->it;
             return new(allocator) int_const(ret);
         }
+        virtual node *type() { return &builtin_class_bytes_iterator; }
     };
 
     std::vector<uint8_t> value;
@@ -529,8 +549,6 @@ public:
     bytes(size_t len, const uint8_t *data): value(len) {
         memcpy(&value[0], data, len);
     }
-
-    const char *node_type() { return "bytes"; }
 
     MARK_LIVE_FN
 
@@ -594,7 +612,6 @@ private:
             this->parent = l;
             it = l->items.begin();
         }
-        const char *node_type() { return "list_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -609,6 +626,7 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_list_iterator; }
     };
 
     node_list items;
@@ -619,7 +637,6 @@ public:
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
     }
-    const char *node_type() { return "list"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -732,7 +749,6 @@ private:
             this->parent = t;
             it = t->items.begin();
         }
-        const char *node_type() { return "tuple_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -747,6 +763,7 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_tuple_iterator; }
     };
 
     node_list items;
@@ -757,7 +774,6 @@ public:
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
     }
-    const char *node_type() { return "tuple"; }
     virtual bool is_tuple() { return true; }
 
     virtual void mark_live() {
@@ -833,7 +849,6 @@ private:
             this->parent = d;
             it = d->items.begin();
         }
-        const char *node_type() { return "dict_keys_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -848,6 +863,7 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_dict_keyiterator; }
     };
     class dict_items_iter: public node {
     private:
@@ -859,7 +875,6 @@ private:
             this->parent = d;
             it = d->items.begin();
         }
-        const char *node_type() { return "dict_items_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -875,6 +890,7 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_dict_itemiterator; }
     };
     class dict_values_iter: public node {
     private:
@@ -886,7 +902,6 @@ private:
             this->parent = d;
             it = d->items.begin();
         }
-        const char *node_type() { return "dict_values_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -901,13 +916,13 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_dict_valueiterator; }
     };
 
     node_dict items;
 
 public:
     dict() { }
-    const char *node_type() { return "dict"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -981,7 +996,6 @@ public:
     dict_keys(dict *d) {
         this->parent = d;
     }
-    const char *node_type() { return "dict_keys"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1002,6 +1016,7 @@ public:
         new_string += "])";
         return new_string;
     }
+    virtual node *type() { return &builtin_class_dict_keys; }
 };
 
 class dict_items: public node {
@@ -1012,7 +1027,6 @@ public:
     dict_items(dict *d) {
         this->parent = d;
     }
-    const char *node_type() { return "dict_items"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1037,6 +1051,7 @@ public:
         new_string += "])";
         return new_string;
     }
+    virtual node *type() { return &builtin_class_dict_items; }
 };
 
 class dict_values: public node {
@@ -1047,7 +1062,6 @@ public:
     dict_values(dict *d) {
         this->parent = d;
     }
-    const char *node_type() { return "dict_values"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1068,6 +1082,7 @@ public:
         new_string += "])";
         return new_string;
     }
+    virtual node *type() { return &builtin_class_dict_values; }
 };
 
 class set: public node {
@@ -1082,7 +1097,6 @@ private:
             this->parent = s;
             it = s->items.begin();
         }
-        const char *node_type() { return "set_iter"; }
 
         virtual void mark_live() {
             if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1097,13 +1111,13 @@ private:
             ++this->it;
             return ret;
         }
+        virtual node *type() { return &builtin_class_set_iterator; }
     };
 
     node_set items;
 
 public:
     set() { }
-    const char *node_type() { return "set"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1160,7 +1174,6 @@ public:
     object() {
         this->items = new(allocator) dict;
     }
-    const char *node_type() { return "object"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1193,7 +1206,6 @@ public:
         if (!f)
             error("%s: file not found", path);
     }
-    const char *node_type() { return "file"; }
 
     MARK_LIVE_FN
 
@@ -1212,6 +1224,7 @@ public:
     virtual bool is_file() { return true; }
 
     virtual node *getattr(const char *key);
+    virtual node *type() { return &builtin_class_file; }
 };
 
 class enumerate: public node {
@@ -1224,7 +1237,6 @@ public:
         this->iter = iter;
         this->i = 0;
     }
-    const char *node_type() { return "enumerate"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1258,8 +1270,7 @@ private:
             this->end = r->end;
             this->step = r->step;
         }
-        const char *node_type() { return "range_iter"; }
- 
+  
         MARK_LIVE_FN
 
         virtual node *__iter__() { return this; }
@@ -1276,6 +1287,7 @@ private:
             this->start += this->step;
             return ret;
         }
+        virtual node *type() { return &builtin_class_range_iterator; }
     };
 
     int_t start, end, step;
@@ -1286,7 +1298,6 @@ public:
         this->end = end;
         this->step = step;
     }
-    const char *node_type() { return "range"; }
  
     MARK_LIVE_FN
 
@@ -1317,7 +1328,6 @@ public:
         this->i = 0;
         this->len = len;
     }
-    const char *node_type() { return "reversed"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1333,6 +1343,7 @@ public:
     }
 
     virtual std::string repr() { return "<reversed object>"; }
+    virtual node *type();
 };
 
 class zip: public node {
@@ -1345,7 +1356,6 @@ public:
         this->iter1 = iter1;
         this->iter2 = iter2;
     }
-    const char *node_type() { return "zip"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1382,7 +1392,6 @@ public:
         this->self = self;
         this->function = function;
     }
-    const char *node_type() { return "bound_method"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1400,6 +1409,7 @@ public:
         args = new(allocator) tuple(len + 1, new_args);
         return this->function->__call__(globals, ctx, args, kwargs);
     }
+    virtual node *type() { return &builtin_class_bound_method; }
 };
 
 class function_def : public node {
@@ -1410,7 +1420,6 @@ public:
     function_def(fptr base_function) {
         this->base_function = base_function;
     }
-    const char *node_type() { return "function"; }
 
     MARK_LIVE_FN
 
@@ -1419,6 +1428,7 @@ public:
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         return this->base_function(globals, ctx, args, kwargs);
     }
+    virtual node *type() { return &builtin_class_function; }
 };
 
 class class_def : public node {
@@ -1432,7 +1442,6 @@ public:
         this->items = new(allocator) dict;
         creator(this);
     }
-    const char *node_type() { return "class"; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1473,6 +1482,7 @@ public:
     virtual std::string repr() {
         return std::string("<class '") + this->name + "'>";
     }
+    virtual node *type();
 };
 
 bool_const bool_singleton_True(true);
@@ -1489,34 +1499,13 @@ public:
     builtin_method_def(fptr base_function): function_def(base_function) {}
 
     MARK_LIVE_SINGLETON_FN
+
+    virtual node *type() { return &builtin_class_builtin_function_or_method; } // XXX reports as "method_descriptor"
 };
 
 #define BUILTIN_METHOD(class_name, method_name) builtin_method_def builtin_method_##class_name##_##method_name(wrapped_builtin_##class_name##_##method_name);
 LIST_BUILTIN_CLASS_METHODS(BUILTIN_METHOD)
 #undef BUILTIN_METHOD
-
-class builtin_class: public node {
-public:
-    virtual const char *node_type() { return "type"; }
-
-    virtual const char *type_name() = 0;
-
-    MARK_LIVE_SINGLETON_FN
-
-    // Don't call node::getattr as a fallback -- this will result in infinite recursion
-    virtual node *getattr(const char *key) {
-        if (!strcmp(key, "__name__"))
-            return new(allocator) string_const(this->type_name());
-        if (!strcmp(key, "__class__"))
-            return type();
-        error("%s has no attribute %s", type_name(), key);
-    }
-
-    virtual std::string repr() {
-        return std::string("<class '") + this->type_name() + "'>";
-    }
-    virtual node *type();
-};
 
 class bool_class: public builtin_class {
 public:
@@ -1762,14 +1751,6 @@ public:
     }
 };
 
-#define BUILTIN_HIDDEN_CLASS(name) \
-class name##_class: public builtin_class { \
-public: \
-    virtual const char *type_name(); \
-};
-LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_HIDDEN_CLASS)
-#undef BUILTIN_HIDDEN_CLASS
-
 #define GET_METHOD(class_name, method_name) \
     if (!strcmp(key, #method_name)) return &builtin_method_##class_name##_##method_name;
 #define DEFINE_GETATTR(class_name) \
@@ -1786,7 +1767,6 @@ LIST_BUILTIN_CLASSES_WITH_METHODS(DEFINE_GETATTR)
     const char *name##_class::type_name() { return #name; } \
     name##_class builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
-LIST_BUILTIN_HIDDEN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
 node *node::__contains__(node *rhs) {
@@ -1837,12 +1817,17 @@ node *node::__str__() {
     return new(allocator) string_const(this->str());
 }
 
-bool none_const::_eq(node *rhs) {
-    return (this == rhs);
+// Don't call node::getattr as a fallback -- this will result in infinite recursion
+node *builtin_class::getattr(const char *key) {
+    if (!strcmp(key, "__name__"))
+        return new(allocator) string_const(this->type_name());
+    if (!strcmp(key, "__class__"))
+        return type();
+    error("%s has no attribute %s", type_name(), key);
 }
 
-node *none_const::type() {
-    return &builtin_class_NoneType;
+bool none_const::_eq(node *rhs) {
+    return (this == rhs);
 }
 
 std::string int_const::repr() {
@@ -2062,11 +2047,19 @@ node *range::type() {
     return &builtin_class_range;
 }
 
+node *reversed::type() {
+    return &builtin_class_reversed;
+}
+
 node *zip::type() {
     return &builtin_class_zip;
 }
 
 node *builtin_class::type() {
+    return &builtin_class_type;
+}
+
+node *class_def::type() {
     return &builtin_class_type;
 }
 
@@ -2082,13 +2075,13 @@ public:
     builtin_function_def(const char *name, fptr base_function): function_def(base_function) {
         this->name = name;
     }
-    const char *node_type() { return "builtin_function"; }
 
     MARK_LIVE_SINGLETON_FN
 
     virtual std::string repr() {
         return std::string("<built-in function ") + this->name + ">";
     }
+    virtual node *type() { return &builtin_class_builtin_function_or_method; }
 };
 
 inline node *builtin_abs(node *arg) {
