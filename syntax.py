@@ -23,9 +23,13 @@
 
 import copy
 
-def block_str(stmts):
-    stmts = '\n'.join('%s;' % s() for s in stmts).splitlines()
+def indent(stmts):
+    stmts = [str(s) for s in stmts]
+    stmts = '\n'.join('%s%s' % (s, ';' if s and not s.endswith('}') else '') for s in stmts).splitlines()
     return '\n'.join('    %s' % s for s in stmts)
+
+def block_str(stmts):
+    return indent(s() for s in stmts)
 
 all_ints = set()
 def register_int(value):
@@ -362,8 +366,7 @@ class IfExp(Node):
 }} else {{
 {false_stmts}
     {temp} = {false_expr};
-}}
-""".format(expr=self.expr(), temp=self.temp.name, true_stmts=true_stmts,
+}}""".format(expr=self.expr(), temp=self.temp.name, true_stmts=true_stmts,
         true_expr=self.true_expr(), false_stmts=false_stmts, false_expr=self.false_expr())
         return body
 
@@ -379,8 +382,7 @@ class BoolOp(Node):
         body =  """if ({op}{lhs_expr}->bool_value()) {{
 {rhs_stmts}
     {temp} = {rhs_expr};
-}}
-""".format(op='!' if self.op == 'or' else '', lhs_expr=self.lhs_expr(),
+}}""".format(op='!' if self.op == 'or' else '', lhs_expr=self.lhs_expr(),
         temp=self.temp.name, rhs_stmts=rhs_stmts, rhs_expr=self.rhs_expr())
         return body
 
@@ -396,14 +398,12 @@ class If(Node):
         stmts = block_str(self.stmts)
         body =  """if ({expr}->bool_value()) {{
 {stmts}
-}}
-""".format(expr=self.expr(), stmts=stmts)
+}}""".format(expr=self.expr(), stmts=stmts)
         if self.else_block:
             stmts = block_str(self.else_block)
-            body +=  """else {{
+            body +=  """ else {{
 {stmts}
-    }}
-    """.format(stmts=stmts)
+}}""".format(stmts=stmts)
         return body
 
 @node('comp_type, target, &iter, iter_name, iter_binding, &*cond_stmts, &cond, &*expr_stmts, &expr, &expr2')
@@ -452,8 +452,7 @@ while (node *item = {iter}->next()) {{
 {cond}
 {expr_stmts}
     {adder}
-}}
-""".format(iter=self.iter_name, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+}}""".format(iter=self.iter_name, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
         cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
         return body
 
@@ -496,8 +495,7 @@ while (node *item = {iter}->next()) {{
 {arg_unpacking}
 {stmts}
     collect_garbage(&ctx, NULL);
-}}
-""".format(iter=self.iter_name(), iter_store=self.iter_store(), arg_unpacking=arg_unpacking,
+}}""".format(iter=self.iter_name(), iter_store=self.iter_store(), arg_unpacking=arg_unpacking,
         stmts=stmts)
         return body
 
@@ -520,8 +518,7 @@ while ({test}->bool_value())
 {stmts}
     collect_garbage(&ctx, NULL);
 {dup_test_stmts}
-}}
-""".format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test(), stmts=stmts)
+}}""".format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test(), stmts=stmts)
         return body
 
 @node('&value')
@@ -533,8 +530,7 @@ class Return(Node):
     def __str__(self):
         body = """
 collect_garbage(&ctx, %s);
-return %s;
-""" % (self.value(), self.value())
+return %s""" % (self.value(), self.value())
         return body
 
 @node('&expr, lineno')
@@ -542,8 +538,7 @@ class Assert(Node):
     def __str__(self):
         body = """if (!{expr}->bool_value()) {{
     error("assert failed at line {lineno}");
-}}
-""".format(expr=self.expr(), lineno=self.lineno)
+}}""".format(expr=self.expr(), lineno=self.lineno)
         return body
 
 @node('&expr, lineno')
@@ -597,11 +592,6 @@ node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {
 
 @node('name, binding, &*stmts')
 class ClassDef(Node):
-    def __init__(self, name, binding, stmts):
-        self.name = name
-        self.binding = binding
-        self.stmts = stmts
-
     def flatten(self, ctx):
         ctx.functions += [self]
         return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), self.binding)]

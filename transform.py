@@ -734,7 +734,6 @@ with open(sys.argv[2], 'w') as f:
     f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (transformer.global_sym_count))
     f.write('    init_context(&ctx, argc, argv);\n')
 
-    for stmt in node:
-        f.write('    %s;\n' % stmt)
+    f.write(syntax.indent(node))
 
-    f.write('}\n')
+    f.write('\n}\n')
