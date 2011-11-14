@@ -461,6 +461,7 @@ class Transformer(ast.NodeTransformer):
         assert not node.orelse
         iter = self.flatten_node(node.iter)
         stmts = self.flatten_list(node.body)
+        stmts.append(syntax.CollectGarbage(None))
 
         if isinstance(node.target, ast.Name):
             target = (node.target.id, self.get_binding(node.target.id))
@@ -477,6 +478,7 @@ class Transformer(ast.NodeTransformer):
         test_stmts = []
         test = self.flatten_node(node.test, statements=test_stmts)
         stmts = self.flatten_list(node.body)
+        stmts.append(syntax.CollectGarbage(None))
         return syntax.While(test_stmts, test, stmts)
 
     # XXX We are just flattening "with x as y:" into "y = x" (this works in some simple cases with open()).

@@ -494,7 +494,6 @@ class For(Node):
 while (node *item = {iter}->next()) {{
 {arg_unpacking}
 {stmts}
-    collect_garbage(&ctx, NULL);
 }}""".format(iter=self.iter_name(), iter_store=self.iter_store(), arg_unpacking=arg_unpacking,
         stmts=stmts)
         return body
@@ -516,7 +515,6 @@ class While(Node):
 while ({test}->bool_value())
 {{
 {stmts}
-    collect_garbage(&ctx, NULL);
 {dup_test_stmts}
 }}""".format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test(), stmts=stmts)
         return body
@@ -545,6 +543,11 @@ class Assert(Node):
 class Raise(Node):
     def __str__(self):
         return 'error("exception %%p raised at line %%d", %s, %d)' % (self.expr(), self.lineno)
+
+@node('&expr')
+class CollectGarbage(Node):
+    def __str__(self):
+        return 'collect_garbage(&ctx, %s)' % (self.expr() if self.expr else 'NULL')
 
 @node('args, binding, &*defaults')
 class Arguments(Node):
