@@ -1172,6 +1172,9 @@ public:
     virtual node *__or__(node *rhs);
     virtual node *__ior__(node *rhs);
 
+    virtual bool _eq(node *rhs);
+    virtual bool _ne(node *rhs) { return !_eq(rhs); }
+
     virtual bool contains(node *key) {
         return this->lookup(key) != NULL;
     }
@@ -1908,6 +1911,22 @@ node *set::__ior__(node *rhs_arg) {
     for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
         this->add(it->second);
     return this;
+}
+
+bool set::_eq(node *rhs_arg) {
+    if (!rhs_arg->is_set())
+        return false;
+    set *rhs = (set *)rhs_arg;
+    int_t len = this->len();
+    if (len != rhs->len())
+        return false;
+    for (auto it = this->items.begin(), it2 = rhs->items.begin(); it != this->items.end(); ++it, ++it2) {
+        if (it->first != it2->first)
+            return false;
+        if (!it->second->_eq(it2->second))
+            return false;
+    }
+    return true;
 }
 
 // This entire function is very stupidly implemented.
