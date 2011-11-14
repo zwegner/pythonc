@@ -60,6 +60,7 @@ builtin_methods = {
     },
     'set': {
         'add': 2,
+        'copy': 1,
         'update': 2,
     },
     'str': {

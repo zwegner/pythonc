@@ -1165,6 +1165,12 @@ public:
     void add(node *key) {
         items[key->hash()] = key;
     }
+    set *copy() {
+        set *ret = new(allocator) set;
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            ret->add(it->second);
+        return ret;
+    }
 
     virtual bool is_set() { return true; }
     virtual bool bool_value() { return this->len() != 0; }
@@ -1896,9 +1902,7 @@ node *set::__or__(node *rhs_arg) {
     if (!rhs_arg->is_set())
         error("set or error");
     set *rhs = (set *)rhs_arg;
-    set *ret = new(allocator) set;
-    for (auto it = this->items.begin(); it != this->items.end(); ++it)
-        ret->add(it->second);
+    set *ret = this->copy();
     for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
         ret->add(it->second);
     return ret;
@@ -2200,6 +2204,13 @@ inline node *builtin_set_add(node *self_arg, node *arg) {
     set *self = (set *)self_arg;
     self->add(arg);
     return &none_singleton;
+}
+
+inline node *builtin_set_copy(node *self_arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.add()");
+    set *self = (set *)self_arg;
+    return self->copy();
 }
 
 inline node *builtin_set_update(node *self_arg, node *arg) {
