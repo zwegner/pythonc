@@ -559,13 +559,17 @@ class Arguments(Node):
         for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
             self.defaults, self.name_strings)):
             if default:
-                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : (args->len() > %s ? args->__getitem__(%s) : %s)' % \
-                    (name(), name(), i, i, default())
+                arg_value = '(args->len() > %s) ? args->__getitem__(%s) : %s' % (i, i, default())
             else:
-                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : args->__getitem__(%s)' % \
-                    (name(), name(), i)
+                arg_value = 'args->__getitem__(%s)' % i
+            if not self.no_kwargs:
+                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
+                    (name(), name(), arg_value)
             arg_unpacking += [Edge(self, Store(arg, arg_value, binding))]
-        return block_str(arg_unpacking)
+        arg_unpacking = block_str(arg_unpacking)
+        if self.no_kwargs:
+            arg_unpacking = '    if (kwargs && kwargs->len()) error("function does not take keyword arguments");\n' + arg_unpacking
+        return arg_unpacking
 
 @node('name, &args, &*stmts, exp_name, binding, local_count')
 class FunctionDef(Node):

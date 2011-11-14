@@ -557,6 +557,11 @@ class Transformer(ast.NodeTransformer):
     def visit_FunctionDef(self, node):
         assert not self.in_function
 
+        decorators = set()
+        for decorator in node.decorator_list:
+            assert isinstance(decorator, ast.Name)
+            decorators.add(decorator.id)
+
         # Get bindings of all variables. Globals are the variables that have "global x"
         # somewhere in the function, or are never written in the function.
         globals_set = set()
@@ -576,6 +581,8 @@ class Transformer(ast.NodeTransformer):
             body.append(syntax.Return(None))
         self.globals_set = None
         self.in_function = False
+
+        args.no_kwargs = 'no_kwargs' in decorators
 
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
         fn = syntax.FunctionDef(node.name, args, body, exp_name, self.get_binding(node.name), len(locals_set))
