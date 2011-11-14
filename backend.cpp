@@ -1165,6 +1165,9 @@ public:
     void add(node *key) {
         items[key->hash()] = key;
     }
+    void clear() {
+        this->items.clear();
+    }
     set *copy() {
         set *ret = new(allocator) set;
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
@@ -2206,9 +2209,17 @@ inline node *builtin_set_add(node *self_arg, node *arg) {
     return &none_singleton;
 }
 
+inline node *builtin_set_clear(node *self_arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.clear()");
+    set *self = (set *)self_arg;
+    self->clear();
+    return &none_singleton;
+}
+
 inline node *builtin_set_copy(node *self_arg) {
     if (!self_arg->is_set())
-        error("bad argument to set.add()");
+        error("bad argument to set.copy()");
     set *self = (set *)self_arg;
     return self->copy();
 }
