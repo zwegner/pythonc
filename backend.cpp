@@ -1167,6 +1167,8 @@ public:
 
     virtual node *__or__(node *rhs);
     virtual node *__ior__(node *rhs);
+    virtual node *__sub__(node *rhs);
+    virtual node *__isub__(node *rhs);
 
     virtual bool _eq(node *rhs);
     virtual bool _ne(node *rhs) { return !_eq(rhs); }
@@ -1904,6 +1906,25 @@ node *set::__ior__(node *rhs_arg) {
     set *rhs = (set *)rhs_arg;
     for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
         this->add(it->second);
+    return this;
+}
+
+node *set::__sub__(node *rhs_arg) {
+    if (!rhs_arg->is_set())
+        error("set sub error");
+    set *rhs = (set *)rhs_arg;
+    set *ret = this->copy();
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        ret->discard(it->second);
+    return ret;
+}
+
+node *set::__isub__(node *rhs_arg) {
+    if (!rhs_arg->is_set())
+        error("set sub error");
+    set *rhs = (set *)rhs_arg;
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        this->discard(it->second);
     return this;
 }
 
