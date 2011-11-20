@@ -258,13 +258,10 @@ public:
 };
 
 class int_const : public node {
-private:
+public:
     int_t value;
 
-public:
-    int_const(int_t value) {
-        this->value = value;
-    }
+    explicit int_const(int_t v): value(v) {}
 
     MARK_LIVE_FN
 
@@ -328,13 +325,10 @@ public:
 };
 
 class bool_const: public node {
-private:
+public:
     bool value;
 
-public:
-    bool_const(bool value) {
-        this->value = value;
-    }
+    explicit bool_const(bool v): value(v) {}
 
     MARK_LIVE_SINGLETON_FN
 
@@ -391,7 +385,9 @@ public:
 };
 
 class string_const : public node {
-private:
+public:
+    std::string value;
+
     class str_iter: public node {
     private:
         string_const *parent;
@@ -421,11 +417,8 @@ private:
         virtual node *type() { return &builtin_class_str_iterator; }
     };
 
-    std::string value;
-
-public:
-    string_const(const char *x): value(x) {}
-    string_const(std::string x): value(x) {}
+    explicit string_const(const char *x): value(x) {}
+    explicit string_const(std::string x): value(x) {}
 
     MARK_LIVE_FN
 
@@ -535,7 +528,9 @@ public:
 };
 
 class bytes: public node {
-private:
+public:
+    std::vector<uint8_t> value;
+
     class bytes_iter: public node {
     private:
         bytes *parent;
@@ -563,10 +558,8 @@ private:
         virtual node *type() { return &builtin_class_bytes_iterator; }
     };
 
-    std::vector<uint8_t> value;
-
-public:
     bytes() {}
+    explicit bytes(size_t len): value(len) {}
     bytes(size_t len, const uint8_t *data): value(len) {
         memcpy(&value[0], data, len);
     }
@@ -652,7 +645,8 @@ public:
         virtual node *type() { return &builtin_class_list_iterator; }
     };
 
-    list() { }
+    list() {}
+    explicit list(int_t n): items(n) {}
     list(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
@@ -784,6 +778,7 @@ public:
     };
 
     tuple() {}
+    explicit tuple(int_t n): items(n) {}
     tuple(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
@@ -900,8 +895,9 @@ public:
         virtual node *next() {
             if (this->it == this->parent->items.end())
                 return NULL;
-            node *pair[2] = {this->it->second.first, this->it->second.second};
-            node *ret = new(allocator) tuple(2, pair);
+            tuple *ret = new(allocator) tuple(2);
+            ret->items[0] = this->it->second.first;
+            ret->items[1] = this->it->second.second;
             ++this->it;
             return ret;
         }
@@ -1182,14 +1178,11 @@ public:
     virtual node *__iter__() { return new(allocator) set_iter(this); }
 };
 
-class object : public node {
-private:
+class object: public node {
+public:
     dict *items;
 
-public:
-    object() {
-        this->items = new(allocator) dict;
-    }
+    object() { this->items = new(allocator) dict; }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this))
@@ -1211,11 +1204,10 @@ public:
     virtual bool _ne(node *rhs) { return this != rhs; }
 };
 
-class file : public node {
-private:
+class file: public node {
+public:
     FILE *f;
 
-public:
     file(const char *path, const char *mode) {
         f = fopen(path, mode);
         if (!f)
@@ -1263,10 +1255,10 @@ public:
         node *item = this->iter->next();
         if (!item)
             return NULL;
-        node *pair[2];
-        pair[0] = new(allocator) int_const(this->i++);
-        pair[1] = item;
-        return new(allocator) tuple(2, pair);
+        tuple *ret = new(allocator) tuple(2);
+        ret->items[0] = new(allocator) int_const(this->i++);
+        ret->items[1] = item;
+        return ret;
     }
 
     virtual node *type() { return &builtin_class_enumerate; }
@@ -1365,10 +1357,7 @@ private:
     node *iter2;
 
 public:
-    zip(node *iter1, node *iter2) {
-        this->iter1 = iter1;
-        this->iter2 = iter2;
-    }
+    zip(node *i1, node *i2): iter1(i1), iter2(i2) {}
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1383,10 +1372,10 @@ public:
         node *item2 = this->iter2->next();
         if (!item1 || !item2)
             return NULL;
-        node *pair[2];
-        pair[0] = item1;
-        pair[1] = item2;
-        return new(allocator) tuple(2, pair);
+        tuple *ret = new(allocator) tuple(2);
+        ret->items[0] = item1;
+        ret->items[1] = item2;
+        return ret;
     }
 
     virtual node *type() { return &builtin_class_zip; }
@@ -1400,10 +1389,7 @@ private:
     node *function;
 
 public:
-    bound_method(node *self, node *function) {
-        this->self = self;
-        this->function = function;
-    }
+    bound_method(node *s, node *f): self(s), function(f) {}
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1414,12 +1400,11 @@ public:
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t len = args->items.size();
-        node *new_args[len + 1];
-        new_args[0] = this->self;
+        tuple *new_args = new(allocator) tuple(len + 1);
+        new_args->items[0] = this->self;
         for (int_t i = 0; i < len; i++)
-            new_args[i+1] = args->items[i];
-        args = new(allocator) tuple(len + 1, new_args);
-        return this->function->__call__(globals, ctx, args, kwargs);
+            new_args->items[i+1] = args->items[i];
+        return this->function->__call__(globals, ctx, new_args, kwargs);
     }
     virtual node *type() { return &builtin_class_bound_method; }
 };
@@ -1429,9 +1414,7 @@ private:
     fptr base_function;
 
 public:
-    function_def(fptr base_function) {
-        this->base_function = base_function;
-    }
+    explicit function_def(fptr f): base_function(f) {}
 
     MARK_LIVE_FN
 
@@ -1480,12 +1463,11 @@ public:
         }
 
         int_t len = args->items.size();
-        node *new_args[len + 1];
-        new_args[0] = obj;
+        tuple *new_args = new(allocator) tuple(len + 1);
+        new_args->items[0] = obj;
         for (int_t i = 0; i < len; i++)
-            new_args[i+1] = args->items[i];
-        args = new(allocator) tuple(len + 1, new_args);
-        init->__call__(globals, ctx, args, kwargs);
+            new_args->items[i+1] = args->items[i];
+        init->__call__(globals, ctx, new_args, kwargs);
         return obj;
     }
     virtual node *getattr(const char *attr) {
@@ -1917,8 +1899,8 @@ bool set::_eq(node *rhs_arg) {
 node *string_const::__mod__(node *rhs_arg) {
     std::ostringstream new_string;
     if (!rhs_arg->is_tuple()) {
-        node *tuple_item[1] = {rhs_arg};
-        tuple *t = new(allocator) tuple(1, tuple_item);
+        tuple *t = new(allocator) tuple(1);
+        t->items[0] = rhs_arg;
         rhs_arg = t;
     }
     tuple *rhs = (tuple *)rhs_arg;
