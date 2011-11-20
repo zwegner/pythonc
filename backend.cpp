@@ -659,12 +659,6 @@ public:
         }
     }
 
-    node *pop() {
-        // would be nice if STL wasn't stupid, and this was one line...
-        node *popped = items.back();
-        items.pop_back();
-        return popped;
-    }
     int_t index(int_t base) {
         int_t size = items.size();
         if ((base >= size) || (base < -size))
@@ -672,6 +666,12 @@ public:
         if (base < 0)
             base += size;
         return base;
+    }
+    node *pop(int_t idx) {
+        idx = this->index(idx);
+        node *popped = this->items[idx];
+        items.erase(this->items.begin() + idx);
+        return popped;
     }
 
     virtual bool is_list() { return true; }
@@ -2205,11 +2205,14 @@ inline node *builtin_list_insert(node *self_arg, node *arg0_arg, node *arg1) {
     return &none_singleton;
 }
 
-inline node *builtin_list_pop(node *self_arg) {
+inline node *builtin_list_pop(node *self_arg, node *arg) {
     if (!self_arg->is_list())
         error("bad argument to list.pop()");
     list *self = (list *)self_arg;
-    return self->pop();
+    if (arg && !arg->is_int_const())
+        error("bad argument to list.pop()");
+    int_t idx = arg ? arg->int_value() : -1;
+    return self->pop(idx);
 }
 
 inline node *builtin_list_remove(node *self_arg, node *arg) {
