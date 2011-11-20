@@ -60,6 +60,7 @@ builtin_methods = {
         'index': 2,
         'insert': 3,
         'pop': 1,
+        'remove': 2,
         'reverse': 1,
         'sort': 1,
     },
@@ -665,9 +666,9 @@ def print_arg_logic(f, n_args):
         f.write('    if (args_len > %d)\n' % max_args)
         f.write('        error("too many arguments to %s()");\n' % name)
         for i in range(min_args):
-            f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
         for i in range(min_args, max_args):
-            f.write('    node *arg%d = (args_len > %d) ? args->__getitem__(%d) : NULL;\n' % (i, i, i))
+            f.write('    node *arg%d = (args_len > %d) ? args->items[%d] : NULL;\n' % (i, i, i))
         return ', '.join('arg%d' % i for i in range(max_args))
     elif n_args < 0:
         return 'args'
@@ -675,7 +676,7 @@ def print_arg_logic(f, n_args):
         f.write('    if (args->items.size() != %d)\n' % n_args)
         f.write('        error("wrong number of arguments to %s()");\n' % name)
         for i in range(n_args):
-            f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
+            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
         return ', '.join('arg%d' % i for i in range(n_args))
 
 with open(sys.argv[1]) as f:

@@ -1417,7 +1417,7 @@ public:
         node *new_args[len + 1];
         new_args[0] = this->self;
         for (int_t i = 0; i < len; i++)
-            new_args[i+1] = args->__getitem__(i);
+            new_args[i+1] = args->items[i];
         args = new(allocator) tuple(len + 1, new_args);
         return this->function->__call__(globals, ctx, args, kwargs);
     }
@@ -1483,7 +1483,7 @@ public:
         node *new_args[len + 1];
         new_args[0] = obj;
         for (int_t i = 0; i < len; i++)
-            new_args[i+1] = args->__getitem__(i);
+            new_args[i+1] = args->items[i];
         args = new(allocator) tuple(len + 1, new_args);
         init->__call__(globals, ctx, args, kwargs);
         return obj;
@@ -2127,7 +2127,7 @@ inline node *builtin_list_count(node *self_arg, node *arg) {
     int_t n = 0;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
-        if (self->__getitem__(i)->_eq(arg))
+        if (self->items[i]->_eq(arg))
             n++;
     }
     return new(allocator) int_const(n);
@@ -2149,7 +2149,7 @@ inline node *builtin_list_index(node *self_arg, node *arg) {
     list *self = (list *)self_arg;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
-        if (self->__getitem__(i)->_eq(arg))
+        if (self->items[i]->_eq(arg))
             return new(allocator) int_const(i);
     }
     error("item not found in list");
@@ -2172,6 +2172,20 @@ inline node *builtin_list_pop(node *self_arg) {
         error("bad argument to list.pop()");
     list *self = (list *)self_arg;
     return self->pop();
+}
+
+inline node *builtin_list_remove(node *self_arg, node *arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.remove()");
+    list *self = (list *)self_arg;
+    int_t len = self->items.size();
+    for (int_t i = 0; i < len; i++) {
+        if (self->items[i]->_eq(arg)) {
+            self->items.erase(self->items.begin() + i);
+            return &none_singleton;
+        }
+    }
+    error("item not found in list");
 }
 
 inline node *builtin_list_reverse(node *self_arg) {
@@ -2218,7 +2232,7 @@ inline node *builtin_print(tuple *args) {
     for (int_t i = 0; i < args_len; i++) {
         if (i)
             new_string += " ";
-        node *s = args->__getitem__(i);
+        node *s = args->items[i];
         new_string += s->str();
     }
     printf("%s\n", new_string.c_str());
@@ -2342,7 +2356,7 @@ inline node *builtin_tuple_count(node *self_arg, node *arg) {
     int_t n = 0;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
-        if (self->__getitem__(i)->_eq(arg))
+        if (self->items[i]->_eq(arg))
             n++;
     }
     return new(allocator) int_const(n);
@@ -2354,7 +2368,7 @@ inline node *builtin_tuple_index(node *self_arg, node *arg) {
     tuple *self = (tuple *)self_arg;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
-        if (self->__getitem__(i)->_eq(arg))
+        if (self->items[i]->_eq(arg))
             return new(allocator) int_const(i);
     }
     error("item not found in tuple");
