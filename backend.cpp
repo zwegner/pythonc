@@ -1824,26 +1824,33 @@ bool list::_eq(node *rhs_arg) {
     return true;
 }
 
-node *tuple::__add__(node *rhs) {
-    if (!rhs->is_tuple())
+node *tuple::__add__(node *rhs_arg) {
+    if (!rhs_arg->is_tuple())
         error("tuple add error");
-    tuple *ret = new(allocator) tuple;
-    tuple *rhs_tuple = (tuple *)rhs;
-    for (auto it = this->items.begin(); it != this->items.end(); ++it)
-        ret->items.push_back(*it);
-    for (auto it = rhs_tuple->items.begin(); it != rhs_tuple->items.end(); ++it)
-        ret->items.push_back(*it);
+    tuple *rhs = (tuple *)rhs_arg;
+    int_t self_len = this->items.size();
+    int_t rhs_len = rhs->items.size();
+    tuple *ret = new(allocator) tuple(self_len + rhs_len);
+    for (int_t i = 0; i < self_len; i++)
+        ret->items[i] = this->items[i];
+    for (int_t i = 0; i < rhs_len; i++)
+        ret->items[i + self_len] = rhs->items[i];
     return ret;
 }
 
-node *tuple::__mul__(node *rhs) {
-    if (!rhs->is_int_const())
+node *tuple::__mul__(node *rhs_arg) {
+    if (!rhs_arg->is_int_const())
         error("tuple mul error");
-    tuple *ret = new(allocator) tuple;
-    for (int_t x = rhs->int_value(); x > 0; x--) {
-        for (auto it = this->items.begin(); it != this->items.end(); ++it)
-            ret->items.push_back(*it);
-    }
+    int_t rhs = ((int_const *)rhs_arg)->value;
+    if (rhs <= 0)
+        return new(allocator) tuple;
+    int_t self_len = this->items.size();
+    tuple *ret = new(allocator) tuple(self_len * rhs);
+    node **items = &ret->items[0];
+    do {
+        for (int_t i = 0; i < self_len; i++)
+            *items++ = this->items[i];
+    } while (--rhs);
     return ret;
 }
 
