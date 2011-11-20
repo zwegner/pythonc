@@ -265,12 +265,10 @@ class DeleteSubscript(Node):
 @node('&*items')
 class List(Node):
     def flatten(self, ctx):
-        list_name = ctx.get_temp()
         name = ctx.get_temp()
-        ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
+        ctx.statements += [Assign(name, Ref('list', len(self.items)), 'list')]
         for i, item in enumerate(self.items):
-            ctx.statements += ['%s[%d] = %s' % (list_name, i, item())]
-        ctx.statements += [Assign(name, Ref('list', len(self.items), list_name), 'list')]
+            ctx.statements += ['%s->items[%d] = %s' % (name, i, item())]
         return name
 
     def __str__(self):

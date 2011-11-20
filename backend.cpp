@@ -647,10 +647,6 @@ public:
 
     list() {}
     explicit list(int_t n): items(n) {}
-    list(int_t n, node **items): items(n) {
-        for (int_t i = 0; i < n; i++)
-            this->items[i] = items[i];
-    }
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -2365,7 +2361,10 @@ inline node *builtin_sorted(node *arg) {
     while (node *item = iter->next())
         new_list.push_back(item);
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
-    return new(allocator) list(new_list.size(), &new_list[0]);
+    int_t size = new_list.size();
+    list *ret = new(allocator) list(size);
+    memcpy(&ret->items[0], &new_list[0], size*sizeof(node *));
+    return ret;
 }
 
 inline node *builtin_str_join(node *self_arg, node *arg) {
