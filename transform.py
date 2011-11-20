@@ -70,6 +70,7 @@ builtin_methods = {
         'add': 2,
         'clear': 1,
         'copy': 1,
+        'difference_update': -1,
         'discard': 2,
         'remove': 2,
         'update': -1,

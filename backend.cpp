@@ -2329,6 +2329,22 @@ inline node *builtin_set_copy(node *self_arg) {
     return self->copy();
 }
 
+inline node *builtin_set_difference_update(tuple *args) {
+    int_t args_len = args->items.size();
+    if (args_len < 1)
+        error("bad argument to set.difference_update()");
+    node *self_arg = args->items[0];
+    if (!self_arg->is_set())
+        error("bad argument to set.difference_update()");
+    set *self = (set *)self_arg;
+    for (int_t i = 1; i < args_len; i++) {
+        node *iter = args->items[i]->__iter__();
+        while (node *item = iter->next())
+            self->discard(item);
+    }
+    return &none_singleton;
+}
+
 inline node *builtin_set_discard(node *self_arg, node *arg) {
     if (!self_arg->is_set())
         error("bad argument to set.discard()");
