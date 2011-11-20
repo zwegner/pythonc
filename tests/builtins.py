@@ -1,4 +1,4 @@
-for x in [abs, bool, bytes, dict, enumerate, int, isinstance, iter, len, list, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
+for x in [abs, bool, bytes, dict, enumerate, int, isinstance, iter, len, list, max, min, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:
@@ -36,6 +36,10 @@ for x in ['', [], {}, set(), 'a', [1], {'b'}, {1: 2}]:
 
 for x in [range(5), {1, 2, 3}, [1, 'c'], '', 'a', 'abc']:
     print(list(x))
+
+for x in [(1,), [2, 3], {4, 5, 6}]:
+    print(max(x))
+    print(min(x))
 
 for x in ['a', ' ', '+']:
     print(ord(x))

@@ -2219,6 +2219,30 @@ inline node *builtin_list_sort(node *self_arg) {
     return &none_singleton;
 }
 
+inline node *builtin_max(node *arg) {
+    node *iter = arg->__iter__();
+    node *ret = iter->next();
+    if (!ret)
+        error("max() expects non-empty iterable");
+    while (node *item = iter->next()) {
+        if (item->_gt(ret))
+            ret = item;
+    }
+    return ret;
+}
+
+inline node *builtin_min(node *arg) {
+    node *iter = arg->__iter__();
+    node *ret = iter->next();
+    if (!ret)
+        error("min() expects non-empty iterable");
+    while (node *item = iter->next()) {
+        if (item->_lt(ret))
+            ret = item;
+    }
+    return ret;
+}
+
 inline node *builtin_open(node *arg0, node *arg1) {
     if (!arg0->is_string() || !arg1->is_string())
         error("bad arguments to open()");

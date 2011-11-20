@@ -33,6 +33,8 @@ builtin_functions = {
     'isinstance': 2,
     'iter': 1,
     'len': 1,
+    'max': 1,
+    'min': 1,
     'open': 2,
     'ord': 1,
     'print': -1,
