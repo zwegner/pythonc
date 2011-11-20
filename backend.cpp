@@ -2155,6 +2155,18 @@ inline node *builtin_list_index(node *self_arg, node *arg) {
     error("item not found in list");
 }
 
+inline node *builtin_list_insert(node *self_arg, node *arg0_arg, node *arg1) {
+    if (!self_arg->is_list() || !arg0_arg->is_int_const())
+        error("bad argument to list.insert()");
+    list *self = (list *)self_arg;
+    int_t arg0 = arg0_arg->int_value();
+    int_t len = self->items.size();
+    if ((arg0 < 0) || (arg0 > len))
+        error("bad argument to list.insert()");
+    self->items.insert(self->items.begin() + arg0, arg1);
+    return &none_singleton;
+}
+
 inline node *builtin_list_pop(node *self_arg) {
     if (!self_arg->is_list())
         error("bad argument to list.pop()");
