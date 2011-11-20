@@ -1770,22 +1770,29 @@ node *list::__add__(node *rhs_arg) {
     if (!rhs_arg->is_list())
         error("list add error");
     list *rhs = (list *)rhs_arg;
-    list *ret = new(allocator) list;
-    for (auto it = this->items.begin(); it != this->items.end(); ++it)
-        ret->items.push_back(*it);
-    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
-        ret->items.push_back(*it);
+    int_t self_len = this->items.size();
+    int_t rhs_len = rhs->items.size();
+    list *ret = new(allocator) list(self_len + rhs_len);
+    for (int_t i = 0; i < self_len; i++)
+        ret->items[i] = this->items[i];
+    for (int_t i = 0; i < rhs_len; i++)
+        ret->items[i + self_len] = rhs->items[i];
     return ret;
 }
 
-node *list::__mul__(node *rhs) {
-    if (!rhs->is_int_const())
+node *list::__mul__(node *rhs_arg) {
+    if (!rhs_arg->is_int_const())
         error("list mul error");
-    list *ret = new(allocator) list;
-    for (int_t x = rhs->int_value(); x > 0; x--) {
-        for (auto it = this->items.begin(); it != this->items.end(); ++it)
-            ret->items.push_back(*it);
-    }
+    int_t rhs = ((int_const *)rhs_arg)->value;
+    if (rhs <= 0)
+        return new(allocator) list;
+    int_t self_len = this->items.size();
+    list *ret = new(allocator) list(self_len * rhs);
+    node **items = &ret->items[0];
+    do {
+        for (int_t i = 0; i < self_len; i++)
+            *items++ = this->items[i];
+    } while (--rhs);
     return ret;
 }
 
