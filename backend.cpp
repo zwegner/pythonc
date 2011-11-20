@@ -81,7 +81,6 @@ public:
     virtual int_t int_value() { error("int_value unimplemented for %s", this->node_type()); return 0; }
     virtual std::string string_value() { error("string_value unimplemented for %s", this->node_type()); return NULL; }
     virtual const char *c_str() { error("c_str unimplemented for %s", this->node_type()); }
-    virtual node_list *list_value() { error("list_value unimplemented for %s", this->node_type()); return NULL; }
 
 #define UNIMP_OP(NAME) \
     virtual node *__##NAME##__(node *rhs) { error(#NAME " unimplemented for %s", this->node_type()); return NULL; }
@@ -625,7 +624,9 @@ public:
 };
 
 class list: public node {
-private:
+public:
+    node_list items;
+
     class list_iter: public node {
     private:
         list *parent;
@@ -653,9 +654,6 @@ private:
         virtual node *type() { return &builtin_class_list_iterator; }
     };
 
-public:
-    node_list items;
-
     list() { }
     list(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
@@ -669,17 +667,12 @@ public:
         }
     }
 
-    void append(node *obj) {
-        items.push_back(obj);
-    }
     node *pop() {
         // would be nice if STL wasn't stupid, and this was one line...
         node *popped = items.back();
         items.pop_back();
         return popped;
     }
-    node_list::iterator begin() { return items.begin(); }
-    node_list::iterator end() { return items.end(); }
     int_t index(int_t base) {
         int_t size = items.size();
         if ((base >= size) || (base < -size))
@@ -690,7 +683,6 @@ public:
     }
 
     virtual bool is_list() { return true; }
-    virtual node_list *list_value() { return &items; }
     virtual bool bool_value() { return this->len() != 0; }
 
     virtual node *__add__(node *rhs);
@@ -745,7 +737,7 @@ public:
         int_t st = step->is_none() ? 1 : step->int_value();
         list *new_list = new(allocator) list;
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
-            new_list->append(items[lo]);
+            new_list->items.push_back(items[lo]);
         return new_list;
     }
     virtual std::string repr() {
@@ -1665,7 +1657,7 @@ inline node *list_init(node *arg) {
         return ret;
     node *iter = arg->__iter__();
     while (node *item = iter->next())
-        ret->append(item);
+        ret->items.push_back(item);
     return ret;
 }
 
@@ -1816,45 +1808,45 @@ std::string bool_const::repr() {
     return std::string(this->value ? "True" : "False");
 }
 
-node *list::__add__(node *rhs) {
-    if (!rhs->is_list())
+node *list::__add__(node *rhs_arg) {
+    if (!rhs_arg->is_list())
         error("list add error");
-    list *plist = new(allocator) list;
-    node_list *rhs_list = rhs->list_value();
-    for (auto i = this->begin(); i != this->end(); i++)
-        plist->append(*i);
-    for (auto i = rhs_list->begin(); i != rhs_list->end(); i++)
-        plist->append(*i);
-    return plist;
+    list *rhs = (list *)rhs_arg;
+    list *ret = new(allocator) list;
+    for (auto it = this->items.begin(); it != this->items.end(); ++it)
+        ret->items.push_back(*it);
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        ret->items.push_back(*it);
+    return ret;
 }
 
 node *list::__mul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
-    list *plist = new(allocator) list;
+    list *ret = new(allocator) list;
     for (int_t x = rhs->int_value(); x > 0; x--) {
-        for (auto i = this->begin(); i != this->end(); i++)
-            plist->append(*i);
+        for (auto i = this->items.begin(); i != this->items.end(); i++)
+            ret->items.push_back(*i);
     }
-    return plist;
+    return ret;
 }
 
-node *list::__iadd__(node *rhs) {
-    if (!rhs->is_list())
+node *list::__iadd__(node *rhs_arg) {
+    if (!rhs_arg->is_list())
         error("list add error");
-    node_list *rhs_list = rhs->list_value();
-    for (auto i = rhs_list->begin(); i != rhs_list->end(); i++)
-        this->append(*i);
+    list *rhs = (list *)rhs_arg;
+    for (auto it = rhs->items.begin(); it != rhs->items.end(); ++it)
+        this->items.push_back(*it);
     return this;
 }
 
 node *list::__imul__(node *rhs) {
     if (!rhs->is_int_const())
         error("list mul error");
-    int_t len = this->len();
+    int_t len = this->items.size();
     for (int_t x = rhs->int_value() - 1; x > 0; x--) {
         for (int_t i = 0; i < len; i++)
-            this->append(this->items[i]);
+            this->items.push_back(this->items[i]);
     }
     return this;
 }
@@ -1863,7 +1855,7 @@ bool list::_eq(node *rhs_arg) {
     if (!rhs_arg->is_list())
         return false;
     list *rhs = (list *)rhs_arg;
-    int_t len = this->len();
+    int_t len = this->items.size();
     if (len != rhs->len())
         return false;
     for (int_t i = 0; i < len; i++) {
@@ -2148,7 +2140,7 @@ inline node *builtin_list_append(node *self_arg, node *arg) {
     if (!self_arg->is_list())
         error("bad argument to list.append()");
     list *self = (list *)self_arg;
-    self->append(arg);
+    self->items.push_back(arg);
     return &none_singleton;
 }
 
@@ -2170,7 +2162,7 @@ inline node *builtin_list_extend(node *self_arg, node *arg) {
     list *self = (list *)self_arg;
     node *iter = arg->__iter__();
     while (node *item = iter->next())
-        self->append(item);
+        self->items.push_back(item);
     return &none_singleton;
 }
 
@@ -2323,14 +2315,14 @@ inline node *builtin_str_split(node *self_arg, node *arg) {
     std::string s;
     for (auto c = self->begin(); c != self->end(); ++c) {
         if (*c == split) {
-            ret->append(new(allocator) string_const(s));
+            ret->items.push_back(new(allocator) string_const(s));
             s.clear();
         }
         else {
             s += *c;
         }
     }
-    ret->append(new(allocator) string_const(s));
+    ret->items.push_back(new(allocator) string_const(s));
     return ret;
 }
 
@@ -2391,7 +2383,7 @@ LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
     ctx->store(sym_id___name__, new(allocator) string_const("__main__"));
     list *plist = new(allocator) list;
     for (int_t a = 0; a < argc; a++)
-        plist->append(new(allocator) string_const(argv[a]));
+        plist->items.push_back(new(allocator) string_const(argv[a]));
     ctx->store(sym_id___args__, plist);
 }
 
