@@ -76,10 +76,10 @@ public:
     virtual bool is_tuple() { return false; }
     virtual bool is_none() { return false; }
     virtual bool is_set() { return false; }
-    virtual bool is_string() { return false; }
+    virtual bool is_str() { return false; }
     virtual bool bool_value() { error("bool_value unimplemented for %s", this->node_type()); return false; }
     virtual int_t int_value() { error("int_value unimplemented for %s", this->node_type()); return 0; }
-    virtual std::string string_value() { error("string_value unimplemented for %s", this->node_type()); return NULL; }
+    virtual std::string str_value() { error("str_value unimplemented for %s", this->node_type()); return NULL; }
     virtual const char *c_str() { error("c_str unimplemented for %s", this->node_type()); }
 
 #define UNIMP_OP(NAME) \
@@ -422,15 +422,15 @@ public:
 
     MARK_LIVE_FN
 
-    virtual bool is_string() { return true; }
-    virtual std::string string_value() { return this->value; }
+    virtual bool is_str() { return true; }
+    virtual std::string str_value() { return this->value; }
     virtual bool bool_value() { return this->value.length() != 0; }
     virtual const char *c_str() { return this->value.c_str(); }
 
 #define STRING_OP(NAME, OP) \
     virtual bool _##NAME(node *rhs) { \
-        if (rhs->is_string()) \
-            return this->string_value() OP rhs->string_value(); \
+        if (rhs->is_str()) \
+            return this->str_value() OP rhs->str_value(); \
         error(#NAME " unimplemented"); \
         return false; \
     } \
@@ -1569,7 +1569,7 @@ inline node *int_init(node *arg0, node *arg1) {
             error("int() cannot accept a base when passed a bool");
         return new(allocator) int_const(arg0->int_value());
     }
-    if (arg0->is_string()) {
+    if (arg0->is_str()) {
         int_t base = 10;
         if (arg1) {
             if (!arg1->is_int_const())
@@ -1698,7 +1698,7 @@ node *node::__contains__(node *rhs) {
 }
 
 node *node::__getattr__(node *key) {
-    if (!key->is_string())
+    if (!key->is_str())
         error("getattr with non-string");
     return this->getattr(key->c_str());
 }
@@ -1981,7 +1981,7 @@ node *string_const::__mod__(node *rhs_arg) {
                 *fmt++ = 'c';
                 *fmt = 0;
                 int_t char_value;
-                if (arg->is_string())
+                if (arg->is_str())
                     char_value = (unsigned char)arg->c_str()[0];
                 else
                     char_value = arg->int_value();
@@ -1998,9 +1998,9 @@ node *string_const::__mod__(node *rhs_arg) {
 }
 
 node *string_const::__add__(node *rhs) {
-    if (!rhs->is_string())
+    if (!rhs->is_str())
         error("bad argument to str.add");
-    std::string new_string = this->value + rhs->string_value();
+    std::string new_string = this->value + rhs->str_value();
     return new(allocator) string_const(new_string);
 }
 
@@ -2121,7 +2121,7 @@ inline node *builtin_file_read(node *self_arg, node *arg) {
 }
 
 inline node *builtin_file_write(node *self_arg, node *arg) {
-    if (!self_arg->is_file() || !arg->is_string())
+    if (!self_arg->is_file() || !arg->is_str())
         error("bad arguments to file.write()");
     ((file *)self_arg)->write((string_const *)arg);
     return &none_singleton;
@@ -2270,13 +2270,13 @@ inline node *builtin_min(node *arg) {
 }
 
 inline node *builtin_open(node *arg0, node *arg1) {
-    if (!arg0->is_string() || !arg1->is_string())
+    if (!arg0->is_str() || !arg1->is_str())
         error("bad arguments to open()");
     return new(allocator) file(arg0->c_str(), arg1->c_str());
 }
 
 inline node *builtin_ord(node *arg) {
-    if (!arg->is_string() || arg->len() != 1)
+    if (!arg->is_str() || arg->len() != 1)
         error("bad arguments to ord()");
     return new(allocator) int_const((unsigned char)arg->c_str()[0]);
 }
@@ -2387,7 +2387,7 @@ inline node *builtin_sorted(node *arg) {
 }
 
 inline node *builtin_str_join(node *self_arg, node *arg) {
-    if (!self_arg->is_string())
+    if (!self_arg->is_str())
         error("bad arguments to str.join()");
     string_const *self = (string_const *)self_arg;
     node *iter = arg->__iter__();
@@ -2407,7 +2407,7 @@ inline node *builtin_str_split(node *self_arg, node *arg) {
     // XXX Implement correct behavior for missing separator (not the same as ' ')
     if (!arg || (arg == &none_singleton))
         arg = new(allocator) string_const(" ");
-    if (!self_arg->is_string() || !arg->is_string() || (arg->len() != 1))
+    if (!self_arg->is_str() || !arg->is_str() || (arg->len() != 1))
         error("bad argument to str.split()");
     string_const *self = (string_const *)self_arg;
     // XXX Implement correct behavior for this too--delimiter strings can have len>1
@@ -2429,15 +2429,15 @@ inline node *builtin_str_split(node *self_arg, node *arg) {
 }
 
 inline node *builtin_str_startswith(node *self_arg, node *arg) {
-    if (!self_arg->is_string() || !arg->is_string())
+    if (!self_arg->is_str() || !arg->is_str())
         error("bad arguments to str.startswith()");
-    std::string s1 = self_arg->string_value();
-    std::string s2 = arg->string_value();
+    std::string s1 = self_arg->str_value();
+    std::string s2 = arg->str_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
 inline node *builtin_str_upper(node *self_arg) {
-    if (!self_arg->is_string())
+    if (!self_arg->is_str())
         error("bad argument to str.upper()");
     string_const *self = (string_const *)self_arg;
     std::string new_string;
