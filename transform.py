@@ -131,6 +131,10 @@ inplace_op_table = {
     for x in ['add', 'and', 'floordiv', 'lshift', 'mod', 'mul', 'or', 'pow', 'rshift', 'sub', 'truediv', 'xor']
 }
 
+class TranslateError(Exception):
+    def __init__(self, node, msg):
+        super().__init__('error at line %s: %s' % (node.lineno, msg))
+
 class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
@@ -231,8 +235,7 @@ class Transformer(ast.NodeTransformer):
         return (scope, self.symbol_idx[scope]['$undefined'])
 
     def generic_visit(self, node):
-        print(node.lineno)
-        raise RuntimeError('can\'t translate %s' % node)
+        raise TranslateError(node, 'can\'t translate %s' % node)
 
     def visit_children(self, node):
         return [self.visit(i) for i in ast.iter_child_nodes(node)]
@@ -247,7 +250,7 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Num(self, node):
         if isinstance(node.n, float):
-            raise RuntimeError('Pythonc currently does not support float literals')
+            raise TranslateError(node, 'Pythonc currently does not support float literals')
         assert isinstance(node.n, int)
         return syntax.IntConst(node.n)
 
@@ -404,7 +407,8 @@ class Transformer(ast.NodeTransformer):
         if isinstance(target, ast.Name):
             return [syntax.Store(target.id, value, self.get_binding(target.id))]
         elif isinstance(target, ast.Tuple):
-            assert all(isinstance(t, ast.Name) for t in target.elts)
+            if not all(isinstance(t, ast.Name) for t in target.elts):
+                raise TranslateError(target, 'Pythonc does not yet support nested tuple assignment')
             stmts = []
             for i, t in enumerate(target.elts):
                 stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)), self.get_binding(t.id))]
