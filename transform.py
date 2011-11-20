@@ -42,6 +42,8 @@ builtin_functions = {
 }
 builtin_methods = {
     'dict': {
+        'clear': 1,
+        'copy': 1,
         'get': 3,
         'keys': 1,
         'items': 1,

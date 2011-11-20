@@ -979,6 +979,15 @@ public:
     }
     node_dict::iterator begin() { return items.begin(); }
     node_dict::iterator end() { return items.end(); }
+    void clear() {
+        this->items.clear();
+    }
+    dict *copy() {
+        dict *ret = new(allocator) dict;
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            ret->items[it->first] = it->second;
+        return ret;
+    }
 
     virtual bool is_dict() { return true; }
     virtual bool bool_value() { return this->len() != 0; }
@@ -2061,6 +2070,21 @@ inline node *builtin_any(node *arg) {
             return &bool_singleton_True;
     }
     return &bool_singleton_False;
+}
+
+inline node *builtin_dict_clear(node *self_arg) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.clear()");
+    dict *self = (dict *)self_arg;
+    self->clear();
+    return &none_singleton;
+}
+
+inline node *builtin_dict_copy(node *self_arg) {
+    if (!self_arg->is_dict())
+        error("bad argument to dict.copy()");
+    dict *self = (dict *)self_arg;
+    return self->copy();
 }
 
 inline node *builtin_dict_get(node *self_arg, node *arg0, node *arg1) {
