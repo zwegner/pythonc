@@ -940,13 +940,13 @@ public:
             hashkey = key->int_value();
         else
             hashkey = key->hash();
-        node_dict::const_iterator v = this->items.find(hashkey);
-        if (v == this->items.end())
+        auto it = this->items.find(hashkey);
+        if (it == this->items.end())
             return NULL;
-        node *k = v->second.first;
+        node *k = it->second.first;
         if (!k->_eq(key))
             return NULL;
-        return v->second.second;
+        return it->second.second;
     }
     dict *copy() {
         dict *ret = new(allocator) dict;
@@ -1128,10 +1128,10 @@ public:
     }
 
     node *lookup(node *key) {
-        node_set::const_iterator v = this->items.find(key->hash());
-        if (v == this->items.end() || !v->second->_eq(key))
+        auto it = this->items.find(key->hash());
+        if ((it == this->items.end()) || !it->second->_eq(key))
             return NULL;
-        return v->second;
+        return it->second;
     }
     void add(node *key) {
         items[key->hash()] = key;
