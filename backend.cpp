@@ -779,10 +779,7 @@ public:
 
     tuple() {}
     explicit tuple(int_t n): items(n) {}
-    tuple(int_t n, node **items): items(n) {
-        for (int_t i = 0; i < n; i++)
-            this->items[i] = items[i];
-    }
+
     virtual bool is_tuple() { return true; }
 
     virtual void mark_live() {

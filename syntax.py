@@ -286,20 +286,17 @@ class Tuple(Node):
             self.items = Edge(self, self.items)
 
     def flatten(self, ctx):
-        list_name = ctx.get_temp()
         name = ctx.get_temp()
         if isinstance(self.items, list):
-            ctx.statements += ['node *%s[%d]' % (list_name, len(self.items))]
+            ctx.statements += [Assign(name, Ref('tuple', len(self.items)), 'tuple')]
             for i, item in enumerate(self.items):
-                ctx.statements += ['%s[%d] = %s' % (list_name, i, item())]
-            ctx.statements += [Assign(name, Ref('tuple', len(self.items), list_name), 'tuple')]
+                ctx.statements += ['%s->items[%d] = %s' % (name, i, item())]
         else:
             iter_name = ctx.get_temp()
             ctx.statements += [
-                'node_list %s' % list_name,
+                Assign(name, Ref('tuple'), 'tuple'),
                 'node *%s = %s->__iter__()' % (iter_name, self.items()),
-                'while (node *item = %s->next()) %s.push_back(item)' % (iter_name, list_name),
-                Assign(name, Ref('tuple', '%s.size()' % list_name, '&%s[0]' % list_name), 'tuple')
+                'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
             ]
         return name
 
