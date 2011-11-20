@@ -1008,6 +1008,7 @@ public:
             this->parent->mark_live();
     }
 
+    virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
     virtual node *__iter__() { return new(allocator) dict::dict_keys_iter(this->parent); }
     virtual std::string repr() {
@@ -1039,6 +1040,7 @@ public:
             this->parent->mark_live();
     }
 
+    virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
     virtual node *__iter__() { return new(allocator) dict::dict_items_iter(this->parent); }
     virtual std::string repr() {
@@ -1074,6 +1076,7 @@ public:
             this->parent->mark_live();
     }
 
+    virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
     virtual node *__iter__() { return new(allocator) dict::dict_values_iter(this->parent); }
     virtual std::string repr() {
