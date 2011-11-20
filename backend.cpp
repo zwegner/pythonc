@@ -1146,7 +1146,7 @@ public:
     set *copy() {
         set *ret = new(allocator) set;
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
-            ret->add(it->second);
+            ret->items[it->first] = it->second;
         return ret;
     }
 
