@@ -431,7 +431,7 @@ public:
 
     virtual bool is_string() { return true; }
     virtual std::string string_value() { return this->value; }
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->value.length() != 0; }
     virtual const char *c_str() { return this->value.c_str(); }
 
     std::string::iterator begin() { return value.begin(); }
@@ -472,9 +472,7 @@ public:
         }
         return hashkey;
     }
-    virtual int_t len() {
-        return value.length();
-    }
+    virtual int_t len() { return this->value.length(); }
     virtual node *__slice__(node *start, node *end, node *step) {
         if ((!start->is_none() && !start->is_int_const()) ||
             (!end->is_none() && !end->is_int_const()) ||
@@ -577,7 +575,7 @@ public:
 
     void append(uint8_t x) { this->value.push_back(x); }
 
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->value.size() != 0; }
 
     virtual int_t len() { return this->value.size(); }
     virtual node *type() { return &builtin_class_bytes; }
@@ -683,7 +681,7 @@ public:
     }
 
     virtual bool is_list() { return true; }
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->items.size() != 0; }
 
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
@@ -718,9 +716,7 @@ public:
         }
         return this->__getitem__(rhs->int_value());
     }
-    virtual int_t len() {
-        return this->items.size();
-    }
+    virtual int_t len() { return this->items.size(); }
     virtual void __setitem__(node *key, node *value) {
         if (!key->is_int_const())
             error("error in list.setitem");
@@ -757,7 +753,9 @@ public:
 };
 
 class tuple: public node {
-private:
+public:
+    node_list items;
+
     class tuple_iter: public node {
     private:
         tuple *parent;
@@ -785,10 +783,7 @@ private:
         virtual node *type() { return &builtin_class_tuple_iterator; }
     };
 
-    node_list items;
-
-public:
-    tuple() { }
+    tuple() {}
     tuple(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
             this->items[i] = items[i];
@@ -813,7 +808,7 @@ public:
         return base;
     }
 
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->items.size() != 0; }
 
     virtual node *__add__(node *rhs);
     virtual node *__mul__(node *rhs);
@@ -838,9 +833,7 @@ public:
         }
         return this->__getitem__(rhs->int_value());
     }
-    virtual int_t len() {
-        return this->items.size();
-    }
+    virtual int_t len() { return this->items.size(); }
     virtual node *type() { return &builtin_class_tuple; }
     virtual std::string repr() {
         std::string new_string = "(";
@@ -982,7 +975,7 @@ public:
     }
 
     virtual bool is_dict() { return true; }
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->items.size() != 0; }
 
     virtual bool contains(node *key) {
         return this->lookup(key) != NULL;
@@ -993,9 +986,7 @@ public:
             error("cannot find %s in dict", key->repr().c_str());
         return value;
     }
-    virtual int_t len() {
-        return this->items.size();
-    }
+    virtual int_t len() { return this->items.size(); }
     virtual void __setitem__(node *key, node *value) {
         items[key->hash()] = node_pair(key, value);
     }
@@ -1177,7 +1168,7 @@ public:
     }
 
     virtual bool is_set() { return true; }
-    virtual bool bool_value() { return this->len() != 0; }
+    virtual bool bool_value() { return this->items.size() != 0; }
 
     virtual node *__or__(node *rhs);
     virtual node *__ior__(node *rhs);
@@ -1188,9 +1179,7 @@ public:
     virtual bool contains(node *key) {
         return this->lookup(key) != NULL;
     }
-    virtual int_t len() {
-        return this->items.size();
-    }
+    virtual int_t len() { return this->items.size(); }
     virtual std::string repr() {
         if (!this->items.size())
             return "set()";
@@ -1856,7 +1845,8 @@ bool list::_eq(node *rhs_arg) {
         return false;
     list *rhs = (list *)rhs_arg;
     int_t len = this->items.size();
-    if (len != rhs->len())
+    int_t rhs_len = rhs->items.size();
+    if (len != rhs_len)
         return false;
     for (int_t i = 0; i < len; i++) {
         if (!this->items[i]->_eq(rhs->items[i]))
@@ -1892,8 +1882,9 @@ bool tuple::_eq(node *rhs_arg) {
     if (!rhs_arg->is_tuple())
         return false;
     tuple *rhs = (tuple *)rhs_arg;
-    int_t len = this->len();
-    if (len != rhs->len())
+    int_t len = this->items.size();
+    int_t rhs_len = rhs->items.size();
+    if (len != rhs_len)
         return false;
     for (int_t i = 0; i < len; i++) {
         if (!this->items[i]->_eq(rhs->items[i]))
@@ -1926,7 +1917,8 @@ bool set::_eq(node *rhs_arg) {
         return false;
     set *rhs = (set *)rhs_arg;
     int_t len = this->len();
-    if (len != rhs->len())
+    int_t rhs_len = rhs->len();
+    if (len != rhs_len)
         return false;
     for (auto it = this->items.begin(), it2 = rhs->items.begin(); it != this->items.end(); ++it, ++it2) {
         if (it->first != it2->first)
@@ -2149,7 +2141,8 @@ inline node *builtin_list_count(node *self_arg, node *arg) {
         error("bad argument to list.count()");
     list *self = (list *)self_arg;
     int_t n = 0;
-    for (int_t i = 0; i < self->len(); i++) {
+    int_t len = self->items.size();
+    for (int_t i = 0; i < len; i++) {
         if (self->__getitem__(i)->_eq(arg))
             n++;
     }
@@ -2170,7 +2163,8 @@ inline node *builtin_list_index(node *self_arg, node *arg) {
     if (!self_arg->is_list())
         error("bad argument to list.index()");
     list *self = (list *)self_arg;
-    for (int_t i = 0; i < self->len(); i++) {
+    int_t len = self->items.size();
+    for (int_t i = 0; i < len; i++) {
         if (self->__getitem__(i)->_eq(arg))
             return new(allocator) int_const(i);
     }
@@ -2188,7 +2182,7 @@ inline node *builtin_list_reverse(node *self_arg) {
     if (!self_arg->is_list())
         error("bad argument to list.reverse()");
     list *self = (list *)self_arg;
-    int_t len = self->len();
+    int_t len = self->items.size();
     for (int_t i = 0; i < len / 2; i++) {
         node *temp1 = self->items[i];
         node *temp2 = self->items[len - 1 - i];
@@ -2349,7 +2343,8 @@ inline node *builtin_tuple_count(node *self_arg, node *arg) {
         error("bad argument to tuple.count()");
     tuple *self = (tuple *)self_arg;
     int_t n = 0;
-    for (int_t i = 0; i < self->len(); i++) {
+    int_t len = self->items.size();
+    for (int_t i = 0; i < len; i++) {
         if (self->__getitem__(i)->_eq(arg))
             n++;
     }
@@ -2360,7 +2355,8 @@ inline node *builtin_tuple_index(node *self_arg, node *arg) {
     if (!self_arg->is_tuple())
         error("bad argument to tuple.index()");
     tuple *self = (tuple *)self_arg;
-    for (int_t i = 0; i < self->len(); i++) {
+    int_t len = self->items.size();
+    for (int_t i = 0; i < len; i++) {
         if (self->__getitem__(i)->_eq(arg))
             return new(allocator) int_const(i);
     }

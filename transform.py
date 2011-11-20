@@ -658,7 +658,7 @@ def print_arg_logic(f, n_args):
     if isinstance(n_args, tuple):
         (min_args, max_args) = n_args
         assert max_args > min_args
-        f.write('    size_t args_len = args->len();\n')
+        f.write('    size_t args_len = args->items.size();\n')
         f.write('    if (args_len < %d)\n' % min_args)
         f.write('        error("too few arguments to %s()");\n' % name)
         f.write('    if (args_len > %d)\n' % max_args)
