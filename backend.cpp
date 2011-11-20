@@ -739,11 +739,11 @@ public:
     virtual std::string repr() {
         std::string new_string = "[";
         bool first = true;
-        for (auto i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += (*i)->repr();
+            new_string += (*it)->repr();
         }
         new_string += "]";
         return new_string;
@@ -836,11 +836,11 @@ public:
     virtual std::string repr() {
         std::string new_string = "(";
         bool first = true;
-        for (auto i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += (*i)->repr();
+            new_string += (*it)->repr();
         }
         if (this->items.size() == 1)
             new_string += ",";
@@ -938,9 +938,9 @@ public:
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto i = this->items.begin(); i != this->items.end(); i++) {
-                i->second.first->mark_live();
-                i->second.second->mark_live();
+            for (auto it = this->items.begin(); it != this->items.end(); ++it) {
+                it->second.first->mark_live();
+                it->second.second->mark_live();
             }
         }
     }
@@ -985,11 +985,11 @@ public:
     virtual std::string repr() {
         std::string new_string = "{";
         bool first = true;
-        for (auto i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second.first->repr() + ": " + i->second.second->repr();
+            new_string += it->second.first->repr() + ": " + it->second.second->repr();
         }
         new_string += "}";
         return new_string;
@@ -1017,11 +1017,11 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_keys([";
         bool first = true;
-        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second.first->repr();
+            new_string += it->second.first->repr();
         }
         new_string += "])";
         return new_string;
@@ -1048,14 +1048,14 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_items([";
         bool first = true;
-        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
             new_string += "(";
-            new_string += i->second.first->repr();
+            new_string += it->second.first->repr();
             new_string += ", ";
-            new_string += i->second.second->repr();
+            new_string += it->second.second->repr();
             new_string += ")";
         }
         new_string += "])";
@@ -1083,11 +1083,11 @@ public:
     virtual std::string repr() {
         std::string new_string = "dict_values([";
         bool first = true;
-        for (auto i = this->parent->items.begin(); i != this->parent->items.end(); i++) {
+        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second.second->repr();
+            new_string += it->second.second->repr();
         }
         new_string += "])";
         return new_string;
@@ -1130,8 +1130,8 @@ public:
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto i = this->items.begin(); i != this->items.end(); i++)
-                i->second->mark_live();
+            for (auto it = this->items.begin(); it != this->items.end(); ++it)
+                it->second->mark_live();
         }
     }
 
@@ -1169,11 +1169,11 @@ public:
             return "set()";
         std::string new_string = "{";
         bool first = true;
-        for (auto i = this->items.begin(); i != this->items.end(); i++) {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
             if (!first)
                 new_string += ", ";
             first = false;
-            new_string += i->second->repr();
+            new_string += it->second->repr();
         }
         new_string += "}";
         return new_string;
@@ -1474,9 +1474,9 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (auto i = items->items.begin(); i != items->items.end(); i++) {
-            if (i->second.second->is_function())
-                obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
+        for (auto it = items->items.begin(); it != items->items.end(); ++it) {
+            if (it->second.second->is_function())
+                obj->__setattr__(it->second.first, new(allocator) bound_method(obj, it->second.second));
         }
 
         int_t len = args->items.size();
@@ -1798,8 +1798,8 @@ node *list::__mul__(node *rhs) {
         error("list mul error");
     list *ret = new(allocator) list;
     for (int_t x = rhs->int_value(); x > 0; x--) {
-        for (auto i = this->items.begin(); i != this->items.end(); i++)
-            ret->items.push_back(*i);
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            ret->items.push_back(*it);
     }
     return ret;
 }
