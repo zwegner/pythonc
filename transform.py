@@ -59,6 +59,8 @@ builtin_methods = {
         'extend': 2,
         'index': 2,
         'pop': 1,
+        'reverse': 1,
+        'sort': 1,
     },
     'set': {
         'add': 2,

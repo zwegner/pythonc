@@ -653,9 +653,9 @@ private:
         virtual node *type() { return &builtin_class_list_iterator; }
     };
 
+public:
     node_list items;
 
-public:
     list() { }
     list(int_t n, node **items): items(n) {
         for (int_t i = 0; i < n; i++)
@@ -2192,6 +2192,32 @@ inline node *builtin_list_pop(node *self_arg) {
     return self->pop();
 }
 
+inline node *builtin_list_reverse(node *self_arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.reverse()");
+    list *self = (list *)self_arg;
+    int_t len = self->len();
+    for (int_t i = 0; i < len / 2; i++) {
+        node *temp1 = self->items[i];
+        node *temp2 = self->items[len - 1 - i];
+        self->items[i] = temp2;
+        self->items[len - 1 - i] = temp1;
+    }
+    return &none_singleton;
+}
+
+static bool compare_nodes(node *lhs, node *rhs) {
+    return lhs->_lt(rhs);
+}
+
+inline node *builtin_list_sort(node *self_arg) {
+    if (!self_arg->is_list())
+        error("bad argument to list.sort()");
+    list *self = (list *)self_arg;
+    std::stable_sort(self->items.begin(), self->items.end(), compare_nodes);
+    return &none_singleton;
+}
+
 inline node *builtin_open(node *arg0, node *arg1) {
     if (!arg0->is_string() || !arg1->is_string())
         error("bad arguments to open()");
@@ -2256,10 +2282,6 @@ inline node *builtin_set_update(node *self_arg, node *arg) {
     while (node *item = iter->next())
         self->add(item);
     return &none_singleton;
-}
-
-static bool compare_nodes(node *lhs, node *rhs) {
-    return lhs->_lt(rhs);
 }
 
 inline node *builtin_sorted(node *arg) {
