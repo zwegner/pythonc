@@ -797,8 +797,6 @@ public:
         }
     }
 
-    void append(node *obj) { this->items.push_back(obj); }
-
     int_t index(int_t base) {
         int_t size = items.size();
         if ((base >= size) || (base < -size))
@@ -853,7 +851,9 @@ public:
 };
 
 class dict: public node {
-private:
+public:
+    node_dict items;
+
     class dict_keys_iter: public node {
     private:
         dict *parent;
@@ -934,10 +934,7 @@ private:
         virtual node *type() { return &builtin_class_dict_valueiterator; }
     };
 
-    node_dict items;
-
-public:
-    dict() { }
+    dict() {}
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -961,11 +958,6 @@ public:
         if (!k->_eq(key))
             return NULL;
         return v->second.second;
-    }
-    node_dict::iterator begin() { return items.begin(); }
-    node_dict::iterator end() { return items.end(); }
-    void clear() {
-        this->items.clear();
     }
     dict *copy() {
         dict *ret = new(allocator) dict;
@@ -1004,10 +996,6 @@ public:
     }
     virtual node *type() { return &builtin_class_dict; }
     virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
-
-    friend class dict_keys;
-    friend class dict_items;
-    friend class dict_values;
 };
 
 class dict_keys: public node {
@@ -1108,7 +1096,9 @@ public:
 };
 
 class set: public node {
-private:
+public:
+    node_set items;
+
     class set_iter: public node {
     private:
         set *parent;
@@ -1136,10 +1126,7 @@ private:
         virtual node *type() { return &builtin_class_set_iterator; }
     };
 
-    node_set items;
-
-public:
-    set() { }
+    set() {}
 
     virtual void mark_live() {
         if (!allocator->mark_live<sizeof(*this)>(this)) {
@@ -1156,9 +1143,6 @@ public:
     }
     void add(node *key) {
         items[key->hash()] = key;
-    }
-    void clear() {
-        this->items.clear();
     }
     set *copy() {
         set *ret = new(allocator) set;
@@ -1429,7 +1413,7 @@ public:
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        int_t len = args->len();
+        int_t len = args->items.size();
         node *new_args[len + 1];
         new_args[0] = this->self;
         for (int_t i = 0; i < len; i++)
@@ -1490,12 +1474,12 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (auto i = items->begin(); i != items->end(); i++) {
+        for (auto i = items->items.begin(); i != items->items.end(); i++) {
             if (i->second.second->is_function())
                 obj->__setattr__(i->second.first, new(allocator) bound_method(obj, i->second.second));
         }
 
-        int_t len = args->len();
+        int_t len = args->items.size();
         node *new_args[len + 1];
         new_args[0] = obj;
         for (int_t i = 0; i < len; i++)
@@ -1694,7 +1678,7 @@ inline node *tuple_init(node *arg) {
         return ret;
     node *iter = arg->__iter__();
     while (node *item = iter->next())
-        ret->append(item);
+        ret->items.push_back(item);
     return ret;
 }
 
@@ -1861,19 +1845,19 @@ node *tuple::__add__(node *rhs) {
     tuple *ret = new(allocator) tuple;
     tuple *rhs_tuple = (tuple *)rhs;
     for (auto it = this->items.begin(); it != this->items.end(); ++it)
-        ret->append(*it);
+        ret->items.push_back(*it);
     for (auto it = rhs_tuple->items.begin(); it != rhs_tuple->items.end(); ++it)
-        ret->append(*it);
+        ret->items.push_back(*it);
     return ret;
 }
 
 node *tuple::__mul__(node *rhs) {
     if (!rhs->is_int_const())
-        error("list mul error");
+        error("tuple mul error");
     tuple *ret = new(allocator) tuple;
     for (int_t x = rhs->int_value(); x > 0; x--) {
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
-            ret->append(*it);
+            ret->items.push_back(*it);
     }
     return ret;
 }
@@ -1916,8 +1900,8 @@ bool set::_eq(node *rhs_arg) {
     if (!rhs_arg->is_set())
         return false;
     set *rhs = (set *)rhs_arg;
-    int_t len = this->len();
-    int_t rhs_len = rhs->len();
+    int_t len = this->items.size();
+    int_t rhs_len = rhs->items.size();
     if (len != rhs_len)
         return false;
     for (auto it = this->items.begin(), it2 = rhs->items.begin(); it != this->items.end(); ++it, ++it2) {
@@ -2060,7 +2044,7 @@ inline node *builtin_dict_clear(node *self_arg) {
     if (!self_arg->is_dict())
         error("bad argument to dict.clear()");
     dict *self = (dict *)self_arg;
-    self->clear();
+    self->items.clear();
     return &none_singleton;
 }
 
@@ -2218,7 +2202,8 @@ inline node *builtin_ord(node *arg) {
 
 inline node *builtin_print(tuple *args) {
     std::string new_string;
-    for (int_t i = 0; i < args->len(); i++) {
+    int_t args_len = args->items.size();
+    for (int_t i = 0; i < args_len; i++) {
         if (i)
             new_string += " ";
         node *s = args->__getitem__(i);
@@ -2249,7 +2234,7 @@ inline node *builtin_set_clear(node *self_arg) {
     if (!self_arg->is_set())
         error("bad argument to set.clear()");
     set *self = (set *)self_arg;
-    self->clear();
+    self->items.clear();
     return &none_singleton;
 }
 

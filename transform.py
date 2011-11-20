@@ -652,7 +652,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Global(self, node): pass
 
 def print_arg_logic(f, n_args):
-    f.write('    if (kwargs && kwargs->len())\n')
+    f.write('    if (kwargs && kwargs->items.size())\n')
     f.write('        error("%s() does not take keyword arguments");\n' % name)
 
     if isinstance(n_args, tuple):
@@ -671,7 +671,7 @@ def print_arg_logic(f, n_args):
     elif n_args < 0:
         return 'args'
     else:
-        f.write('    if (args->len() != %d)\n' % n_args)
+        f.write('    if (args->items.size() != %d)\n' % n_args)
         f.write('        error("wrong number of arguments to %s()");\n' % name)
         for i in range(n_args):
             f.write('    node *arg%d = args->__getitem__(%d);\n' % (i, i))
