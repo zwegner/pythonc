@@ -1914,13 +1914,15 @@ bool set::_eq(node *rhs_arg) {
 }
 
 // This entire function is very stupidly implemented.
-node *string_const::__mod__(node *rhs) {
+node *string_const::__mod__(node *rhs_arg) {
     std::ostringstream new_string;
-    if (!rhs->is_tuple()) {
-        node *tuple_item[1] = {rhs};
+    if (!rhs_arg->is_tuple()) {
+        node *tuple_item[1] = {rhs_arg};
         tuple *t = new(allocator) tuple(1, tuple_item);
-        rhs = t;
+        rhs_arg = t;
     }
+    tuple *rhs = (tuple *)rhs_arg;
+    int_t rhs_len = rhs->items.size();
     int_t args = 0;
     for (const char *c = value.c_str(); *c; c++) {
         if (*c == '%') {
@@ -1934,9 +1936,9 @@ node *string_const::__mod__(node *rhs) {
 
             if ((unsigned)(fmt - fmt_buf) >= sizeof(buf))
                 error("I do believe you've made a terrible mistake whilst formatting a string!");
-            if (args >= rhs->len())
+            if (args >= rhs_len)
                 error("not enough arguments for string format");
-            node *arg = rhs->__getitem__(args++);
+            node *arg = rhs->items[args++];
             if (*c == 's') {
                 *fmt++ = 's';
                 *fmt = 0;
