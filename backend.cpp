@@ -2345,13 +2345,19 @@ inline node *builtin_set_remove(node *self_arg, node *arg) {
     return &none_singleton;
 }
 
-inline node *builtin_set_update(node *self_arg, node *arg) {
+inline node *builtin_set_update(tuple *args) {
+    int_t args_len = args->items.size();
+    if (args_len < 1)
+        error("bad argument to set.update()");
+    node *self_arg = args->items[0];
     if (!self_arg->is_set())
         error("bad argument to set.update()");
     set *self = (set *)self_arg;
-    node *iter = arg->__iter__();
-    while (node *item = iter->next())
-        self->add(item);
+    for (int_t i = 1; i < args_len; i++) {
+        node *iter = args->items[i]->__iter__();
+        while (node *item = iter->next())
+            self->add(item);
+    }
     return &none_singleton;
 }
 

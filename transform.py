@@ -72,7 +72,7 @@ builtin_methods = {
         'copy': 1,
         'discard': 2,
         'remove': 2,
-        'update': 2,
+        'update': -1,
     },
     'str': {
         'join': 2,
