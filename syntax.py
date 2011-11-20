@@ -562,9 +562,9 @@ class Arguments(Node):
         for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
             self.defaults, self.name_strings)):
             if default:
-                arg_value = '(args->len() > %s) ? args->__getitem__(%s) : %s' % (i, i, default())
+                arg_value = '(args->len() > %d) ? args->items[%d] : %s' % (i, i, default())
             else:
-                arg_value = 'args->__getitem__(%s)' % i
+                arg_value = 'args->__getitem__(%d)' % i
             if not self.no_kwargs:
                 arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
                     (name(), name(), arg_value)
