@@ -1143,6 +1143,18 @@ public:
     void add(node *key) {
         items[key->hash()] = key;
     }
+    void discard(node *key) {
+        auto it = this->items.find(key->hash());
+        if ((it == this->items.end()) || !it->second->_eq(key))
+            return;
+        this->items.erase(it);
+    }
+    void remove(node *key) {
+        auto it = this->items.find(key->hash());
+        if ((it == this->items.end()) || !it->second->_eq(key))
+            error("element not in set");
+        this->items.erase(it);
+    }
     set *copy() {
         set *ret = new(allocator) set;
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
@@ -2298,6 +2310,22 @@ inline node *builtin_set_copy(node *self_arg) {
         error("bad argument to set.copy()");
     set *self = (set *)self_arg;
     return self->copy();
+}
+
+inline node *builtin_set_discard(node *self_arg, node *arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.discard()");
+    set *self = (set *)self_arg;
+    self->discard(arg);
+    return &none_singleton;
+}
+
+inline node *builtin_set_remove(node *self_arg, node *arg) {
+    if (!self_arg->is_set())
+        error("bad argument to set.remove()");
+    set *self = (set *)self_arg;
+    self->remove(arg);
+    return &none_singleton;
 }
 
 inline node *builtin_set_update(node *self_arg, node *arg) {
