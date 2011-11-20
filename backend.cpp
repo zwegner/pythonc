@@ -427,9 +427,6 @@ public:
     virtual bool bool_value() { return this->value.length() != 0; }
     virtual const char *c_str() { return this->value.c_str(); }
 
-    std::string::iterator begin() { return value.begin(); }
-    std::string::iterator end() { return value.end(); }
-
 #define STRING_OP(NAME, OP) \
     virtual bool _##NAME(node *rhs) { \
         if (rhs->is_string()) \
@@ -459,8 +456,8 @@ public:
     // FNV-1a algorithm
     virtual int_t hash() {
         int_t hashkey = 14695981039346656037ull;
-        for (auto c = this->begin(); c != this->end(); c++) {
-            hashkey ^= *c;
+        for (auto it = this->value.begin(); it != this->value.end(); ++it) {
+            hashkey ^= *it;
             hashkey *= 1099511628211ll;
         }
         return hashkey;
@@ -481,7 +478,7 @@ public:
     virtual std::string repr() {
         bool has_single_quotes = false;
         bool has_double_quotes = false;
-        for (auto it = this->begin(); it != this->end(); ++it) {
+        for (auto it = this->value.begin(); it != this->value.end(); ++it) {
             char c = *it;
             if (c == '\'')
                 has_single_quotes = true;
@@ -490,7 +487,7 @@ public:
         }
         bool use_double_quotes = has_single_quotes && !has_double_quotes;
         std::string s(use_double_quotes ? "\"" : "'");
-        for (auto it = this->begin(); it != this->end(); ++it) {
+        for (auto it = this->value.begin(); it != this->value.end(); ++it) {
             char c = *it;
             if (c == '\n')
                 s += "\\n";
@@ -2417,27 +2414,18 @@ inline node *builtin_str_split(node *self_arg, node *arg) {
     char split = arg->c_str()[0];
     list *ret = new(allocator) list;
     std::string s;
-    for (auto c = self->begin(); c != self->end(); ++c) {
-        if (*c == split) {
+    for (auto it = self->value.begin(); it != self->value.end(); ++it) {
+        char c = *it;
+        if (c == split) {
             ret->items.push_back(new(allocator) string_const(s));
             s.clear();
         }
         else {
-            s += *c;
+            s += c;
         }
     }
     ret->items.push_back(new(allocator) string_const(s));
     return ret;
-}
-
-inline node *builtin_str_upper(node *self_arg) {
-    if (!self_arg->is_string())
-        error("bad argument to str.upper()");
-    string_const *self = (string_const *)self_arg;
-    std::string new_string;
-    for (auto it = self->begin(); it != self->end(); ++it)
-        new_string += toupper(*it);
-    return new(allocator) string_const(new_string);
 }
 
 inline node *builtin_str_startswith(node *self_arg, node *arg) {
@@ -2446,6 +2434,16 @@ inline node *builtin_str_startswith(node *self_arg, node *arg) {
     std::string s1 = self_arg->string_value();
     std::string s2 = arg->string_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
+}
+
+inline node *builtin_str_upper(node *self_arg) {
+    if (!self_arg->is_string())
+        error("bad argument to str.upper()");
+    string_const *self = (string_const *)self_arg;
+    std::string new_string;
+    for (auto it = self->value.begin(); it != self->value.end(); ++it)
+        new_string += toupper(*it);
+    return new(allocator) string_const(new_string);
 }
 
 inline node *builtin_tuple_count(node *self_arg, node *arg) {

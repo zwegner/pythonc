@@ -78,8 +78,8 @@ builtin_methods = {
     'str': {
         'join': 2,
         'split': (1, 2),
-        'upper': 1,
         'startswith': 2,
+        'upper': 1,
     },
     'tuple': {
         'count': 2,
