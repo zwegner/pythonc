@@ -2068,62 +2068,44 @@ inline node *builtin_any(node *arg) {
     return &bool_singleton_False;
 }
 
-inline node *builtin_dict_clear(node *self_arg) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.clear()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_clear(dict *self) {
     self->items.clear();
     return &none_singleton;
 }
 
-inline node *builtin_dict_copy(node *self_arg) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.copy()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_copy(dict *self) {
     return self->copy();
 }
 
-inline node *builtin_dict_get(node *self_arg, node *arg0, node *arg1) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.get()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_get(dict *self, node *arg0, node *arg1) {
     node *value = self->lookup(arg0);
     if (!value)
         value = arg1;
     return value;
 }
 
-inline node *builtin_dict_keys(node *self_arg) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.keys()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_keys(dict *self) {
     return new(allocator) dict_keys(self);
 }
 
-inline node *builtin_dict_items(node *self_arg) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.items()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_items(dict *self) {
     return new(allocator) dict_items(self);
 }
 
-inline node *builtin_dict_values(node *self_arg) {
-    if (!self_arg->is_dict())
-        error("bad argument to dict.values()");
-    dict *self = (dict *)self_arg;
+inline node *builtin_dict_values(dict *self) {
     return new(allocator) dict_values(self);
 }
 
-inline node *builtin_file_read(node *self_arg, node *arg) {
-    if (!self_arg->is_file() || !arg->is_int_const())
+inline node *builtin_file_read(file *self, node *arg) {
+    if (!arg->is_int_const())
         error("bad arguments to file.read()");
-    return ((file *)self_arg)->read(arg->int_value());
+    return self->read(arg->int_value());
 }
 
-inline node *builtin_file_write(node *self_arg, node *arg) {
-    if (!self_arg->is_file() || !arg->is_str())
+inline node *builtin_file_write(file *self, node *arg) {
+    if (!arg->is_str())
         error("bad arguments to file.write()");
-    ((file *)self_arg)->write((string_const *)arg);
+    self->write((string_const *)arg);
     return &none_singleton;
 }
 
@@ -2140,18 +2122,12 @@ inline node *builtin_len(node *arg) {
     return arg->__len__();
 }
 
-inline node *builtin_list_append(node *self_arg, node *arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.append()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_append(list *self, node *arg) {
     self->items.push_back(arg);
     return &none_singleton;
 }
 
-inline node *builtin_list_count(node *self_arg, node *arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.count()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_count(list *self, node *arg) {
     int_t n = 0;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
@@ -2161,20 +2137,14 @@ inline node *builtin_list_count(node *self_arg, node *arg) {
     return new(allocator) int_const(n);
 }
 
-inline node *builtin_list_extend(node *self_arg, node *arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.extend()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_extend(list *self, node *arg) {
     node *iter = arg->__iter__();
     while (node *item = iter->next())
         self->items.push_back(item);
     return &none_singleton;
 }
 
-inline node *builtin_list_index(node *self_arg, node *arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.index()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_index(list *self, node *arg) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
         if (self->items[i]->_eq(arg))
@@ -2183,10 +2153,9 @@ inline node *builtin_list_index(node *self_arg, node *arg) {
     error("item not found in list");
 }
 
-inline node *builtin_list_insert(node *self_arg, node *arg0_arg, node *arg1) {
-    if (!self_arg->is_list() || !arg0_arg->is_int_const())
+inline node *builtin_list_insert(list *self, node *arg0_arg, node *arg1) {
+    if (!arg0_arg->is_int_const())
         error("bad argument to list.insert()");
-    list *self = (list *)self_arg;
     int_t arg0 = arg0_arg->int_value();
     int_t len = self->items.size();
     if ((arg0 < 0) || (arg0 > len))
@@ -2205,10 +2174,7 @@ inline node *builtin_list_pop(node *self_arg, node *arg) {
     return self->pop(idx);
 }
 
-inline node *builtin_list_remove(node *self_arg, node *arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.remove()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_remove(list *self, node *arg) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
         if (self->items[i]->_eq(arg)) {
@@ -2219,10 +2185,7 @@ inline node *builtin_list_remove(node *self_arg, node *arg) {
     error("item not found in list");
 }
 
-inline node *builtin_list_reverse(node *self_arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.reverse()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_reverse(list *self) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len / 2; i++) {
         node *temp1 = self->items[i];
@@ -2237,10 +2200,7 @@ static bool compare_nodes(node *lhs, node *rhs) {
     return lhs->_lt(rhs);
 }
 
-inline node *builtin_list_sort(node *self_arg) {
-    if (!self_arg->is_list())
-        error("bad argument to list.sort()");
-    list *self = (list *)self_arg;
+inline node *builtin_list_sort(list *self) {
     std::stable_sort(self->items.begin(), self->items.end(), compare_nodes);
     return &none_singleton;
 }
@@ -2303,26 +2263,17 @@ inline node *builtin_repr(node *arg) {
     return arg->__repr__();
 }
 
-inline node *builtin_set_add(node *self_arg, node *arg) {
-    if (!self_arg->is_set())
-        error("bad argument to set.add()");
-    set *self = (set *)self_arg;
+inline node *builtin_set_add(set *self, node *arg) {
     self->add(arg);
     return &none_singleton;
 }
 
-inline node *builtin_set_clear(node *self_arg) {
-    if (!self_arg->is_set())
-        error("bad argument to set.clear()");
-    set *self = (set *)self_arg;
+inline node *builtin_set_clear(set *self) {
     self->items.clear();
     return &none_singleton;
 }
 
-inline node *builtin_set_copy(node *self_arg) {
-    if (!self_arg->is_set())
-        error("bad argument to set.copy()");
-    set *self = (set *)self_arg;
+inline node *builtin_set_copy(set *self) {
     return self->copy();
 }
 
@@ -2342,18 +2293,12 @@ inline node *builtin_set_difference_update(tuple *args) {
     return &none_singleton;
 }
 
-inline node *builtin_set_discard(node *self_arg, node *arg) {
-    if (!self_arg->is_set())
-        error("bad argument to set.discard()");
-    set *self = (set *)self_arg;
+inline node *builtin_set_discard(set *self, node *arg) {
     self->discard(arg);
     return &none_singleton;
 }
 
-inline node *builtin_set_remove(node *self_arg, node *arg) {
-    if (!self_arg->is_set())
-        error("bad argument to set.remove()");
-    set *self = (set *)self_arg;
+inline node *builtin_set_remove(set *self, node *arg) {
     self->remove(arg);
     return &none_singleton;
 }
@@ -2386,10 +2331,7 @@ inline node *builtin_sorted(node *arg) {
     return ret;
 }
 
-inline node *builtin_str_join(node *self_arg, node *arg) {
-    if (!self_arg->is_str())
-        error("bad arguments to str.join()");
-    string_const *self = (string_const *)self_arg;
+inline node *builtin_str_join(string_const *self, node *arg) {
     node *iter = arg->__iter__();
     std::string s;
     bool first = true;
@@ -2428,28 +2370,22 @@ inline node *builtin_str_split(node *self_arg, node *arg) {
     return ret;
 }
 
-inline node *builtin_str_startswith(node *self_arg, node *arg) {
-    if (!self_arg->is_str() || !arg->is_str())
+inline node *builtin_str_startswith(string_const *self, node *arg) {
+    if (!arg->is_str())
         error("bad arguments to str.startswith()");
-    std::string s1 = self_arg->str_value();
+    std::string s1 = self->str_value();
     std::string s2 = arg->str_value();
     return create_bool_const(s1.compare(0, s2.size(), s2) == 0);
 }
 
-inline node *builtin_str_upper(node *self_arg) {
-    if (!self_arg->is_str())
-        error("bad argument to str.upper()");
-    string_const *self = (string_const *)self_arg;
+inline node *builtin_str_upper(string_const *self) {
     std::string new_string;
     for (auto it = self->value.begin(); it != self->value.end(); ++it)
         new_string += toupper(*it);
     return new(allocator) string_const(new_string);
 }
 
-inline node *builtin_tuple_count(node *self_arg, node *arg) {
-    if (!self_arg->is_tuple())
-        error("bad argument to tuple.count()");
-    tuple *self = (tuple *)self_arg;
+inline node *builtin_tuple_count(tuple *self, node *arg) {
     int_t n = 0;
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
@@ -2459,10 +2395,7 @@ inline node *builtin_tuple_count(node *self_arg, node *arg) {
     return new(allocator) int_const(n);
 }
 
-inline node *builtin_tuple_index(node *self_arg, node *arg) {
-    if (!self_arg->is_tuple())
-        error("bad argument to tuple.index()");
-    tuple *self = (tuple *)self_arg;
+inline node *builtin_tuple_index(tuple *self, node *arg) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
         if (self->items[i]->_eq(arg))

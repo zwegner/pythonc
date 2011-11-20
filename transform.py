@@ -662,7 +662,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Store(self, node): pass
     def visit_Global(self, node): pass
 
-def print_arg_logic(f, n_args):
+def print_arg_logic(f, n_args, self_class=None, method_name=None):
     f.write('    if (kwargs && kwargs->items.size())\n')
     f.write('        error("%s() does not take keyword arguments");\n' % name)
 
@@ -686,7 +686,14 @@ def print_arg_logic(f, n_args):
         f.write('        error("wrong number of arguments to %s()");\n' % name)
         for i in range(n_args):
             f.write('    node *arg%d = args->items[%d];\n' % (i, i))
-        return ', '.join('arg%d' % i for i in range(n_args))
+        if self_class:
+            f.write('    if (!arg0->is_%s())\n' % self_class)
+            f.write('        error("bad argument to %s.%s()");\n' % (self_class, method_name))
+            class_name = {'str': 'string_const', 'int': 'int_const'}.get(self_class, self_class)
+            f.write('    %s *self = (%s *)arg0;\n' % (class_name, class_name))
+            return ', '.join(['self'] + ['arg%d' % i for i in range(1, n_args)])
+        else:
+            return ', '.join('arg%d' % i for i in range(n_args))
 
 with open(sys.argv[1]) as f:
     node = ast.parse(f.read())
@@ -739,7 +746,7 @@ with open(sys.argv[2], 'w') as f:
         for name in sorted(methods):
             n_args = methods[name]
             f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
-            args = print_arg_logic(f, n_args)
+            args = print_arg_logic(f, n_args, self_class=class_name, method_name=name)
             f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
             f.write('}\n')
 
