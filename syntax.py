@@ -262,13 +262,22 @@ class DeleteSubscript(Node):
     def __str__(self):
         return '%s->__delitem__(%s)' % (self.expr(), self.index())
 
+@node('&expr, index, &value')
+class StoreSubscriptDirect(Node):
+    def __str__(self):
+        return '%s->items[%d] = %s' % (self.expr(), self.index, self.value())
+
+@node('&obj, method_name, &arg')
+class MethodCall(Node):
+    def __str__(self):
+        return '%s->%s(%s)' % (self.obj(), self.method_name, self.arg())
+
 @node('&*items')
 class List(Node):
     def flatten(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('list', len(self.items)), 'list')]
-        for i, item in enumerate(self.items):
-            ctx.statements += ['%s->items[%d] = %s' % (name, i, item())]
+        ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
         return name
 
     def __str__(self):
@@ -287,8 +296,7 @@ class Tuple(Node):
         name = ctx.get_temp()
         if isinstance(self.items, list):
             ctx.statements += [Assign(name, Ref('tuple', len(self.items)), 'tuple')]
-            for i, item in enumerate(self.items):
-                ctx.statements += ['%s->items[%d] = %s' % (name, i, item())]
+            ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
         else:
             iter_name = ctx.get_temp()
             ctx.statements += [
@@ -317,8 +325,7 @@ class Set(Node):
     def flatten(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('set'), 'set')]
-        for i in self.items:
-            ctx.statements += ['%s->add(%s)' % (name, i())]
+        ctx.statements += [MethodCall(name, 'add', i()) for i in self.items]
         return name
 
     def __str__(self):
