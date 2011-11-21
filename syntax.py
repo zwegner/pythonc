@@ -293,7 +293,7 @@ class Tuple(Node):
             iter_name = ctx.get_temp()
             ctx.statements += [
                 Assign(name, Ref('tuple'), 'tuple'),
-                'node *%s = %s->__iter__()' % (iter_name, self.items()),
+                Assign(iter_name, UnaryOp('__iter__', self.items()), 'node'),
                 'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
             ]
         return name
@@ -411,7 +411,7 @@ class Comprehension(Node):
         else:
             l = List([])
         self.temp = l.flatten(ctx)
-        ctx.statements += [Assign(self.iter_name, '%s->__iter__()' % self.iter(), 'node')]
+        ctx.statements += [Assign(self.iter_name, UnaryOp('__iter__', self.iter()), 'node')]
         ctx.statements += [self]
         # HACK: prevent iterator from being garbage collected
         self.iter_store = Store(self.iter_name, self.iter_name, self.iter_binding)
@@ -438,7 +438,7 @@ class Comprehension(Node):
         elif self.comp_type == 'dict':
             adder = '%s->__setitem__(%s, %s);' % (self.temp, self.expr(), self.expr2())
         else:
-            adder = '%s->append(%s);' % (self.temp, self.expr())
+            adder = '%s->items.push_back(%s);' % (self.temp, self.expr())
         body = """
 {iter_store};
 while (node *item = {iter}->next()) {{
@@ -468,7 +468,7 @@ class For(Node):
         self.iter_name = Edge(self, Identifier(self.iter_name))
 
     def flatten(self, ctx):
-        ctx.statements += [Assign(self.iter_name(), '%s->__iter__()' % self.iter(), 'node')]
+        ctx.statements += [Assign(self.iter_name(), UnaryOp('__iter__', self.iter()), 'node')]
         # HACK: prevent iterator from being garbage collected
         self.iter_store = Edge(self, Store(self.iter_name(), self.iter_name(), self.iter_binding))
         return self
