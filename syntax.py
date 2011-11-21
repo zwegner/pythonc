@@ -306,8 +306,7 @@ class Dict(Node):
     def flatten(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('dict'), 'dict')]
-        for k, v in zip(self.keys, self.values):
-            ctx.statements += ['%s->__setitem__(%s, %s)' % (name, k(), v())]
+        ctx.statements += [StoreSubscript(name, k(), v()) for k, v in zip(self.keys, self.values)]
         return name
 
     def __str__(self):
