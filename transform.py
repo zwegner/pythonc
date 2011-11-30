@@ -550,6 +550,7 @@ class Transformer(ast.NodeTransformer):
     def visit_Return(self, node):
         if node.value is not None:
             expr = self.flatten_node(node.value)
+            self.statements.append(syntax.CollectGarbage(expr))
             return syntax.Return(expr)
         else:
             return syntax.Return(None)

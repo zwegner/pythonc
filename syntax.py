@@ -521,9 +521,7 @@ class Return(Node):
             self.value = Edge(self, NoneConst())
 
     def __str__(self):
-        body = """
-collect_garbage(&ctx, %s);
-return %s""" % (self.value(), self.value())
+        body = 'return %s' % self.value()
         return body
 
 @node('&expr, lineno')
