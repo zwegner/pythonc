@@ -502,22 +502,16 @@ while (node *item = {iter}->next()) {{
 @node('&*test_stmts, &test, &*stmts')
 class While(Node):
     def __str__(self):
-        # XXX Super hack: too lazy to do this properly now
-        dup_test_stmts = copy.deepcopy(self.test_stmts)
-        assign = dup_test_stmts[-1]
-        assert isinstance(assign, Edge) and isinstance(assign(), Assign)
-        assign().target_type = None
-
         test_stmts = block_str(self.test_stmts)
-        dup_test_stmts = block_str(dup_test_stmts)
         stmts = block_str(self.stmts)
-        body = """
-{test_stmts}
-while ({test}->bool_value())
+        body = """\
+while (1)
 {{
+{test_stmts}
+    if (!{test}->bool_value())
+        break;
 {stmts}
-{dup_test_stmts}
-}}""".format(test_stmts=test_stmts, dup_test_stmts=dup_test_stmts, test=self.test(), stmts=stmts)
+}}""".format(test_stmts=test_stmts, test=self.test(), stmts=stmts)
         return body
 
 @node('&value')
