@@ -80,6 +80,103 @@ def export_consts(f):
         f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
         f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
+class Flattener:
+    def __init__(self):
+        self.statements = []
+
+    def get_temp_name(self):
+        self.temp_id += 1
+        return 'temp_%02i' % self.temp_id
+
+    def get_temp(self):
+        self.temp_id += 1
+        return syntax.Identifier('temp_%02i' % self.temp_id)
+
+    def flatten_node(self, node, statements=None):
+        old_stmts = self.statements
+        if statements is not None:
+            self.statements = statements
+        node = self.visit(node)
+        if node.is_atom():
+            r = node
+        else:
+            temp = self.get_temp()
+            self.statements.append(syntax.Assign(temp, node))
+            r = temp
+        self.statements = old_stmts
+        return r
+
+    def flatten_list(self, node_list):
+        old_stmts = self.statements
+        statements = []
+        for stmt in node_list:
+            self.statements = []
+            stmts = self.visit(stmt)
+            if stmts:
+                if isinstance(stmts, list):
+                    statements += self.statements + stmts
+                else:
+                    statements += self.statements + [stmts]
+        self.statements = old_stmts
+        return statements
+
+    def get_sym_id(self, scope, name):
+        if name in self.symbol_idx[scope]:
+            return self.symbol_idx[scope][name]
+        return self.symbol_idx[scope]['$undefined']
+
+    def get_binding(self, name):
+        if self.in_function:
+            if name in self.globals_set:
+                scope = 'global'
+            else:
+                scope = 'local'
+        elif self.in_class:
+            scope = 'class'
+        else:
+            scope = 'global'
+        return scope
+
+    def index_global_class_symbols(self, node, globals_set, class_set):
+        if isinstance(node, ast.Global):
+            for name in node.names:
+                globals_set.add(name)
+        # XXX make this check scope
+        elif isinstance(node, ast.Name) and isinstance(node.ctx,
+                (ast.Store, ast.AugStore)):
+            globals_set.add(node.id)
+            class_set.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            globals_set.add(node.name)
+            class_set.add(node.name)
+        elif isinstance(node, ast.Import):
+            for name in node.names:
+                globals_set.add(name.name)
+        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
+            ast.GeneratorExp)):
+            # HACK: set self.iter_temp for the space in the symbol table
+            node.iter_temp = self.get_temp_name()
+            globals_set.add(node.iter_temp)
+        for i in ast.iter_child_nodes(node):
+            self.index_global_class_symbols(i, globals_set, class_set)
+
+    def get_globals(self, node, globals_set, locals_set, all_vars_set):
+        if isinstance(node, ast.Global):
+            for name in node.names:
+                globals_set.add(name)
+        elif isinstance(node, ast.Name):
+            all_vars_set.add(node.id)
+            if isinstance(node.ctx, (ast.Store, ast.AugStore)):
+                locals_set.add(node.id)
+        elif isinstance(node, ast.arg):
+            all_vars_set.add(node.arg)
+            locals_set.add(node.arg)
+        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
+            ast.GeneratorExp)):
+            locals_set.add(node.iter_temp)
+        for i in ast.iter_child_nodes(node):
+            self.get_globals(i, globals_set, locals_set, all_vars_set)
+
 class Node:
     def is_atom(self):
         return False
@@ -218,10 +315,10 @@ class BinaryOp(Node):
     def __str__(self):
         return '%s->%s(%s)' % (self.lhs(), self.op, self.rhs())
 
-@node('name, binding')
+@node('name')
 class Load(Node):
     def setup(self):
-        self.scope, self.idx = self.binding
+        self.scope = self.binding
 
     def __str__(self):
         if self.scope == 'global':
@@ -230,10 +327,10 @@ class Load(Node):
             return 'class_ctx->load("%s")' % self.name
         return 'ctx.load(%s)' % self.idx
 
-@node('name, &expr, binding')
+@node('name, &expr')
 class Store(Node):
     def setup(self):
-        self.scope, self.idx = self.binding
+        self.scope = self.binding
 
     def __str__(self):
         if self.scope == 'global':
@@ -242,7 +339,7 @@ class Store(Node):
             return 'class_ctx->store("%s", %s)' % (self.name, self.expr())
         return 'ctx.store(%s, %s)' % (self.idx, self.expr())
 
-@node('name, &expr, binding')
+@node('name, &expr')
 class StoreAttr(Node):
     def __init__(self, name, attr, expr):
         self.name = name
@@ -280,9 +377,6 @@ class List(Node):
         ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
         return name
 
-    def __str__(self):
-        return ''
-
 @node('items')
 class Tuple(Node):
     # XXX clean up
@@ -306,9 +400,6 @@ class Tuple(Node):
             ]
         return name
 
-    def __str__(self):
-        return ''
-
 @node('&*keys, &*values')
 class Dict(Node):
     def flatten(self, ctx):
@@ -317,9 +408,6 @@ class Dict(Node):
         ctx.statements += [StoreSubscript(name, k(), v()) for k, v in zip(self.keys, self.values)]
         return name
 
-    def __str__(self):
-        return ''
-
 @node('&*items')
 class Set(Node):
     def flatten(self, ctx):
@@ -327,9 +415,6 @@ class Set(Node):
         ctx.statements += [Assign(name, Ref('set'), 'set')]
         ctx.statements += [MethodCall(name, 'add', i()) for i in self.items]
         return name
-
-    def __str__(self):
-        return ''
 
 @node('&expr, &start, &end, &step')
 class Slice(Node):
@@ -351,31 +436,25 @@ class Call(Node):
     def __str__(self):
         return '%s->__call__(globals, &ctx, %s, %s)' % (self.func(), self.args(), self.kwargs())
 
-@node('&expr, &*true_stmts, &true_expr, &*false_stmts, &false_expr')
+@node('&expr, &true_expr, &false_expr')
 class IfExp(Node):
     def flatten(self, ctx):
-        self.temp = ctx.get_temp()
-        ctx.statements += [Assign(self.temp, NullConst(), 'node'), self]
-        return self.temp
+        temp = ctx.get_temp()
+        ctx.statements += [Assign(temp, NullConst(), 'node'), self]
+        ctx.statements += [If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
+            [Assign(temp, self.false_expr(), 'node')])]
+        ctx
+        return temp
 
-    def __str__(self):
-        true_stmts = block_str(self.true_stmts)
-        false_stmts = block_str(self.false_stmts)
-        body =  """if ({expr}->bool_value()) {{
-{true_stmts}
-    {temp} = {true_expr};
-}} else {{
-{false_stmts}
-    {temp} = {false_expr};
-}}""".format(expr=self.expr(), temp=self.temp.name, true_stmts=true_stmts,
-        true_expr=self.true_expr(), false_stmts=false_stmts, false_expr=self.false_expr())
-        return body
-
-@node('op, &lhs_expr, &*rhs_stmts, &rhs_expr')
+@node('op, &lhs_expr, &rhs_expr')
 class BoolOp(Node):
     def flatten(self, ctx, statements):
-        self.temp = ctx.get_temp()
-        statements += [Assign(self.temp, self.lhs_expr, 'node'), self]
+        temp = ctx.get_temp()
+        statements += [Assign(temp, self.lhs_expr, 'node'), self]
+        expr = self.expr()
+        if self.op == 'or':
+            expr = UnaryOp('__not__', expr)
+        ctx.statements += [If(expr, [Assign(temp, self.true_expr(), 'node')], [])]
         return self.temp
 
     def __str__(self):
@@ -407,7 +486,7 @@ class If(Node):
 }}""".format(stmts=stmts)
         return body
 
-@node('comp_type, target, &iter, iter_name, iter_binding, &*cond_stmts, &cond, &*expr_stmts, &expr, &expr2')
+@node('comp_type, target, &iter, &*cond_stmts, &cond, &*expr_stmts, &expr, &expr2')
 class Comprehension(Node):
     def flatten(self, ctx):
         if self.comp_type == 'set':
@@ -417,24 +496,26 @@ class Comprehension(Node):
         else:
             l = List([])
         self.temp = l.flatten(ctx)
+        self.iter_name = ctx.get_temp()
         ctx.statements += [Assign(self.iter_name, UnaryOp('__iter__', self.iter()), 'node')]
         ctx.statements += [self]
         # HACK: prevent iterator from being garbage collected
-        self.iter_store = Store(self.iter_name, self.iter_name, self.iter_binding)
+        self.iter_store = Store(self.iter_name, self.iter_name)
+
+        arg_unpacking = []
+        if isinstance(self.target, tuple):
+            for i, target in enumerate(self.target):
+                arg_unpacking += [Edge(self, Store(target, 'item->__getitem__(%s)' % i))]
+        else:
+            arg_unpacking = [Edge(self, Store(self.target, 'item'))]
+        arg_unpacking = block_str(arg_unpacking)
+        self.stmts = ctx.flatten_list(arg_unpacking + self.stmts)
+
         return self.temp
 
     def __str__(self):
         cond_stmts = block_str(self.cond_stmts)
         expr_stmts = block_str(self.expr_stmts)
-        arg_unpacking = []
-        # XXX HACK
-        if isinstance(self.target[0], tuple):
-            for i, (target, binding) in enumerate(self.target):
-                arg_unpacking += [Edge(self, Store(target, 'item->__getitem__(%s)' % i, binding))]
-        else:
-            target, binding = self.target
-            arg_unpacking = [Edge(self, Store(target, 'item', binding))]
-        arg_unpacking = block_str(arg_unpacking)
         if self.cond:
             cond = 'if (!(%s)->bool_value()) continue;' % self.cond()
         else:
@@ -448,12 +529,11 @@ class Comprehension(Node):
         body = """
 {iter_store};
 while (node *item = {iter}->next()) {{
-{arg_unpacking}
 {cond_stmts}
 {cond}
 {expr_stmts}
     {adder}
-}}""".format(iter=self.iter_name, iter_store=self.iter_store, arg_unpacking=arg_unpacking,
+}}""".format(iter=self.iter_name, iter_store=self.iter_store,
         cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
         return body
 
@@ -467,51 +547,42 @@ class Continue(Node):
     def __str__(self):
         return 'continue'
 
-@node('target, &iter, &*stmts, iter_name, iter_binding')
+@node('target, &iter, &*stmts')
 class For(Node):
-    # XXX clean up
-    def setup(self):
-        self.iter_name = Edge(self, Identifier(self.iter_name))
-
     def flatten(self, ctx):
+        self.iter_name = Edge(self, ctx.get_temp())
         ctx.statements += [Assign(self.iter_name(), UnaryOp('__iter__', self.iter()), 'node')]
+        arg_unpacking = []
+        if isinstance(self.target, list):
+            for i, arg in enumerate(self.target):
+                arg_unpacking += [Store(arg, 'item->__getitem__(%s)' % i)]
+        else:
+            arg_unpacking = [Store(self.target, 'item')]
+        self.stmts = ctx.flatten_list(arg_unpacking + self.stmts)
         # HACK: prevent iterator from being garbage collected
-        self.iter_store = Edge(self, Store(self.iter_name(), self.iter_name(), self.iter_binding))
+        self.iter_store = Edge(self, Store(self.iter_name(), self.iter_name()))
         return self
 
     def __str__(self):
         stmts = block_str(self.stmts)
-        arg_unpacking = []
-        if isinstance(self.target, list):
-            for i, (arg, binding) in enumerate(self.target):
-                arg_unpacking += [Edge(self, Store(arg, 'item->__getitem__(%s)' % i, binding))]
-        else:
-            arg, binding = self.target
-            arg_unpacking = [Edge(self, Store(arg, 'item', binding))]
-        arg_unpacking = block_str(arg_unpacking)
-        # XXX sorta weird?
-        body = """
-{iter_store};
+        body = """\
 while (node *item = {iter}->next()) {{
-{arg_unpacking}
 {stmts}
-}}""".format(iter=self.iter_name(), iter_store=self.iter_store(), arg_unpacking=arg_unpacking,
-        stmts=stmts)
+}}""".format(iter=self.iter_name(), stmts=stmts)
         return body
 
-@node('&*test_stmts, &test, &*stmts')
+@node('&test, &*stmts')
 class While(Node):
+    def flatten(self, ctx):
+        self.stmts = ctx.flatten_list([If(UnaryOp('__not__', self.test), [Break()], [])] + self.stmts)
+
     def __str__(self):
-        test_stmts = block_str(self.test_stmts)
         stmts = block_str(self.stmts)
         body = """\
 while (1)
 {{
-{test_stmts}
-    if (!{test}->bool_value())
-        break;
 {stmts}
-}}""".format(test_stmts=test_stmts, test=self.test(), stmts=stmts)
+}}""".format(stmts=stmts)
         return body
 
 @node('&value')
@@ -542,18 +613,16 @@ class CollectGarbage(Node):
     def __str__(self):
         return 'collect_garbage(&ctx, %s)' % (self.expr() if self.expr else 'NULL')
 
-@node('args, binding, &*defaults')
+@node('args, &*defaults')
 class Arguments(Node):
     def flatten(self, ctx):
         new_def = [None] * (len(self.args) - len(self.defaults))
-        self.defaults = new_def + self.defaults
-        self.name_strings = [Edge(self, StringConst(a)) for a in self.args]
-        return self
+        defaults = new_def + self.defaults
+        name_strings = [Edge(self, StringConst(a)) for a in self.args]
 
-    def __str__(self):
         arg_unpacking = []
-        for i, (arg, binding, default, name) in enumerate(zip(self.args, self.binding,
-            self.defaults, self.name_strings)):
+        for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
+            arg_unpacking += [IfExp(
             if default:
                 arg_value = '(args->len() > %d) ? args->items[%d] : %s' % (i, i, default())
             else:
@@ -561,13 +630,17 @@ class Arguments(Node):
             if not self.no_kwargs:
                 arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
                     (name(), name(), arg_value)
-            arg_unpacking += [Edge(self, Store(arg, arg_value, binding))]
-        arg_unpacking = block_str(arg_unpacking)
+            arg_unpacking += [Edge(self, Store(arg, arg_value))]
         if self.no_kwargs:
             arg_unpacking = '    if (kwargs && kwargs->len()) error("function does not take keyword arguments");\n' + arg_unpacking
+
+        return self
+
+    def __str__(self):
+        arg_unpacking = block_str(arg_unpacking)
         return arg_unpacking
 
-@node('name, &args, &*stmts, exp_name, binding, local_count')
+@node('name, &args, &*stmts, exp_name, local_count')
 class FunctionDef(Node):
     def setup(self):
         self.exp_name = self.exp_name if self.exp_name else self.name
@@ -575,7 +648,7 @@ class FunctionDef(Node):
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)), self.binding)]
+        return [Store(self.name, Ref('function_def', Identifier(self.exp_name)))]
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -590,11 +663,11 @@ node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {
         arg_unpacking=arg_unpacking, stmts=stmts)
         return body
 
-@node('name, binding, &*stmts')
+@node('name, &*stmts')
 class ClassDef(Node):
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)), self.binding)]
+        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)))]
 
     def __str__(self):
         stmts = block_str(self.stmts)
