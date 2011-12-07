@@ -63,9 +63,21 @@ public:
     const char *node_type() { return type()->type_name(); }
 
     virtual void mark_live() { error("mark_live unimplemented for %s", this->node_type()); }
+
+    // Macros for standard mark_live() patterns
 #define MARK_LIVE_FN \
     virtual void mark_live() { allocator->mark_live<sizeof(*this)>(this); }
-#define MARK_LIVE_SINGLETON_FN virtual void mark_live() { }
+
+#define MARK_LIVE_SINGLETON_FN \
+    virtual void mark_live() { }
+
+    // This one is kind of weird...
+#define MARK_LIVE_CHILDREN \
+    virtual void mark_live() { \
+        if (!allocator->mark_live<sizeof(*this)>(this)) \
+            this->mark_live_children(); \
+    } \
+    inline void mark_live_children()
 
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
@@ -399,9 +411,8 @@ public:
             it = s->value.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -539,9 +550,8 @@ public:
             it = b->value.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -626,9 +636,8 @@ public:
             it = l->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -645,11 +654,9 @@ public:
     list() {}
     explicit list(int_t n): items(n) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (size_t i = 0; i < this->items.size(); i++)
-                this->items[i]->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (size_t i = 0; i < this->items.size(); i++)
+            this->items[i]->mark_live();
     }
 
     int_t index(int_t base) {
@@ -754,9 +761,8 @@ public:
             it = t->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -775,11 +781,9 @@ public:
 
     virtual bool is_tuple() { return true; }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (size_t i = 0; i < this->items.size(); i++)
-                this->items[i]->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (size_t i = 0; i < this->items.size(); i++)
+            this->items[i]->mark_live();
     }
 
     int_t index(int_t base) {
@@ -850,9 +854,8 @@ public:
             it = d->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -876,9 +879,8 @@ public:
             it = d->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -904,9 +906,8 @@ public:
             it = d->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -922,12 +923,10 @@ public:
 
     dict() {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto it = this->items.begin(); it != this->items.end(); ++it) {
-                it->second.first->mark_live();
-                it->second.second->mark_live();
-            }
+    MARK_LIVE_CHILDREN {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
+            it->second.first->mark_live();
+            it->second.second->mark_live();
         }
     }
 
@@ -993,9 +992,8 @@ public:
         this->parent = d;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->parent->mark_live();
     }
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
@@ -1025,9 +1023,8 @@ public:
         this->parent = d;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->parent->mark_live();
     }
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
@@ -1061,9 +1058,8 @@ public:
         this->parent = d;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->parent->mark_live();
     }
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
@@ -1099,9 +1095,8 @@ public:
             it = s->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -1117,11 +1112,9 @@ public:
 
     set() {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto it = this->items.begin(); it != this->items.end(); ++it)
-                it->second->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            it->second->mark_live();
     }
 
     node *lookup(node *key) {
@@ -1191,9 +1184,8 @@ public:
 
     object() { this->items = new(allocator) dict; }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->items->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->items->mark_live();
     }
 
     virtual bool bool_value() { return true; }
@@ -1252,9 +1244,8 @@ public:
         this->i = 0;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->iter->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->iter->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1342,9 +1333,8 @@ public:
         this->len = len;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->parent->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1366,11 +1356,9 @@ private:
 public:
     zip(node *i1, node *i2): iter1(i1), iter2(i2) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            this->iter1->mark_live();
-            this->iter2->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        this->iter1->mark_live();
+        this->iter2->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1398,11 +1386,9 @@ private:
 public:
     bound_method(node *s, node *f): self(s), function(f) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            this->self->mark_live();
-            this->function->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        this->self->mark_live();
+        this->function->mark_live();
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1442,9 +1428,8 @@ public:
         this->items = new(allocator) dict;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->items->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->items->mark_live();
     }
 
     node *load(const char *name) {
