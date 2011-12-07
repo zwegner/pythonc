@@ -1435,14 +1435,11 @@ public:
 
 class class_def : public node {
 private:
-    std::string name;
     dict *items;
 
 public:
-    class_def(std::string name, void (*creator)(class_def *)) {
-        this->name = name;
+    class_def() {
         this->items = new(allocator) dict;
-        creator(this);
     }
 
     virtual void mark_live() {
@@ -1479,9 +1476,6 @@ public:
     }
     virtual node *getattr(const char *attr) {
         return this->load(attr);
-    }
-    virtual std::string repr() {
-        return std::string("<class '") + this->name + "'>";
     }
     virtual node *type() { return &builtin_class_type; }
 };
