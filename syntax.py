@@ -23,13 +23,13 @@
 
 import copy
 
-def indent(stmts):
+def indent(stmts, spaces=4):
     stmts = [str(s) for s in stmts]
     stmts = '\n'.join('%s%s' % (s, ';' if s and not s.endswith('}') else '') for s in stmts).splitlines()
-    return '\n'.join('    %s' % s for s in stmts)
+    return '\n'.join('%s%s' % (' ' * spaces, s) for s in stmts)
 
-def block_str(stmts):
-    return indent(s() for s in stmts)
+def block_str(stmts, spaces=4):
+    return indent((s() for s in stmts), spaces=spaces)
 
 all_ints = set()
 def register_int(value):
@@ -595,12 +595,12 @@ class ClassDef(Node):
         return [Store(self.name, Ref(self.class_name), self.binding)]
 
     def __str__(self):
-        stmts = block_str(self.stmts)
+        stmts = block_str(self.stmts, spaces=8)
         body = """
 class {cname} : public class_def {{
 public:
     {cname}() {{
-    {stmts}
+{stmts}
     }}
     virtual std::string repr() {{
         return std::string("<class '{name}'>");
