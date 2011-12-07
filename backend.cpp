@@ -1180,24 +1180,22 @@ public:
 
 class object: public node {
 public:
-    dict *items;
-
-    object() { this->items = new(allocator) dict; }
+    dict items;
 
     MARK_LIVE_CHILDREN {
-        this->items->mark_live();
+        this->items.mark_live_children();
     }
 
     virtual bool bool_value() { return true; }
 
     virtual node *getattr(const char *key) {
-        return items->__getitem__(new(allocator) string_const(key));
+        return items.__getitem__(new(allocator) string_const(key));
     }
     virtual node *type() {
         return this->getattr("__class__");
     }
     virtual void __setattr__(node *key, node *value) {
-        items->__setitem__(key, value);
+        items.__setitem__(key, value);
     }
     virtual bool _eq(node *rhs) { return this == rhs; }
     virtual bool _ne(node *rhs) { return this != rhs; }
@@ -1421,22 +1419,18 @@ public:
 
 class class_def : public node {
 private:
-    dict *items;
+    dict items;
 
 public:
-    class_def() {
-        this->items = new(allocator) dict;
-    }
-
     MARK_LIVE_CHILDREN {
-        this->items->mark_live();
+        this->items.mark_live_children();
     }
 
     node *load(const char *name) {
-        return items->__getitem__(new(allocator) string_const(name));
+        return items.__getitem__(new(allocator) string_const(name));
     }
     void store(const char *name, node *value) {
-        items->__setitem__(new(allocator) string_const(name), value);
+        items.__setitem__(new(allocator) string_const(name), value);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1446,7 +1440,7 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (auto it = items->items.begin(); it != items->items.end(); ++it) {
+        for (auto it = items.items.begin(); it != items.items.end(); ++it) {
             if (it->second.second->is_function())
                 obj->__setattr__(it->second.first, new(allocator) bound_method(obj, it->second.second));
         }
