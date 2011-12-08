@@ -843,84 +843,6 @@ class dict: public node {
 public:
     node_dict items;
 
-    class dict_keys_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_keys_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        MARK_LIVE_CHILDREN {
-            this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            node *ret = this->it->second.first;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_keyiterator; }
-    };
-    class dict_items_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_items_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        MARK_LIVE_CHILDREN {
-            this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            tuple *ret = new(allocator) tuple(2);
-            ret->items[0] = this->it->second.first;
-            ret->items[1] = this->it->second.second;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_itemiterator; }
-    };
-    class dict_values_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_values_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        MARK_LIVE_CHILDREN {
-            this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            node *ret = this->it->second.second;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_valueiterator; }
-    };
-
     dict() {}
 
     MARK_LIVE_CHILDREN {
@@ -980,8 +902,45 @@ public:
         return new_string;
     }
     virtual node *type() { return &builtin_class_dict; }
-    virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
+    virtual node *__iter__();
 };
+
+#define DICT_ITER(name, next_body) \
+    class dict_##name##s_iter: public node { \
+    private: \
+        dict *parent; \
+        node_dict::iterator it; \
+    public: \
+        dict_##name##s_iter(dict *d) { \
+            this->parent = d; \
+            it = d->items.begin(); \
+        } \
+        MARK_LIVE_CHILDREN { \
+            this->parent->mark_live(); \
+        } \
+        virtual node *__iter__() { return this; } \
+        virtual node *next() { \
+            if (this->it == this->parent->items.end()) \
+                return NULL; \
+            next_body \
+            ++this->it; \
+            return ret; \
+        } \
+        node *type() { return &builtin_class_dict_##name##iterator; } \
+    };
+
+// Eek. Reaching the limits of cpp here... don't use any commas in these function bodies...
+DICT_ITER(key,
+    auto ret = this->it->second.first;
+)
+DICT_ITER(item,
+    tuple *ret = new(allocator) tuple(2);
+    ret->items[0] = this->it->second.first;
+    ret->items[1] = this->it->second.second;
+)
+DICT_ITER(value,
+    auto ret = this->it->second.second;
+)
 
 class dict_keys: public node {
 private:
@@ -998,7 +957,7 @@ public:
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_keys_iter(this->parent); }
+    virtual node *__iter__() { return new(allocator) dict_keys_iter(this->parent); }
     virtual std::string repr() {
         std::string new_string = "dict_keys([";
         bool first = true;
@@ -1029,7 +988,7 @@ public:
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_items_iter(this->parent); }
+    virtual node *__iter__() { return new(allocator) dict_items_iter(this->parent); }
     virtual std::string repr() {
         std::string new_string = "dict_items([";
         bool first = true;
@@ -1064,7 +1023,7 @@ public:
 
     virtual bool bool_value() { return this->parent->items.size() != 0; }
     virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_values_iter(this->parent); }
+    virtual node *__iter__() { return new(allocator) dict_values_iter(this->parent); }
     virtual std::string repr() {
         std::string new_string = "dict_values([";
         bool first = true;
@@ -1806,6 +1765,10 @@ bool list::_eq(node *rhs_arg) {
             return false;
     }
     return true;
+}
+
+node *dict::__iter__() {
+    return new(allocator) dict_keys_iter(this);
 }
 
 node *tuple::__add__(node *rhs_arg) {
