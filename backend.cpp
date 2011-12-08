@@ -927,6 +927,30 @@ public:
             return ret; \
         } \
         node *type() { return &builtin_class_dict_##name##iterator; } \
+    }; \
+    class dict_##name##s: public node { \
+    private: \
+        dict *parent; \
+    public: \
+        dict_##name##s(dict *d) : parent(d) { } \
+        MARK_LIVE_CHILDREN { this->parent->mark_live(); } \
+        virtual bool bool_value() { return this->parent->items.size() != 0; } \
+        virtual int_t len() { return this->parent->items.size(); } \
+        virtual node *__iter__() { return new(allocator) dict_##name##s_iter(this->parent); } \
+        virtual std::string repr() { \
+            std::string new_string = "dict_" #name "s(["; \
+            bool first = true; \
+            auto it = this->__iter__(); \
+            while (auto n = it->next()) { \
+                if (!first) \
+                    new_string += ", "; \
+                first = false; \
+                new_string += n->repr(); \
+            } \
+            new_string += "])"; \
+            return new_string; \
+        } \
+        virtual node *type() { return &builtin_class_dict_##name##s; } \
     };
 
 // Eek. Reaching the limits of cpp here... don't use any commas in these function bodies...
@@ -941,103 +965,6 @@ DICT_ITER(item,
 DICT_ITER(value,
     auto ret = this->it->second.second;
 )
-
-class dict_keys: public node {
-private:
-    dict *parent;
-
-public:
-    dict_keys(dict *d) {
-        this->parent = d;
-    }
-
-    MARK_LIVE_CHILDREN {
-        this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict_keys_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_keys([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += it->second.first->repr();
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_keys; }
-};
-
-class dict_items: public node {
-private:
-    dict *parent;
-
-public:
-    dict_items(dict *d) {
-        this->parent = d;
-    }
-
-    MARK_LIVE_CHILDREN {
-        this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict_items_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_items([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += "(";
-            new_string += it->second.first->repr();
-            new_string += ", ";
-            new_string += it->second.second->repr();
-            new_string += ")";
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_items; }
-};
-
-class dict_values: public node {
-private:
-    dict *parent;
-
-public:
-    dict_values(dict *d) {
-        this->parent = d;
-    }
-
-    MARK_LIVE_CHILDREN {
-        this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict_values_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_values([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += it->second.second->repr();
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_values; }
-};
 
 class set: public node {
 public:
