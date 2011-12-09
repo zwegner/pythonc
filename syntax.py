@@ -227,7 +227,7 @@ class Load(Node):
         if self.scope == 'global':
             return 'globals->load(%s)' % self.idx
         elif self.scope == 'class':
-            return 'this->load("%s")' % self.name
+            return 'this->getattr("%s")' % self.name
         return 'ctx.load(%s)' % self.idx
 
 @node('name, &expr, binding')
@@ -239,7 +239,7 @@ class Store(Node):
         if self.scope == 'global':
             return 'globals->store(%s, %s)' % (self.idx, self.expr())
         elif self.scope == 'class':
-            return 'this->store("%s", %s)' % (self.name, self.expr())
+            return 'this->setattr("%s", %s)' % (self.name, self.expr())
         return 'ctx.store(%s, %s)' % (self.idx, self.expr())
 
 @node('name, attr, &expr')
@@ -589,15 +589,17 @@ node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {
 class ClassDef(Node):
     def setup(self):
         self.class_name = 'class_%s' % self.name
+        self.class_inst = '%s_singleton' % self.class_name
+        self.obj_name = '%s_obj' % self.class_name
 
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref(self.class_name), self.binding)]
+        return [Store(self.name, '&%s' % self.class_inst, self.binding)]
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
         body = """
-class {cname} : public class_def {{
+class {cname}: public class_def {{
 public:
     {cname}() {{
 {stmts}
@@ -605,6 +607,31 @@ public:
     virtual std::string repr() {{
         return std::string("<class '{name}'>");
     }}
+    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    virtual const char *type_name() {{ return "{cname}"; }}
+}} {cinst};
+class {oname}: public object {{
+public:
+    virtual node *getattr(const char *key) {{
+        if (!strcmp(key, "__class__"))
+            return &{cinst};
+        return new(allocator) bound_method(this, {cinst}.getattr(key));
+    }}
+    virtual node *type() {{ return &{cinst}; }}
 }};
-""".format(name=self.name, cname=self.class_name, stmts=stmts)
+node *{cname}::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {{
+    node *init = this->getattr("__init__");
+    object *obj = new(allocator) {oname}();
+    if (!init)
+        return obj;
+    int_t len = args->items.size();
+    tuple *new_args = new(allocator) tuple(len + 1);
+    new_args->items[0] = obj;
+    for (int_t i = 0; i < len; i++)
+        new_args->items[i+1] = args->items[i];
+    init->__call__(globals, ctx, new_args, kwargs);
+    return obj;
+}}
+""".format(name=self.name, cname=self.class_name, cinst=self.class_inst,
+        oname=self.obj_name, stmts=stmts)
         return body
