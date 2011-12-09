@@ -208,7 +208,7 @@ class Edge:
 # &expr -> edge attribute, will create an Edge object (used for linking to other Nodes)
 # &*stmts -> python list of edges
 # *args -> varargs, additional args are assigned to this attribute
-def node(argstr='', atom=False):
+def node(argstr=''):
     args = argstr.split(',')
     new_args = []
     varargs = None
@@ -222,6 +222,8 @@ def node(argstr='', atom=False):
         else:
             new_args.append(arg_name)
     args = new_args
+
+    atom = not any(a[0] == '&' for a in args)
 
     # Decorators must return a function. This adds __init__ and is_atom methods
     # to a Node subclass
@@ -256,22 +258,22 @@ def node(argstr='', atom=False):
 
     return attach
 
-@node(atom=True)
+@node()
 class NullConst(Node):
     def __str__(self):
         return 'NULL'
 
-@node(atom=True)
+@node()
 class NoneConst(Node):
     def __str__(self):
         return '(&none_singleton)'
 
-@node('value', atom=True)
+@node('value')
 class BoolConst(Node):
     def __str__(self):
         return '(&bool_singleton_%s)' % self.value
 
-@node('value', atom=True)
+@node('value')
 class IntConst(Node):
     def setup(self):
         register_int(self.value)
@@ -279,7 +281,7 @@ class IntConst(Node):
     def __str__(self):
         return '(&%s)' % int_name(self.value)
 
-@node('value', atom=True)
+@node('value')
 class StringConst(Node):
     def setup(self):
         self.id = register_string(self.value)
@@ -287,7 +289,7 @@ class StringConst(Node):
     def __str__(self):
         return '(&string_singleton_%s)' % self.id
 
-@node('value', atom=True)
+@node('value')
 class BytesConst(Node):
     def setup(self):
         self.id = register_bytes(self.value)
@@ -295,7 +297,7 @@ class BytesConst(Node):
     def __str__(self):
         return '(&bytes_singleton_%s)' % self.id
 
-@node('name', atom=True)
+@node('name')
 class Identifier(Node):
     def __str__(self):
         return self.name
@@ -532,12 +534,12 @@ while (node *item = {iter}->next()) {{
         cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
         return body
 
-@node(atom=True)
+@node()
 class Break(Node):
     def __str__(self):
         return 'break'
 
-@node(atom=True)
+@node()
 class Continue(Node):
     def __str__(self):
         return 'continue'
