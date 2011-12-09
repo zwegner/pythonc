@@ -63,9 +63,21 @@ public:
     const char *node_type() { return type()->type_name(); }
 
     virtual void mark_live() { error("mark_live unimplemented for %s", this->node_type()); }
+
+    // Macros for standard mark_live() patterns
 #define MARK_LIVE_FN \
     virtual void mark_live() { allocator->mark_live<sizeof(*this)>(this); }
-#define MARK_LIVE_SINGLETON_FN virtual void mark_live() { }
+
+#define MARK_LIVE_SINGLETON_FN \
+    virtual void mark_live() { }
+
+    // This one is kind of weird...
+#define MARK_LIVE_CHILDREN \
+    virtual void mark_live() { \
+        if (!allocator->mark_live<sizeof(*this)>(this)) \
+            this->mark_live_children(); \
+    } \
+    inline void mark_live_children()
 
     virtual bool is_bool() { return false; }
     virtual bool is_dict() { return false; }
@@ -399,9 +411,8 @@ public:
             it = s->value.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -539,9 +550,8 @@ public:
             it = b->value.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -626,9 +636,8 @@ public:
             it = l->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -645,11 +654,9 @@ public:
     list() {}
     explicit list(int_t n): items(n) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (size_t i = 0; i < this->items.size(); i++)
-                this->items[i]->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (size_t i = 0; i < this->items.size(); i++)
+            this->items[i]->mark_live();
     }
 
     int_t index(int_t base) {
@@ -754,9 +761,8 @@ public:
             it = t->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -775,11 +781,9 @@ public:
 
     virtual bool is_tuple() { return true; }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (size_t i = 0; i < this->items.size(); i++)
-                this->items[i]->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (size_t i = 0; i < this->items.size(); i++)
+            this->items[i]->mark_live();
     }
 
     int_t index(int_t base) {
@@ -839,95 +843,12 @@ class dict: public node {
 public:
     node_dict items;
 
-    class dict_keys_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_keys_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            node *ret = this->it->second.first;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_keyiterator; }
-    };
-    class dict_items_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_items_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            tuple *ret = new(allocator) tuple(2);
-            ret->items[0] = this->it->second.first;
-            ret->items[1] = this->it->second.second;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_itemiterator; }
-    };
-    class dict_values_iter: public node {
-    private:
-        dict *parent;
-        node_dict::iterator it;
-
-    public:
-        dict_values_iter(dict *d) {
-            this->parent = d;
-            it = d->items.begin();
-        }
-
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
-        }
-
-        virtual node *__iter__() { return this; }
-        virtual node *next() {
-            if (this->it == this->parent->items.end())
-                return NULL;
-            node *ret = this->it->second.second;
-            ++this->it;
-            return ret;
-        }
-        virtual node *type() { return &builtin_class_dict_valueiterator; }
-    };
-
     dict() {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto it = this->items.begin(); it != this->items.end(); ++it) {
-                it->second.first->mark_live();
-                it->second.second->mark_live();
-            }
+    MARK_LIVE_CHILDREN {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it) {
+            it->second.first->mark_live();
+            it->second.second->mark_live();
         }
     }
 
@@ -981,108 +902,69 @@ public:
         return new_string;
     }
     virtual node *type() { return &builtin_class_dict; }
-    virtual node *__iter__() { return new(allocator) dict_keys_iter(this); }
+    virtual node *__iter__();
 };
 
-class dict_keys: public node {
-private:
-    dict *parent;
+#define DICT_ITER(name, next_body) \
+    class dict_##name##s_iter: public node { \
+    private: \
+        dict *parent; \
+        node_dict::iterator it; \
+    public: \
+        dict_##name##s_iter(dict *d) { \
+            this->parent = d; \
+            it = d->items.begin(); \
+        } \
+        MARK_LIVE_CHILDREN { \
+            this->parent->mark_live(); \
+        } \
+        virtual node *__iter__() { return this; } \
+        virtual node *next() { \
+            if (this->it == this->parent->items.end()) \
+                return NULL; \
+            next_body \
+            ++this->it; \
+            return ret; \
+        } \
+        node *type() { return &builtin_class_dict_##name##iterator; } \
+    }; \
+    class dict_##name##s: public node { \
+    private: \
+        dict *parent; \
+    public: \
+        dict_##name##s(dict *d) : parent(d) { } \
+        MARK_LIVE_CHILDREN { this->parent->mark_live(); } \
+        virtual bool bool_value() { return this->parent->items.size() != 0; } \
+        virtual int_t len() { return this->parent->items.size(); } \
+        virtual node *__iter__() { return new(allocator) dict_##name##s_iter(this->parent); } \
+        virtual std::string repr() { \
+            std::string new_string = "dict_" #name "s(["; \
+            bool first = true; \
+            auto it = this->__iter__(); \
+            while (auto n = it->next()) { \
+                if (!first) \
+                    new_string += ", "; \
+                first = false; \
+                new_string += n->repr(); \
+            } \
+            new_string += "])"; \
+            return new_string; \
+        } \
+        virtual node *type() { return &builtin_class_dict_##name##s; } \
+    };
 
-public:
-    dict_keys(dict *d) {
-        this->parent = d;
-    }
-
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_keys_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_keys([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += it->second.first->repr();
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_keys; }
-};
-
-class dict_items: public node {
-private:
-    dict *parent;
-
-public:
-    dict_items(dict *d) {
-        this->parent = d;
-    }
-
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_items_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_items([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += "(";
-            new_string += it->second.first->repr();
-            new_string += ", ";
-            new_string += it->second.second->repr();
-            new_string += ")";
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_items; }
-};
-
-class dict_values: public node {
-private:
-    dict *parent;
-
-public:
-    dict_values(dict *d) {
-        this->parent = d;
-    }
-
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
-    }
-
-    virtual bool bool_value() { return this->parent->items.size() != 0; }
-    virtual int_t len() { return this->parent->items.size(); }
-    virtual node *__iter__() { return new(allocator) dict::dict_values_iter(this->parent); }
-    virtual std::string repr() {
-        std::string new_string = "dict_values([";
-        bool first = true;
-        for (auto it = this->parent->items.begin(); it != this->parent->items.end(); ++it) {
-            if (!first)
-                new_string += ", ";
-            first = false;
-            new_string += it->second.second->repr();
-        }
-        new_string += "])";
-        return new_string;
-    }
-    virtual node *type() { return &builtin_class_dict_values; }
-};
+// Eek. Reaching the limits of cpp here... don't use any commas in these function bodies...
+DICT_ITER(key,
+    auto ret = this->it->second.first;
+)
+DICT_ITER(item,
+    tuple *ret = new(allocator) tuple(2);
+    ret->items[0] = this->it->second.first;
+    ret->items[1] = this->it->second.second;
+)
+DICT_ITER(value,
+    auto ret = this->it->second.second;
+)
 
 class set: public node {
 public:
@@ -1099,9 +981,8 @@ public:
             it = s->items.begin();
         }
 
-        virtual void mark_live() {
-            if (!allocator->mark_live<sizeof(*this)>(this))
-                this->parent->mark_live();
+        MARK_LIVE_CHILDREN {
+            this->parent->mark_live();
         }
 
         virtual node *__iter__() { return this; }
@@ -1117,11 +998,9 @@ public:
 
     set() {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            for (auto it = this->items.begin(); it != this->items.end(); ++it)
-                it->second->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        for (auto it = this->items.begin(); it != this->items.end(); ++it)
+            it->second->mark_live();
     }
 
     node *lookup(node *key) {
@@ -1187,25 +1066,22 @@ public:
 
 class object: public node {
 public:
-    dict *items;
+    dict items;
 
-    object() { this->items = new(allocator) dict; }
-
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->items->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->items.mark_live_children();
     }
 
     virtual bool bool_value() { return true; }
 
     virtual node *getattr(const char *key) {
-        return items->__getitem__(new(allocator) string_const(key));
+        return items.__getitem__(new(allocator) string_const(key));
     }
     virtual node *type() {
         return this->getattr("__class__");
     }
     virtual void __setattr__(node *key, node *value) {
-        items->__setitem__(key, value);
+        items.__setitem__(key, value);
     }
     virtual bool _eq(node *rhs) { return this == rhs; }
     virtual bool _ne(node *rhs) { return this != rhs; }
@@ -1252,9 +1128,8 @@ public:
         this->i = 0;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->iter->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->iter->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1342,9 +1217,8 @@ public:
         this->len = len;
     }
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->parent->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->parent->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1366,11 +1240,9 @@ private:
 public:
     zip(node *i1, node *i2): iter1(i1), iter2(i2) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            this->iter1->mark_live();
-            this->iter2->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        this->iter1->mark_live();
+        this->iter2->mark_live();
     }
 
     virtual node *__iter__() { return this; }
@@ -1398,11 +1270,9 @@ private:
 public:
     bound_method(node *s, node *f): self(s), function(f) {}
 
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this)) {
-            this->self->mark_live();
-            this->function->mark_live();
-        }
+    MARK_LIVE_CHILDREN {
+        this->self->mark_live();
+        this->function->mark_live();
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1435,26 +1305,18 @@ public:
 
 class class_def : public node {
 private:
-    std::string name;
-    dict *items;
+    dict items;
 
 public:
-    class_def(std::string name, void (*creator)(class_def *)) {
-        this->name = name;
-        this->items = new(allocator) dict;
-        creator(this);
-    }
-
-    virtual void mark_live() {
-        if (!allocator->mark_live<sizeof(*this)>(this))
-            this->items->mark_live();
+    MARK_LIVE_CHILDREN {
+        this->items.mark_live_children();
     }
 
     node *load(const char *name) {
-        return items->__getitem__(new(allocator) string_const(name));
+        return items.__getitem__(new(allocator) string_const(name));
     }
     void store(const char *name, node *value) {
-        items->__setitem__(new(allocator) string_const(name), value);
+        items.__setitem__(new(allocator) string_const(name), value);
     }
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
@@ -1464,7 +1326,7 @@ public:
         obj->__setattr__(new(allocator) string_const("__class__"), this);
 
         // Create bound methods
-        for (auto it = items->items.begin(); it != items->items.end(); ++it) {
+        for (auto it = items.items.begin(); it != items.items.end(); ++it) {
             if (it->second.second->is_function())
                 obj->__setattr__(it->second.first, new(allocator) bound_method(obj, it->second.second));
         }
@@ -1479,9 +1341,6 @@ public:
     }
     virtual node *getattr(const char *attr) {
         return this->load(attr);
-    }
-    virtual std::string repr() {
-        return std::string("<class '") + this->name + "'>";
     }
     virtual node *type() { return &builtin_class_type; }
 };
@@ -1833,6 +1692,10 @@ bool list::_eq(node *rhs_arg) {
             return false;
     }
     return true;
+}
+
+node *dict::__iter__() {
+    return new(allocator) dict_keys_iter(this);
 }
 
 node *tuple::__add__(node *rhs_arg) {

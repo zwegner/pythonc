@@ -34,7 +34,7 @@ for x in [[1], (2,), {3: 4}]:
 for x in ['', [], {}, set(), 'a', [1], {'b'}, {1: 2}]:
     print(len(x))
 
-for x in [range(5), {1, 2, 3}, [1, 'c'], '', 'a', 'abc']:
+for x in [range(5), {1}, [1, 'c'], '', 'a', 'abc']:
     print(list(x))
 
 for x in [(1,), [2, 3], {4, 5, 6}]:

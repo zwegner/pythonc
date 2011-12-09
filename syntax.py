@@ -23,13 +23,13 @@
 
 import copy
 
-def indent(stmts):
+def indent(stmts, spaces=4):
     stmts = [str(s) for s in stmts]
     stmts = '\n'.join('%s%s' % (s, ';' if s and not s.endswith('}') else '') for s in stmts).splitlines()
-    return '\n'.join('    %s' % s for s in stmts)
+    return '\n'.join('%s%s' % (' ' * spaces, s) for s in stmts)
 
-def block_str(stmts):
-    return indent(s() for s in stmts)
+def block_str(stmts, spaces=4):
+    return indent((s() for s in stmts), spaces=spaces)
 
 all_ints = set()
 def register_int(value):
@@ -324,7 +324,7 @@ class Load(Node):
         if self.scope == 'global':
             return 'globals->load(%s)' % self.idx
         elif self.scope == 'class':
-            return 'class_ctx->load("%s")' % self.name
+            return 'this->load("%s")' % self.name
         return 'ctx.load(%s)' % self.idx
 
 @node('name, &expr')
@@ -336,18 +336,13 @@ class Store(Node):
         if self.scope == 'global':
             return 'globals->store(%s, %s)' % (self.idx, self.expr())
         elif self.scope == 'class':
-            return 'class_ctx->store("%s", %s)' % (self.name, self.expr())
+            return 'this->store("%s", %s)' % (self.name, self.expr())
         return 'ctx.store(%s, %s)' % (self.idx, self.expr())
 
-@node('name, &expr')
+@node('name, attr, &expr')
 class StoreAttr(Node):
-    def __init__(self, name, attr, expr):
-        self.name = name
-        self.attr = attr
-        self.expr = expr
-
     def __str__(self):
-        return '%s->__setattr__(%s, %s)' % (self.name, self.attr, self.expr)
+        return '%s->__setattr__(%s, %s)' % (self.name, self.attr, self.expr())
 
 @node('&expr, &index, &value')
 class StoreSubscript(Node):
@@ -665,14 +660,24 @@ node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {
 
 @node('name, &*stmts')
 class ClassDef(Node):
+    def setup(self):
+        self.class_name = 'class_%s' % self.name
+
     def flatten(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('class_def', '"%s"' % self.name, Identifier('_%s__create__' % self.name)))]
+        return [Store(self.name, Ref(self.class_name))]
 
     def __str__(self):
-        stmts = block_str(self.stmts)
+        stmts = block_str(self.stmts, spaces=8)
         body = """
-void _{name}__create__(class_def *class_ctx) {{
+class {cname} : public class_def {{
+public:
+    {cname}() {{
 {stmts}
-}}""".format(name=self.name, stmts=stmts)
+    }}
+    virtual std::string repr() {{
+        return std::string("<class '{name}'>");
+    }}
+}};
+""".format(name=self.name, cname=self.class_name, stmts=stmts)
         return body
