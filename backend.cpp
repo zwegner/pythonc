@@ -250,7 +250,7 @@ public:
     node *load(uint32_t idx) {
         node *ret = this->symbols[idx];
         if (!ret)
-            error("name is not defined");
+            error("symbol %i is not defined", idx);
         return ret;
     }
 };

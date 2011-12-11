@@ -370,7 +370,7 @@ class IfExp(Node):
 class BoolOp(Node):
     def flatten(self, ctx, statements):
         self.temp = ctx.get_temp()
-        statements += [Assign(self.temp, self.lhs_expr, 'node'), self]
+        statements += [Assign(self.temp, self.lhs_expr(), 'node'), self]
         return self.temp
 
     def __str__(self):
@@ -577,7 +577,7 @@ class FunctionDef(Node):
         arg_unpacking = str(self.args())
         body = """
 node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {{
-    node *local_syms[{local_count}] = {{0}};
+    node *local_syms[{local_count}] = {{}};
     context ctx(parent_ctx, {local_count}, local_syms);
 {arg_unpacking}
 {stmts}
