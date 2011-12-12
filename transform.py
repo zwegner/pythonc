@@ -147,11 +147,11 @@ class Transformer(ast.NodeTransformer):
     def generic_visit(self, node):
         raise TranslateError(node, 'can\'t translate %s' % node)
 
-    def visit_children(self, node):
-        return [self.visit(i) for i in ast.iter_child_nodes(node)]
+    def visit_child_list(self, node):
+        return [self.visit(i) for i in node]
 
     def visit_Name(self, node):
-        assert isinstance(node.ctx, ast.Load)
+        #assert isinstance(node.ctx, ast.Load)
         if node.id in ['True', 'False']:
             return syntax.BoolConst(node.id == 'True')
         elif node.id == 'None':
@@ -357,9 +357,9 @@ class Transformer(ast.NodeTransformer):
 
     def visit_If(self, node):
         expr = self.visit(node.test)
-        stmts = self.visit_children(node.body)
+        stmts = self.visit_child_list(node.body)
         if node.orelse:
-            else_block = self.visit_children(node.orelse)
+            else_block = self.visit_child_list(node.orelse)
         else:
             else_block = []
         return syntax.If(expr, stmts, else_block)
@@ -373,7 +373,7 @@ class Transformer(ast.NodeTransformer):
     def visit_For(self, node):
         assert not node.orelse
         iter = self.visit(node.iter)
-        stmts = self.visit_children(node.body)
+        stmts = self.visit_child_list(node.body)
         stmts.append(syntax.CollectGarbage(None))
 
         if isinstance(node.target, ast.Name):
@@ -387,18 +387,17 @@ class Transformer(ast.NodeTransformer):
 
     def visit_While(self, node):
         assert not node.orelse
-        test_stmts = []
-        test = self.visit(node.test, statements=test_stmts)
-        stmts = self.visit_children(node.body)
+        test = self.visit(node.test)
+        stmts = self.visit_child_list(node.body)
         stmts.append(syntax.CollectGarbage(None))
-        return syntax.While(test_stmts, test, stmts)
+        return syntax.While(test, stmts)
 
     # XXX We are just flattening "with x as y:" into "y = x" (this works in some simple cases with open()).
     def visit_With(self, node):
         assert node.optional_vars
         expr = self.visit(node.context_expr)
         stmts = [syntax.Store(node.optional_vars.id, expr)]
-        stmts += self.visit_children(node.body)
+        stmts += self.visit_child_list(node.body)
         return stmts
 
     def visit_Comprehension(self, node, comp_type):
@@ -414,20 +413,17 @@ class Transformer(ast.NodeTransformer):
             assert False
 
         iter = self.visit(gen.iter)
-        cond_stmts = []
-        expr_stmts = []
         cond = None
         if gen.ifs:
-            cond = self.visit(gen.ifs[0], statements=cond_stmts)
+            cond = self.visit(gen.ifs[0])
         if comp_type == 'dict':
-            expr = self.visit(node.key, statements=expr_stmts)
-            expr2 = self.visit(node.value, statements=expr_stmts)
+            expr = self.visit(node.key)
+            expr2 = self.visit(node.value)
         else:
-            expr = self.visit(node.elt, statements=expr_stmts)
+            expr = self.visit(node.elt)
             expr2 = None
         return syntax.Comprehension(comp_type, target, iter, node.iter_temp,
-                cond_stmts, cond, expr_stmts,
-                expr, expr2)
+                cond, expr, expr2)
 
     def visit_ListComp(self, node):
         return self.visit_Comprehension(node, 'list')
@@ -463,7 +459,7 @@ class Transformer(ast.NodeTransformer):
         assert not node.kwarg
 
         args = [a.arg for a in node.args]
-        defaults = self.visit_children(node.defaults)
+        defaults = self.visit_child_list(node.defaults)
         return syntax.Arguments(args, defaults)
 
     def visit_FunctionDef(self, node):
@@ -488,7 +484,7 @@ class Transformer(ast.NodeTransformer):
         self.globals_set = globals_set
         self.in_function = True
         args = self.visit(node.args)
-        body = self.visit_children(node.body)
+        body = self.visit_child_list(node.body)
         if not body or not isinstance(body[-1], syntax.Return):
             body.append(syntax.Return(None))
         self.globals_set = None
@@ -513,7 +509,7 @@ class Transformer(ast.NodeTransformer):
                 fn.exp_name = '_%s_%s' % (node.name, fn.name)
 
         self.in_class = True
-        body = self.visit_children(node.body)
+        body = self.visit_child_list(node.body)
         self.in_class = False
 
         return syntax.ClassDef(node.name, body)
@@ -531,22 +527,7 @@ class Transformer(ast.NodeTransformer):
         return self.visit(node.value)
 
     def visit_Module(self, node):
-        # Set up an index of all possible global/class symbols
-        all_global_syms = set()
-        all_class_syms = set()
-        self.index_global_class_symbols(node, all_global_syms, all_class_syms)
-
-        all_global_syms.add('$undefined')
-        all_global_syms |= set(builtin_symbols)
-
-        self.symbol_idx = {
-            scope: {symbol: idx for idx, symbol in enumerate(sorted(symbols))}
-            for scope, symbols in [['class', all_class_syms], ['global', all_global_syms]]
-        }
-        self.global_sym_count = len(all_global_syms)
-        self.class_sym_count = len(all_class_syms)
-
-        return self.visit_children(node.body)
+        return self.visit_child_list(node.body)
 
     def visit_Pass(self, node): pass
     def visit_Load(self, node): pass

@@ -92,32 +92,23 @@ class Flattener:
         self.temp_id += 1
         return syntax.Identifier('temp_%02i' % self.temp_id)
 
-    def flatten_node(self, node, statements=None):
-        old_stmts = self.statements
-        if statements is not None:
-            self.statements = statements
-        node = self.visit(node)
+    def flatten_edge(self, edge):
+        node = edge()
+        node.flatten()
         if node.is_atom():
             r = node
         else:
             temp = self.get_temp()
             self.statements.append(syntax.Assign(temp, node))
             r = temp
-        self.statements = old_stmts
-        return r
+        node.forward(r)
 
     def flatten_list(self, node_list):
         old_stmts = self.statements
-        statements = []
-        for stmt in node_list:
-            self.statements = []
-            stmts = self.visit(stmt)
-            if stmts:
-                if isinstance(stmts, list):
-                    statements += self.statements + stmts
-                else:
-                    statements += self.statements + [stmts]
-        self.statements = old_stmts
+        self.statements = []
+        for edge in node_list:
+            edge().flatten(self)
+        [statements, self.statements] = self.statements, old_stmts
         return statements
 
     def get_sym_id(self, scope, name):
@@ -177,9 +168,38 @@ class Flattener:
         for i in ast.iter_child_nodes(node):
             self.get_globals(i, globals_set, locals_set, all_vars_set)
 
+    def analyze_scoping(self):
+        # Set up an index of all possible global/class symbols
+        all_global_syms = set()
+        all_class_syms = set()
+        self.index_global_class_symbols(node, all_global_syms, all_class_syms)
+
+        all_global_syms.add('$undefined')
+        all_global_syms |= set(builtin_symbols)
+
+        self.symbol_idx = {
+            scope: {symbol: idx for idx, symbol in enumerate(sorted(symbols))}
+            for scope, symbols in [['class', all_class_syms], ['global', all_global_syms]]
+        }
+        self.global_sym_count = len(all_global_syms)
+        self.class_sym_count = len(all_class_syms)
+
+
 class Node:
-    def is_atom(self):
-        return False
+    def add_use(self, edge):
+        assert edge not in self.uses
+        self.uses.append(edge)
+
+    def remove_use(self, edge):
+        self.uses.remove(edge)
+
+    def forward(self, new_value):
+        for edge in self.uses:
+            edge.value = new_value
+            new_value.add_use(edge)
+
+    def __str__(self):
+        assert False
 
 # Edge class represents the use of a Node by another. This allows us to use
 # value forwarding and such. It is used like so:
@@ -191,15 +211,18 @@ class Edge:
     def __init__(self, node, value):
         self.node = node
         self.value = value
-        # XXX value.add_use(self)
+        value.add_use(self)
 
     def __call__(self):
         return self.value
 
     def set(self, value):
-        # XXX self.value.remove_use(self)
+        self.value.remove_use(self)
         self.value = value
-        # XXX value.add_use(self)
+        value.add_use(self)
+
+    def __str__(self):
+        assert False
 
 # Weird decorator: a given arg string represents a standard form for arguments
 # to Node subclasses. We use these notations:
@@ -245,13 +268,27 @@ def node(argstr=''):
                         setattr(self, k, Edge(self, v) if v is not None else None)
                 else:
                     setattr(self, k, v)
+            self.uses = []
             if hasattr(self, 'setup'):
                 self.setup()
+
+        def flatten(self, ctx):
+            for k in args:
+                if k[0] == '&':
+                    k = k[1:]
+                    if k[0] == '*':
+                        k = k[1:]
+                        items = getattr(self, k)
+                        for edge in items:
+                            ctx.flatten_edge(edge)
+                    else:
+                        ctx.flatten_edge(getattr(self, k))
 
         def is_atom(self):
             return atom
 
         node.__init__ = __init__
+        node.flatten = flatten
         node.is_atom = is_atom
 
         return node
@@ -319,9 +356,6 @@ class BinaryOp(Node):
 
 @node('name')
 class Load(Node):
-    def setup(self):
-        self.scope = self.binding
-
     def __str__(self):
         if self.scope == 'global':
             return 'globals->load(%s)' % self.idx
@@ -331,9 +365,6 @@ class Load(Node):
 
 @node('name, &expr')
 class Store(Node):
-    def setup(self):
-        self.scope = self.binding
-
     def __str__(self):
         if self.scope == 'global':
             return 'globals->store(%s, %s)' % (self.idx, self.expr())
@@ -361,10 +392,11 @@ class StoreSubscriptDirect(Node):
     def __str__(self):
         return '%s->items[%d] = %s' % (self.expr(), self.index, self.value())
 
-@node('&obj, method_name, &arg')
+@node('&obj, method_name, &*args')
 class MethodCall(Node):
     def __str__(self):
-        return '%s->%s(%s)' % (self.obj(), self.method_name, self.arg())
+        args = ['%s' % a() for a in self.args]
+        return '%s->%s(%s)' % (self.obj(), self.method_name, ', '.join(args))
 
 @node('&*items')
 class List(Node):
@@ -407,7 +439,7 @@ class Set(Node):
     def reduce(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('set'), 'set')]
-        ctx.statements += [MethodCall(name, 'add', i()) for i in self.items]
+        ctx.statements += [MethodCall(name, 'add', [i()]) for i in self.items]
         return name
 
 @node('&expr, &start, &end, &step')
@@ -437,7 +469,6 @@ class IfExp(Node):
         ctx.statements += [Assign(temp, NullConst(), 'node'), self]
         ctx.statements += [If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
             [Assign(temp, self.false_expr(), 'node')])]
-        ctx
         return temp
 
 @node('op, &lhs_expr, &rhs_expr')
@@ -480,7 +511,7 @@ class If(Node):
 }}""".format(stmts=stmts)
         return body
 
-@node('comp_type, target, &iter, &*cond_stmts, &cond, &*expr_stmts, &expr, &expr2')
+@node('comp_type, target, &iter, &cond, &expr, &expr2')
 class Comprehension(Node):
     def reduce(self, ctx):
         if self.comp_type == 'set':
@@ -489,47 +520,38 @@ class Comprehension(Node):
             l = Dict([], [])
         else:
             l = List([])
-        self.temp = l.reduce(ctx)
-        self.iter_name = ctx.get_temp()
-        ctx.statements += [Assign(self.iter_name, UnaryOp('__iter__', self.iter()), 'node')]
-        ctx.statements += [self]
-        # HACK: prevent iterator from being garbage collected
-        self.iter_store = Store(self.iter_name, self.iter_name)
+        temp = l.reduce(ctx)
+        iter_name = ctx.get_temp()
+        ctx.statements += [Store(iter_name, UnaryOp('__iter__', self.iter()))]
 
-        arg_unpacking = []
+        # Construct body of while loop that implements comprehension
+        # Get next item of iterable
+        item = MethodCall(Load(iter_name), 'next', [])
+        stmts = [If(UnaryOp('__not__', item), [Break()], [])]
+
+        # Unpack arguments
         if isinstance(self.target, tuple):
             for i, target in enumerate(self.target):
-                arg_unpacking += [Edge(self, Store(target, 'item->__getitem__(%s)' % i))]
+                stmts += [Store(target, '%s->__getitem__(%s)' % (item, i))]
         else:
-            arg_unpacking = [Edge(self, Store(self.target, 'item'))]
-        arg_unpacking = block_str(arg_unpacking)
-        self.stmts = ctx.flatten_list(arg_unpacking + self.stmts)
+            stmts += [Store(self.target, item)]
+
+        # Condtional
+        if self.cond:
+            stmts += [If(UnaryOp('__not__', self.cond()), [Continue()], [])]
+
+        if self.comp_type == 'set':
+            stmts += [MethodCall(temp, 'add', [self.expr()])]
+        elif self.comp_type == 'dict':
+            stmts += [MethodCall(temp, '__setitem__', [self.expr(), self.expr2()])]
+        else:
+            stmts += [MethodCall(temp, 'append', [self.expr()])]
+
+        w = While(BoolConst(True), stmts)
+
+        ctx.statements += [l]
 
         return self.temp
-
-    def __str__(self):
-        cond_stmts = block_str(self.cond_stmts)
-        expr_stmts = block_str(self.expr_stmts)
-        if self.cond:
-            cond = 'if (!(%s)->bool_value()) continue;' % self.cond()
-        else:
-            cond = ''
-        if self.comp_type == 'set':
-            adder = '%s->add(%s);' % (self.temp, self.expr())
-        elif self.comp_type == 'dict':
-            adder = '%s->__setitem__(%s, %s);' % (self.temp, self.expr(), self.expr2())
-        else:
-            adder = '%s->items.push_back(%s);' % (self.temp, self.expr())
-        body = """
-{iter_store};
-while (node *item = {iter}->next()) {{
-{cond_stmts}
-{cond}
-{expr_stmts}
-    {adder}
-}}""".format(iter=self.iter_name, iter_store=self.iter_store,
-        cond_stmts=cond_stmts, cond=cond, expr_stmts=expr_stmts, adder=adder)
-        return body
 
 @node()
 class Break(Node):
@@ -616,7 +638,7 @@ class Arguments(Node):
 
         arg_unpacking = []
         for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
-            arg_unpacking += [IfExp(
+            arg_unpacking += [IfExp()]
             if default:
                 arg_value = '(args->len() > %d) ? args->items[%d] : %s' % (i, i, default())
             else:
