@@ -38,7 +38,6 @@ class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
         self.statements = []
-        self.functions = []
         self.in_class = False
         self.in_function = False
         self.globals_set = None
