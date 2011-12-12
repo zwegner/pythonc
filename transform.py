@@ -282,7 +282,7 @@ class Transformer(ast.NodeTransformer):
 
         if node.starargs:
             assert not node.args
-            args = syntax.Tuple(self.visit(node.starargs))
+            args = syntax.TupleFromIter(self.visit(node.starargs))
         else:
             args = syntax.Tuple([self.visit(a) for a in node.args])
 

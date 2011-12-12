@@ -368,38 +368,35 @@ class MethodCall(Node):
 
 @node('&*items')
 class List(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('list', len(self.items)), 'list')]
         ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
         return name
 
-@node('items')
+@node('&*items')
 class Tuple(Node):
-    # XXX clean up
-    def setup(self):
-        if isinstance(self.items, list):
-            self.items = [Edge(self, item) for item in self.items]
-        else:
-            self.items = Edge(self, self.items)
-
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         name = ctx.get_temp()
-        if isinstance(self.items, list):
-            ctx.statements += [Assign(name, Ref('tuple', len(self.items)), 'tuple')]
-            ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
-        else:
-            iter_name = ctx.get_temp()
-            ctx.statements += [
-                Assign(name, Ref('tuple'), 'tuple'),
-                Assign(iter_name, UnaryOp('__iter__', self.items()), 'node'),
-                'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
-            ]
+        ctx.statements += [Assign(name, Ref('tuple', len(self.items)), 'tuple')]
+        ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
+        return name
+
+@node('&items')
+class TupleFromIter(Node):
+    def reduce(self, ctx):
+        name = ctx.get_temp()
+        iter_name = ctx.get_temp()
+        ctx.statements += [
+            Assign(name, Ref('tuple'), 'tuple'),
+            Assign(iter_name, UnaryOp('__iter__', self.items()), 'node'),
+            'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
+        ]
         return name
 
 @node('&*keys, &*values')
 class Dict(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('dict'), 'dict')]
         ctx.statements += [StoreSubscript(name, k(), v()) for k, v in zip(self.keys, self.values)]
@@ -407,7 +404,7 @@ class Dict(Node):
 
 @node('&*items')
 class Set(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('set'), 'set')]
         ctx.statements += [MethodCall(name, 'add', i()) for i in self.items]
@@ -435,7 +432,7 @@ class Call(Node):
 
 @node('&expr, &true_expr, &false_expr')
 class IfExp(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         temp = ctx.get_temp()
         ctx.statements += [Assign(temp, NullConst(), 'node'), self]
         ctx.statements += [If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
@@ -445,7 +442,7 @@ class IfExp(Node):
 
 @node('op, &lhs_expr, &rhs_expr')
 class BoolOp(Node):
-    def flatten(self, ctx, statements):
+    def reduce(self, ctx, statements):
         temp = ctx.get_temp()
         statements += [Assign(temp, self.lhs_expr, 'node'), self]
         expr = self.expr()
@@ -485,14 +482,14 @@ class If(Node):
 
 @node('comp_type, target, &iter, &*cond_stmts, &cond, &*expr_stmts, &expr, &expr2')
 class Comprehension(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         if self.comp_type == 'set':
             l = Set([])
         elif self.comp_type == 'dict':
             l = Dict([], [])
         else:
             l = List([])
-        self.temp = l.flatten(ctx)
+        self.temp = l.reduce(ctx)
         self.iter_name = ctx.get_temp()
         ctx.statements += [Assign(self.iter_name, UnaryOp('__iter__', self.iter()), 'node')]
         ctx.statements += [self]
@@ -546,7 +543,7 @@ class Continue(Node):
 
 @node('target, &iter, &*stmts')
 class For(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         self.iter_name = Edge(self, ctx.get_temp())
         ctx.statements += [Assign(self.iter_name(), UnaryOp('__iter__', self.iter()), 'node')]
         arg_unpacking = []
@@ -570,7 +567,7 @@ while (node *item = {iter}->next()) {{
 
 @node('&test, &*stmts')
 class While(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         self.stmts = ctx.flatten_list([If(UnaryOp('__not__', self.test), [Break()], [])] + self.stmts)
 
     def __str__(self):
@@ -612,7 +609,7 @@ class CollectGarbage(Node):
 
 @node('args, &*defaults')
 class Arguments(Node):
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         new_def = [None] * (len(self.args) - len(self.defaults))
         defaults = new_def + self.defaults
         name_strings = [Edge(self, StringConst(a)) for a in self.args]
@@ -643,7 +640,7 @@ class FunctionDef(Node):
         self.exp_name = self.exp_name if self.exp_name else self.name
         self.exp_name = 'fn_%s' % self.exp_name # make sure no name collisions
 
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         ctx.functions += [self]
         return [Store(self.name, Ref('function_def', Identifier(self.exp_name)))]
 
@@ -665,7 +662,7 @@ class ClassDef(Node):
     def setup(self):
         self.class_name = 'class_%s' % self.name
 
-    def flatten(self, ctx):
+    def reduce(self, ctx):
         ctx.functions += [self]
         return [Store(self.name, Ref(self.class_name))]
 
