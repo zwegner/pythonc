@@ -5,6 +5,9 @@ import subprocess
 import sys
 import time
 
+import syntax
+import transform
+
 def usage():
     print('usage: %s [-O] <input.py> [args...]' % sys.argv[0])
     exit(1)
@@ -32,8 +35,12 @@ if not args:
 path = args[0]
 base = os.path.splitext(path)[0]
 
+def compile(input_path, output_path):
+    node = transform.transform(input_path)
+    syntax.write_output(node, output_path)
+
 start = time.time()
-subprocess.check_call(['python3', 'transform.py', path, '%s.cpp' % base])
+compile(path, '%s.cpp' % base)
 elapsed = time.time() - start
 if not quiet:
     print('Transform time: %.4fs' % elapsed)

@@ -23,6 +23,235 @@
 
 import copy
 
+builtin_functions = {
+    'abs': 1,
+    'all': 1,
+    'any': 1,
+    'isinstance': 2,
+    'iter': 1,
+    'len': 1,
+    'max': 1,
+    'min': 1,
+    'open': 2,
+    'ord': 1,
+    'print': -1,
+    'print_nonl': 1,
+    'repr': 1,
+    'sorted': 1,
+}
+builtin_methods = {
+    'dict': {
+        'clear': 1,
+        'copy': 1,
+        'get': 3,
+        'keys': 1,
+        'items': 1,
+        'values': 1,
+    },
+    'file': {
+        'read': 2,
+        'write': 2,
+    },
+    'list': {
+        'append': 2,
+        'count': 2,
+        'extend': 2,
+        'index': 2,
+        'insert': 3,
+        'pop': (1, 2),
+        'remove': 2,
+        'reverse': 1,
+        'sort': 1,
+    },
+    'set': {
+        'add': 2,
+        'clear': 1,
+        'copy': 1,
+        'difference_update': -1,
+        'discard': 2,
+        'remove': 2,
+        'update': -1,
+    },
+    'str': {
+        'join': 2,
+        'split': (1, 2),
+        'startswith': 2,
+        'upper': 1,
+    },
+    'tuple': {
+        'count': 2,
+        'index': 2,
+    },
+}
+builtin_classes = {
+    'bool': (0, 1),
+    'bytes': (0, 1),
+    'dict': (0, 1),
+    'enumerate': 1,
+    'int': (0, 2),
+    'list': (0, 1),
+    'range': (1, 3),
+    'reversed': 1,
+    'set': (0, 1),
+    'str': (0, 1),
+    'tuple': (0, 1),
+    'type': 1,
+    'zip': 2,
+}
+builtin_hidden_classes = {
+    'NoneType',
+    'bound_method',
+    'builtin_function_or_method',
+    'bytes_iterator',
+    'dict_itemiterator',
+    'dict_items',
+    'dict_keyiterator',
+    'dict_keys',
+    'dict_valueiterator',
+    'dict_values',
+    'file',
+    'function',
+    'list_iterator',
+    'method_descriptor',
+    'range_iterator',
+    'set_iterator',
+    'str_iterator',
+    'tuple_iterator',
+}
+builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
+    '__name__',
+    '__args__',
+]
+
+def write_backend_setup(f):
+    f.write('class node;\n')
+    f.write('class tuple;\n')
+    f.write('class dict;\n')
+    f.write('class context;\n')
+
+    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
+    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
+    f.write('#define LIST_BUILTIN_HIDDEN_CLASSES(x) %s\n' %
+        ' '.join('x(%s)' % name for name in sorted(builtin_hidden_classes)))
+
+    for class_name in sorted(builtin_classes) + ['file']:
+        methods = builtin_methods.get(class_name, [])
+        f.write('#define LIST_%s_CLASS_METHODS(x) %s\n' % (class_name,
+            ' '.join('x(%s, %s)' % (class_name, name) for name in sorted(methods))))
+
+    f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
+        ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
+
+#    for x in builtin_symbols:
+#        f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
+
+    for name in sorted(builtin_functions):
+        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
+    for class_name in sorted(builtin_methods):
+        methods = builtin_methods[class_name]
+        for name in sorted(methods):
+            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
+
+def print_arg_logic(name, f, n_args, self_class=None, method_name=None):
+    f.write('    if (kwargs && kwargs->items.size())\n')
+    f.write('        error("%s() does not take keyword arguments");\n' % name)
+
+    if isinstance(n_args, tuple):
+        (min_args, max_args) = n_args
+        assert max_args > min_args
+        f.write('    size_t args_len = args->items.size();\n')
+        f.write('    if (args_len < %d)\n' % min_args)
+        f.write('        error("too few arguments to %s()");\n' % name)
+        f.write('    if (args_len > %d)\n' % max_args)
+        f.write('        error("too many arguments to %s()");\n' % name)
+        for i in range(min_args):
+            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
+        for i in range(min_args, max_args):
+            f.write('    node *arg%d = (args_len > %d) ? args->items[%d] : NULL;\n' % (i, i, i))
+        return ', '.join('arg%d' % i for i in range(max_args))
+    elif n_args < 0:
+        return 'args'
+    else:
+        f.write('    if (args->items.size() != %d)\n' % n_args)
+        f.write('        error("wrong number of arguments to %s()");\n' % name)
+        for i in range(n_args):
+            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
+        if self_class:
+            f.write('    if (!arg0->is_%s())\n' % self_class)
+            f.write('        error("bad argument to %s.%s()");\n' % (self_class, method_name))
+            class_name = {'str': 'string_const', 'int': 'int_const'}.get(self_class, self_class)
+            f.write('    %s *self = (%s *)arg0;\n' % (class_name, class_name))
+            return ', '.join(['self'] + ['arg%d' % i for i in range(1, n_args)])
+        else:
+            return ', '.join('arg%d' % i for i in range(n_args))
+
+def write_backend_post_setup(f):
+    for name in sorted(builtin_functions):
+        n_args = builtin_functions[name]
+        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
+        args = print_arg_logic(name, f, n_args)
+        f.write('    return builtin_%s(%s);\n' % (name, args))
+        f.write('}\n')
+
+    for class_name in sorted(builtin_methods):
+        methods = builtin_methods[class_name]
+        for name in sorted(methods):
+            n_args = methods[name]
+            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
+            args = print_arg_logic(name, f, n_args, self_class=class_name, method_name=name)
+            f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
+            f.write('}\n')
+
+    for name in sorted(builtin_classes):
+        n_args = builtin_classes[name]
+        f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
+        args = print_arg_logic(name, f, n_args)
+        f.write('    return %s_init(%s);\n' % (name, args))
+        f.write('}\n')
+
+    for i in sorted(all_ints):
+        f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
+
+    char_escape = {
+        '"': r'\"',
+        '\\': r'\\',
+        '\n': r'\n',
+        '\r': r'\r',
+        '\t': r'\t',
+    }
+    for k, (v, hashkey) in all_strings.items():
+        c_str = ''.join(char_escape.get(c, c) for c in k)
+        f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, c_str, hashkey))
+
+    for k, v in all_bytes.items():
+        f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
+        f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
+
+def write_output(node, path):
+    functions = flatten_node(node)
+
+    with open(path, 'w') as f:
+        write_backend_setup(f)
+
+        f.write('#include "backend.cpp"\n')
+
+        write_backend_post_setup(f)
+
+        for func in functions:
+            f.write('%s\n' % func)
+
+        global_sym_count = 100
+        f.write('int main(int argc, char **argv) {\n')
+        f.write('    node *global_syms[%s] = {0};\n' % (global_sym_count))
+        f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (global_sym_count))
+        f.write('    init_context(&ctx, argc, argv);\n')
+
+        f.write(indent(node))
+
+        f.write('\n}\n')
+
 def indent(stmts, spaces=4):
     stmts = [str(s) for s in stmts]
     stmts = '\n'.join('%s%s' % (s, ';' if s and not s.endswith('}') else '') for s in stmts).splitlines()
@@ -61,28 +290,19 @@ def register_bytes(value):
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
-def export_consts(f):
-    for i in sorted(all_ints):
-        f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
-
-    char_escape = {
-        '"': r'\"',
-        '\\': r'\\',
-        '\n': r'\n',
-        '\r': r'\r',
-        '\t': r'\t',
-    }
-    for k, (v, hashkey) in all_strings.items():
-        c_str = ''.join(char_escape.get(c, c) for c in k)
-        f.write('string_const_singleton string_singleton_%s("%s", %sull);\n' % (v, c_str, hashkey))
-
-    for k, v in all_bytes.items():
-        f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
-        f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
+def flatten_node(stmts):
+    ctx = Flattener()
+    for i in stmts:
+        i.reduce_recursive(ctx)
+    for i in stmts:
+        i.flatten(ctx)
+    return ctx.functions
 
 class Flattener:
     def __init__(self):
         self.statements = []
+        self.functions = []
+        self.temp_id = 0
 
     def get_temp_name(self):
         self.temp_id += 1
@@ -90,18 +310,15 @@ class Flattener:
 
     def get_temp(self):
         self.temp_id += 1
-        return syntax.Identifier('temp_%02i' % self.temp_id)
+        return Identifier('temp_%02i' % self.temp_id)
 
     def flatten_edge(self, edge):
         node = edge()
-        node.flatten()
-        if node.is_atom():
-            r = node
-        else:
+        node.flatten(self)
+        if not node.is_atom():
             temp = self.get_temp()
-            self.statements.append(syntax.Assign(temp, node))
-            r = temp
-        node.forward(r)
+            self.statements.append(Assign(temp, node, 'node'))
+            node.forward(temp)
 
     def flatten_list(self, node_list):
         old_stmts = self.statements
@@ -199,6 +416,7 @@ class Node:
             new_value.add_use(edge)
 
     def __str__(self):
+        print(type(self))
         assert False
 
 # Edge class represents the use of a Node by another. This allows us to use
@@ -222,6 +440,7 @@ class Edge:
         value.add_use(self)
 
     def __str__(self):
+        print(self.value)
         assert False
 
 # Weird decorator: a given arg string represents a standard form for arguments
@@ -272,23 +491,61 @@ def node(argstr=''):
             if hasattr(self, 'setup'):
                 self.setup()
 
-        def flatten(self, ctx):
+        def iterate_edges(self):
             for k in args:
                 if k[0] == '&':
                     k = k[1:]
                     if k[0] == '*':
                         k = k[1:]
-                        items = getattr(self, k)
-                        for edge in items:
-                            ctx.flatten_edge(edge)
+                        for edge in getattr(self, k):
+                            yield edge
                     else:
-                        ctx.flatten_edge(getattr(self, k))
+                        edge = getattr(self, k)
+                        if edge:
+                            yield edge
 
+        def reduce_recursive(self, ctx):
+            if hasattr(self, 'reduce'):
+                self.reduce(ctx)
+            for edge in self.iterate_edges():
+                edge().reduce_recursive(ctx)
+
+        def flatten(self, ctx):
+            for edge in self.iterate_edges():
+                ctx.flatten_edge(edge)
+
+        def print_tree(self, indent=0):
+            if len(args) == 0:
+                print('%s' % type(self), sep='')
+            else:
+                print('%s%s(' % (' ' * indent, type(self)), sep='')
+                for k in args:
+                    if k[0] == '&':
+                        k = k[1:]
+                        if k[0] == '*':
+                            k = k[1:]
+                            print('  %s%s=[' % (' ' * indent, k))
+                            for item in getattr(self, k):
+                                item().print_tree(indent=indent+4)
+                            print('  %s],' % (' ' * indent))
+                        else:
+                            print('  %s%s=' % (' ' * indent, k))
+                            edge = getattr(self, k)
+                            if edge:
+                                edge().print_tree(indent=indent+4)
+                    else:
+                        print('  %s%s=%s,' % (' ' * indent, k,
+                            getattr(self, k)))
+                print('%s)' % (' ' * indent))
+                
         def is_atom(self):
             return atom
 
         node.__init__ = __init__
+        node.iterate_edges = iterate_edges
+        node.reduce_recursive = reduce_recursive
         node.flatten = flatten
+        node.print_tree = print_tree
         node.is_atom = is_atom
 
         return node
@@ -356,6 +613,11 @@ class BinaryOp(Node):
 
 @node('name')
 class Load(Node):
+    # XXX temporary hack
+    def setup(self):
+        self.scope = 'local'
+        self.idx = 0
+
     def __str__(self):
         if self.scope == 'global':
             return 'globals->load(%s)' % self.idx
@@ -365,6 +627,11 @@ class Load(Node):
 
 @node('name, &expr')
 class Store(Node):
+    # XXX temporary hack
+    def setup(self):
+        self.scope = 'local'
+        self.idx = 0
+
     def __str__(self):
         if self.scope == 'global':
             return 'globals->store(%s, %s)' % (self.idx, self.expr())
@@ -404,7 +671,7 @@ class List(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('list', len(self.items)), 'list')]
         ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
-        return name
+        self.forward(name)
 
 @node('&*items')
 class Tuple(Node):
@@ -412,7 +679,7 @@ class Tuple(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('tuple', len(self.items)), 'tuple')]
         ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
-        return name
+        self.forward(name)
 
 @node('&items')
 class TupleFromIter(Node):
@@ -424,7 +691,7 @@ class TupleFromIter(Node):
             Assign(iter_name, UnaryOp('__iter__', self.items()), 'node'),
             'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
         ]
-        return name
+        self.forward(name)
 
 @node('&*keys, &*values')
 class Dict(Node):
@@ -432,7 +699,7 @@ class Dict(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('dict'), 'dict')]
         ctx.statements += [StoreSubscript(name, k(), v()) for k, v in zip(self.keys, self.values)]
-        return name
+        self.forward(name)
 
 @node('&*items')
 class Set(Node):
@@ -440,7 +707,7 @@ class Set(Node):
         name = ctx.get_temp()
         ctx.statements += [Assign(name, Ref('set'), 'set')]
         ctx.statements += [MethodCall(name, 'add', [i()]) for i in self.items]
-        return name
+        self.forward(name)
 
 @node('&expr, &start, &end, &step')
 class Slice(Node):
@@ -469,7 +736,7 @@ class IfExp(Node):
         ctx.statements += [Assign(temp, NullConst(), 'node'), self]
         ctx.statements += [If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
             [Assign(temp, self.false_expr(), 'node')])]
-        return temp
+        self.forward(temp)
 
 @node('op, &lhs_expr, &rhs_expr')
 class BoolOp(Node):
@@ -480,7 +747,7 @@ class BoolOp(Node):
         if self.op == 'or':
             expr = UnaryOp('__not__', expr)
         ctx.statements += [If(expr, [Assign(temp, self.true_expr(), 'node')], [])]
-        return self.temp
+        self.forward(self.temp)
 
     def __str__(self):
         rhs_stmts = block_str(self.rhs_stmts)
@@ -551,7 +818,7 @@ class Comprehension(Node):
 
         ctx.statements += [l]
 
-        return self.temp
+        self.forward(temp)
 
 @node()
 class Break(Node):
@@ -590,7 +857,8 @@ while (node *item = {iter}->next()) {{
 @node('&test, &*stmts')
 class While(Node):
     def reduce(self, ctx):
-        self.stmts = ctx.flatten_list([If(UnaryOp('__not__', self.test), [Break()], [])] + self.stmts)
+        test = If(UnaryOp('__not__', self.test()), [Break()], [])
+        self.stmts = [Edge(self, test)] + self.stmts
 
     def __str__(self):
         stmts = block_str(self.stmts)

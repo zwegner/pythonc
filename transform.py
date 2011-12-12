@@ -22,109 +22,8 @@
 ################################################################################
 
 import ast
-import sys
 
 import syntax
-
-builtin_functions = {
-    'abs': 1,
-    'all': 1,
-    'any': 1,
-    'isinstance': 2,
-    'iter': 1,
-    'len': 1,
-    'max': 1,
-    'min': 1,
-    'open': 2,
-    'ord': 1,
-    'print': -1,
-    'print_nonl': 1,
-    'repr': 1,
-    'sorted': 1,
-}
-builtin_methods = {
-    'dict': {
-        'clear': 1,
-        'copy': 1,
-        'get': 3,
-        'keys': 1,
-        'items': 1,
-        'values': 1,
-    },
-    'file': {
-        'read': 2,
-        'write': 2,
-    },
-    'list': {
-        'append': 2,
-        'count': 2,
-        'extend': 2,
-        'index': 2,
-        'insert': 3,
-        'pop': (1, 2),
-        'remove': 2,
-        'reverse': 1,
-        'sort': 1,
-    },
-    'set': {
-        'add': 2,
-        'clear': 1,
-        'copy': 1,
-        'difference_update': -1,
-        'discard': 2,
-        'remove': 2,
-        'update': -1,
-    },
-    'str': {
-        'join': 2,
-        'split': (1, 2),
-        'startswith': 2,
-        'upper': 1,
-    },
-    'tuple': {
-        'count': 2,
-        'index': 2,
-    },
-}
-builtin_classes = {
-    'bool': (0, 1),
-    'bytes': (0, 1),
-    'dict': (0, 1),
-    'enumerate': 1,
-    'int': (0, 2),
-    'list': (0, 1),
-    'range': (1, 3),
-    'reversed': 1,
-    'set': (0, 1),
-    'str': (0, 1),
-    'tuple': (0, 1),
-    'type': 1,
-    'zip': 2,
-}
-builtin_hidden_classes = {
-    'NoneType',
-    'bound_method',
-    'builtin_function_or_method',
-    'bytes_iterator',
-    'dict_itemiterator',
-    'dict_items',
-    'dict_keyiterator',
-    'dict_keys',
-    'dict_valueiterator',
-    'dict_values',
-    'file',
-    'function',
-    'list_iterator',
-    'method_descriptor',
-    'range_iterator',
-    'set_iterator',
-    'str_iterator',
-    'tuple_iterator',
-}
-builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
-    '__name__',
-    '__args__',
-]
 
 inplace_op_table = {
     '__%s__' % x: '__i%s__' % x
@@ -148,7 +47,14 @@ class Transformer(ast.NodeTransformer):
         raise TranslateError(node, 'can\'t translate %s' % node)
 
     def visit_child_list(self, node):
-        return [self.visit(i) for i in node]
+        r = []
+        for i in node:
+            c = self.visit(i) 
+            if isinstance(c, list):
+                r.extend(c)
+            else:
+                r.append(c)
+        return r
 
     def visit_Name(self, node):
         #assert isinstance(node.ctx, ast.Load)
@@ -534,111 +440,8 @@ class Transformer(ast.NodeTransformer):
     def visit_Store(self, node): pass
     def visit_Global(self, node): pass
 
-def print_arg_logic(f, n_args, self_class=None, method_name=None):
-    f.write('    if (kwargs && kwargs->items.size())\n')
-    f.write('        error("%s() does not take keyword arguments");\n' % name)
+def transform(path):
+    with open(path) as f:
+        node = ast.parse(f.read())
 
-    if isinstance(n_args, tuple):
-        (min_args, max_args) = n_args
-        assert max_args > min_args
-        f.write('    size_t args_len = args->items.size();\n')
-        f.write('    if (args_len < %d)\n' % min_args)
-        f.write('        error("too few arguments to %s()");\n' % name)
-        f.write('    if (args_len > %d)\n' % max_args)
-        f.write('        error("too many arguments to %s()");\n' % name)
-        for i in range(min_args):
-            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
-        for i in range(min_args, max_args):
-            f.write('    node *arg%d = (args_len > %d) ? args->items[%d] : NULL;\n' % (i, i, i))
-        return ', '.join('arg%d' % i for i in range(max_args))
-    elif n_args < 0:
-        return 'args'
-    else:
-        f.write('    if (args->items.size() != %d)\n' % n_args)
-        f.write('        error("wrong number of arguments to %s()");\n' % name)
-        for i in range(n_args):
-            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
-        if self_class:
-            f.write('    if (!arg0->is_%s())\n' % self_class)
-            f.write('        error("bad argument to %s.%s()");\n' % (self_class, method_name))
-            class_name = {'str': 'string_const', 'int': 'int_const'}.get(self_class, self_class)
-            f.write('    %s *self = (%s *)arg0;\n' % (class_name, class_name))
-            return ', '.join(['self'] + ['arg%d' % i for i in range(1, n_args)])
-        else:
-            return ', '.join('arg%d' % i for i in range(n_args))
-
-with open(sys.argv[1]) as f:
-    node = ast.parse(f.read())
-
-transformer = Transformer()
-node = transformer.visit(node)
-
-with open(sys.argv[2], 'w') as f:
-    f.write('class node;\n')
-    f.write('class tuple;\n')
-    f.write('class dict;\n')
-    f.write('class context;\n')
-
-    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
-    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
-    f.write('#define LIST_BUILTIN_HIDDEN_CLASSES(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_hidden_classes)))
-
-    for class_name in sorted(builtin_classes) + ['file']:
-        methods = builtin_methods.get(class_name, [])
-        f.write('#define LIST_%s_CLASS_METHODS(x) %s\n' % (class_name,
-            ' '.join('x(%s, %s)' % (class_name, name) for name in sorted(methods))))
-
-    f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
-        ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
-
-    for x in builtin_symbols:
-        f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
-
-    for name in sorted(builtin_functions):
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
-    for class_name in sorted(builtin_methods):
-        methods = builtin_methods[class_name]
-        for name in sorted(methods):
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
-
-    f.write('#include "backend.cpp"\n')
-
-    for name in sorted(builtin_functions):
-        n_args = builtin_functions[name]
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
-        args = print_arg_logic(f, n_args)
-        f.write('    return builtin_%s(%s);\n' % (name, args))
-        f.write('}\n')
-
-    for class_name in sorted(builtin_methods):
-        methods = builtin_methods[class_name]
-        for name in sorted(methods):
-            n_args = methods[name]
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
-            args = print_arg_logic(f, n_args, self_class=class_name, method_name=name)
-            f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
-            f.write('}\n')
-
-    for name in sorted(builtin_classes):
-        n_args = builtin_classes[name]
-        f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
-        args = print_arg_logic(f, n_args)
-        f.write('    return %s_init(%s);\n' % (name, args))
-        f.write('}\n')
-
-    syntax.export_consts(f)
-
-    for func in transformer.functions:
-        f.write('%s\n' % func)
-
-    f.write('int main(int argc, char **argv) {\n')
-    f.write('    node *global_syms[%s] = {0};\n' % (transformer.global_sym_count))
-    f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (transformer.global_sym_count))
-    f.write('    init_context(&ctx, argc, argv);\n')
-
-    f.write(syntax.indent(node))
-
-    f.write('\n}\n')
+    return Transformer().visit(node)
