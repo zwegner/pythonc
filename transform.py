@@ -186,8 +186,7 @@ class Transformer(ast.NodeTransformer):
         fn = self.visit(node.func)
 
         if node.starargs:
-            assert not node.args
-            args = syntax.TupleFromIter(self.visit(node.starargs))
+            raise TranslateError(node, 'argument unpacking is currently defeatured')
         else:
             args = syntax.Tuple([self.visit(a) for a in node.args])
 
@@ -287,8 +286,7 @@ class Transformer(ast.NodeTransformer):
             target = [t.id for t in node.target.elts]
         else:
             assert False
-        # HACK: self.iter_temp gets set when enumerating symbols
-        return syntax.For(target, iter, stmts, node.iter_temp)
+        return syntax.For(target, iter, stmts)
 
     def visit_While(self, node):
         assert not node.orelse

@@ -230,7 +230,7 @@ def write_backend_post_setup(f):
         f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
 def write_output(node, path):
-    functions = flatten_node(node)
+    stmts, functions = flatten_node_list(node)
 
     with open(path, 'w') as f:
         write_backend_setup(f)
@@ -248,7 +248,7 @@ def write_output(node, path):
         f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (global_sym_count))
         f.write('    init_context(&ctx, argc, argv);\n')
 
-        f.write(indent(node))
+        f.write(indent(stmts))
 
         f.write('\n}\n')
 
@@ -290,15 +290,14 @@ def register_bytes(value):
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
-def flatten_node(stmts):
+def flatten_node_list(stmts):
     ctx = Flattener()
     for i in stmts:
-        i.reduce_recursive(ctx)
-    for i in stmts:
-        i.flatten(ctx)
-    for i in stmts:
-        i.print_tree()
-    return ctx.functions
+        i = i.reduce_internal(ctx)
+        ctx.statements.append(Edge(i))
+    stmts = [v.value for v in ctx.statements]
+
+    return stmts, ctx.functions
 
 class Flattener:
     def __init__(self):
@@ -316,20 +315,25 @@ class Flattener:
 
     def flatten_edge(self, edge):
         node = edge()
-        node.flatten(self)
-        if node.is_atom():
+        node = node.reduce_internal(self)
+        edge.set(node)
+        if not node.is_atom():
             temp = self.get_temp()
-            self.statements.append(Edge(edge.node, Assign(temp, node, 'node')))
             edge.set(temp)
+            self.statements.append(Edge(Assign(temp, node, 'node')))
 
     def flatten_list(self, node_list):
         old_stmts = self.statements
         self.statements = []
         for edge in node_list:
-            edge().flatten(self)
+            edge.set(edge().reduce_internal(self))
             self.statements.append(edge)
         [statements, self.statements] = self.statements, old_stmts
         return statements
+
+    def add_statement(self, stmt):
+        stmt = stmt.reduce_internal(self)
+        self.statements.append(Edge(stmt))
 
     def get_sym_id(self, scope, name):
         if name in self.symbol_idx[scope]:
@@ -428,8 +432,7 @@ class Node:
 # value = self.expr()
 # self.expr.set(new_value)
 class Edge:
-    def __init__(self, node, value):
-        self.node = node
+    def __init__(self, value):
         self.value = value
         value.add_use(self)
 
@@ -445,6 +448,9 @@ class Edge:
         print(self.value)
         assert False
 
+ARG_REG, ARG_EDGE, ARG_EDGE_LIST, ARG_BLOCK = list(range(4))
+arg_map = {'&': ARG_EDGE, '*': ARG_EDGE_LIST, '$': ARG_BLOCK}
+
 # Weird decorator: a given arg string represents a standard form for arguments
 # to Node subclasses. We use these notations:
 # op, &expr, *explist, $block
@@ -454,8 +460,16 @@ class Edge:
 # $stmts -> also python list of edges, but representing an enclosed block
 def node(argstr=''):
     args = [a.strip() for a in argstr.split(',') if a.strip()]
+    new_args = []
+    for a in args:
+        if a[0] in arg_map:
+            new_args.append((arg_map[a[0]], a[1:]))
+        else:
+            new_args.append((ARG_REG, a))
 
-    atom = not any(a[0] in {'&', '*', '$'} for a in args)
+    args = new_args
+
+    atom = not any(a[0] != ARG_REG for a in args)
 
     # Decorators must return a function. This adds __init__ and is_atom methods
     # to a Node subclass
@@ -463,75 +477,63 @@ def node(argstr=''):
         def __init__(self, *iargs):
             assert len(iargs) == len(args), 'bad args, expected %s(%s)' % (node.__name__, argstr)
 
-            for k, v in zip(args, iargs):
-                if k[0] == '&':
-                    k = k[1:]
-                    setattr(self, k, Edge(self, v) if v is not None else None)
-                elif k[0] in {'*', '$'}:
-                    k = k[1:]
-                    setattr(self, k, [Edge(self, item) for item in v])
+            for (arg_type, arg_name), v in zip(args, iargs):
+                if arg_type == ARG_EDGE:
+                    setattr(self, arg_name, Edge(v) if v is not None else None)
+                elif arg_type in {ARG_EDGE_LIST, ARG_BLOCK}:
+                    setattr(self, arg_name, [Edge(item) for item in v])
                 else:
-                    setattr(self, k, v)
+                    setattr(self, arg_name, v)
             self.uses = []
             if hasattr(self, 'setup'):
                 self.setup()
 
-        def iterate_edges(self, iter_block=True):
-            prefixes = {'*', '$'} if iter_block else {'*'}
-            for k in args:
-                if k[0] == '&':
-                    k = k[1:]
-                    edge = getattr(self, k)
-                    if edge:
-                        yield edge
-                elif k[0] in prefixes:
-                    k = k[1:]
-                    for edge in getattr(self, k):
-                        yield edge
-
-        def reduce_recursive(self, ctx):
+        def reduce_internal(self, ctx):
             if hasattr(self, 'reduce'):
-                self.reduce(ctx)
-            for edge in self.iterate_edges():
-                edge().reduce_recursive(ctx)
+                self = self.reduce(ctx)
+
+            self.flatten(ctx)
+
+            return self
 
         def flatten(self, ctx):
-            for edge in self.iterate_edges(iter_block=False):
-                ctx.flatten_edge(edge)
-            for k in args:
-                if k[0] == '$':
-                    k = k[1:]
-                    setattr(self, k, ctx.flatten_list(getattr(self, k)))
+            for (arg_type, arg_name) in args:
+                if arg_type == ARG_EDGE:
+                    edge = getattr(self, arg_name)
+                    if edge:
+                        ctx.flatten_edge(edge)
+                elif arg_type == ARG_EDGE_LIST:
+                    for edge in getattr(self, arg_name):
+                        ctx.flatten_edge(edge)
+                elif arg_type == ARG_BLOCK:
+                    setattr(self, arg_name, ctx.flatten_list(getattr(self, arg_name)))
 
         def print_tree(self, indent=0):
             if len(args) == 0:
                 print('%s' % type(self), sep='')
             else:
                 print('%s%s(' % (' ' * indent, type(self)), sep='')
-                for k in args:
-                    if k[0] == '&':
-                        k = k[1:]
-                        print('  %s%s=' % (' ' * indent, k))
-                        edge = getattr(self, k)
+                for (arg_type, arg_name) in args:
+                    if arg_type == ARG_EDGE:
+                        print('  %s%s=' % (' ' * indent, arg_name))
+                        edge = getattr(self, arg_name)
                         if edge:
                             edge().print_tree(indent=indent+4)
-                    elif k[0] in {'*', '$'}:
-                        k = k[1:]
-                        print('  %s%s=[' % (' ' * indent, k))
-                        for item in getattr(self, k):
+                    elif arg_type in {ARG_EDGE_LIST, ARG_BLOCK}:
+                        print('  %s%s=[' % (' ' * indent, arg_name))
+                        for item in getattr(self, arg_name):
                             item().print_tree(indent=indent+4)
                         print('  %s],' % (' ' * indent))
                     else:
-                        print('  %s%s=%s,' % (' ' * indent, k,
-                            getattr(self, k)))
+                        print('  %s%s=%s,' % (' ' * indent, arg_name,
+                            getattr(self, arg_name)))
                 print('%s)' % (' ' * indent))
                 
         def is_atom(self):
             return atom
 
         node.__init__ = __init__
-        node.iterate_edges = iterate_edges
-        node.reduce_recursive = reduce_recursive
+        node.reduce_internal = reduce_internal
         node.flatten = flatten
         node.print_tree = print_tree
         node.is_atom = is_atom
@@ -657,45 +659,37 @@ class MethodCall(Node):
 class List(Node):
     def reduce(self, ctx):
         name = ctx.get_temp()
-        ctx.statements += [Assign(name, Ref('list', [len(self.items)]), 'list')]
-        ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
-        self.forward(name)
+        ctx.add_statement(Assign(name, Ref('list', [len(self.items)]), 'list'))
+        for i, item in enumerate(self.items):
+            ctx.add_statement(StoreSubscriptDirect(name, i, item()))
+        return name
 
 @node('*items')
 class Tuple(Node):
     def reduce(self, ctx):
         name = ctx.get_temp()
-        ctx.statements += [Assign(name, Ref('tuple', [len(self.items)]), 'tuple')]
-        ctx.statements += [StoreSubscriptDirect(name, i, item()) for i, item in enumerate(self.items)]
-        self.forward(name)
-
-@node('&items')
-class TupleFromIter(Node):
-    def reduce(self, ctx):
-        name = ctx.get_temp()
-        iter_name = ctx.get_temp()
-        ctx.statements += [
-            Assign(name, Ref('tuple', []), 'tuple'),
-            Assign(iter_name, UnaryOp('__iter__', self.items()), 'node'),
-            'while (node *item = %s->next()) %s->items.push_back(item)' % (iter_name, name),
-        ]
-        self.forward(name)
+        ctx.add_statement(Assign(name, Ref('tuple', [len(self.items)]), 'tuple'))
+        for i, item in enumerate(self.items):
+            ctx.add_statement(StoreSubscriptDirect(name, i, item()))
+        return name
 
 @node('*keys, *values')
 class Dict(Node):
     def reduce(self, ctx):
         name = ctx.get_temp()
-        ctx.statements += [Assign(name, Ref('dict', []), 'dict')]
-        ctx.statements += [StoreSubscript(name, k(), v()) for k, v in zip(self.keys, self.values)]
-        self.forward(name)
+        ctx.add_statement(Assign(name, Ref('dict', []), 'dict'))
+        for k, v in zip(self.keys, self.values):
+            ctx.add_statement(StoreSubscript(name, k(), v()))
+        return name
 
 @node('*items')
 class Set(Node):
     def reduce(self, ctx):
         name = ctx.get_temp()
-        ctx.statements += [Assign(name, Ref('set', []), 'set')]
-        ctx.statements += [MethodCall(name, 'add', [i()]) for i in self.items]
-        self.forward(name)
+        ctx.add_statement(Assign(name, Ref('set', []), 'set'))
+        for i in self.items:
+            ctx.add_statement(MethodCall(name, 'add', [i()]))
+        return name
 
 @node('&expr, &start, &end, &step')
 class Slice(Node):
@@ -721,21 +715,21 @@ class Call(Node):
 class IfExp(Node):
     def reduce(self, ctx):
         temp = ctx.get_temp()
-        ctx.statements += [Assign(temp, NullConst(), 'node'), self]
-        ctx.statements += [If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
-            [Assign(temp, self.false_expr(), 'node')])]
-        self.forward(temp)
+        ctx.add_statement(Assign(temp, NullConst(), 'node'))
+        ctx.add_statement(If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
+            [Assign(temp, self.false_expr(), 'node')]))
+        return temp
 
 @node('op, &lhs_expr, &rhs_expr')
 class BoolOp(Node):
-    def reduce(self, ctx, statements):
+    def reduce(self, ctx):
         temp = ctx.get_temp()
-        statements += [Assign(temp, self.lhs_expr, 'node'), self]
+        ctx.add_statement(Assign(temp, self.lhs_expr(), 'node'))
         expr = self.expr()
         if self.op == 'or':
             expr = UnaryOp('__not__', expr)
-        ctx.statements += [If(expr, [Assign(temp, self.true_expr(), 'node')], [])]
-        self.forward(self.temp)
+        ctx.add_statement(If(expr, [Assign(temp, self.rhs_expr(), 'node')], []))
+        return self.temp
 
     def __str__(self):
         rhs_stmts = block_str(self.rhs_stmts)
@@ -777,7 +771,7 @@ class Comprehension(Node):
             l = List([])
         temp = l.reduce(ctx)
         iter_name = ctx.get_temp()
-        ctx.statements += [Store(iter_name, UnaryOp('__iter__', self.iter()))]
+        ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 
         # Construct body of while loop that implements comprehension
         # Get next item of iterable
@@ -802,11 +796,11 @@ class Comprehension(Node):
         else:
             stmts += [MethodCall(temp, 'append', [self.expr()])]
 
-        w = While(BoolConst(True), stmts)
+        w = While(None, stmts)
 
-        ctx.statements += [l]
+        ctx.add_statement(l)
 
-        self.forward(temp)
+        return temp
 
 @node()
 class Break(Node):
@@ -822,7 +816,7 @@ class Continue(Node):
 class For(Node):
     def reduce(self, ctx):
         iter_name = ctx.get_temp()
-        ctx.statements += [Store(iter_name, UnaryOp('__iter__', self.iter()))]
+        ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 
         # Get next item of iterable
         item = MethodCall(Load(iter_name), 'next', [])
@@ -835,15 +829,17 @@ class For(Node):
         else:
             stmts += [Store(self.target, item)]
 
-        w = While(BoolConst(True), stmts)
+        w = While(None, stmts)
 
-        self.forward(w)
+        return w
 
 @node('&test, $stmts')
 class While(Node):
     def reduce(self, ctx):
         test = If(UnaryOp('__not__', self.test()), [Break()], [])
-        self.stmts = [Edge(self, test)] + self.stmts
+        self.stmts = [Edge(test)] + self.stmts
+        self.test = None
+        return self
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -858,7 +854,7 @@ while (1)
 class Return(Node):
     def setup(self):
         if self.value is None:
-            self.value = Edge(self, NoneConst())
+            self.value = Edge(NoneConst())
 
     def __str__(self):
         body = 'return %s' % self.value()
@@ -887,7 +883,7 @@ class Arguments(Node):
     def reduce(self, ctx):
         new_def = [None] * (len(self.args) - len(self.defaults))
         defaults = new_def + self.defaults
-        name_strings = [Edge(self, StringConst(a)) for a in self.args]
+        name_strings = [Edge(StringConst(a)) for a in self.args]
 
         arg_unpacking = []
         for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
@@ -899,7 +895,7 @@ class Arguments(Node):
             if not self.no_kwargs:
                 arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
                     (name(), name(), arg_value)
-            arg_unpacking += [Edge(self, Store(arg, arg_value))]
+            arg_unpacking += [Edge(Store(arg, arg_value))]
         if self.no_kwargs:
             arg_unpacking = '    if (kwargs && kwargs->len()) error("function does not take keyword arguments");\n' + arg_unpacking
 
@@ -917,7 +913,7 @@ class FunctionDef(Node):
 
     def reduce(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))]
+        return Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -939,7 +935,7 @@ class ClassDef(Node):
 
     def reduce(self, ctx):
         ctx.functions += [self]
-        return [Store(self.name, Ref(self.class_name, []))]
+        return Store(self.name, Ref(self.class_name, []))
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
