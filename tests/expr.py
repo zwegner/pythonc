@@ -1,6 +1,6 @@
 # Test various expressions along with order of evaluation
 def ev(r):
-    print('r=%s' % r)
+    print('r=%s' % (r,))
     return r
 
 #def fn(*args, **kwargs):
@@ -10,16 +10,15 @@ class c:
     def __init__(self, n):
         self.n = ev(n)
 
-ev(1) if ev(2) else ev(3)
-ev(1) if ev(0) else ev(3)
-ev(1) and ev(0)
-ev(0) and ev(1)
-ev(1) or ev(0)
-ev(0) or ev(1)
-ev(1), ev(2), ev(3), ev(4)
-[ev(1), ev(2), ev(3), ev(4)]
-(ev(1), ev(2), ev(3), ev(4))
-{ev(1), ev(2), ev(3), ev(4)}
+ev(ev(1) if ev(2) else ev(3))
+ev(ev(1) if ev(0) else ev(3))
+ev(ev(1) and ev(0))
+ev(ev(0) and ev(1))
+ev(ev(1) or ev(0))
+ev(ev(0) or ev(1))
+ev([ev(1), ev(2), ev(3), ev(4)])
+ev((ev(1), ev(2), ev(3), ev(4)))
+ev({ev(1), ev(2), ev(3), ev(4)})
 
 # XXX Python documentation is inconsistent with CPython behavior here
 # {ev(1): ev(2), ev(3): ev(4)}

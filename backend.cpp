@@ -175,7 +175,7 @@ public:
     // unwrapped versions
     virtual bool contains(node *rhs) { error("contains unimplemented for %s", this->node_type()); }
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
-    virtual node *getattr(const char *key) { error("getattr unimplemented for %s", this->node_type()); return NULL; }
+    virtual node *getattr(const char *key);
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
     virtual std::string repr();
     virtual std::string str() { return repr(); }
@@ -1564,7 +1564,6 @@ LIST_BUILTIN_CLASSES(DEFINE_GETATTR)
 #undef GET_METHOD
 #undef DEFINE_GETATTR
 
-
 node *node::__contains__(node *rhs) {
     return create_bool_const(this->contains(rhs));
 }
@@ -1573,6 +1572,12 @@ node *node::__getattr__(node *key) {
     if (!key->is_str())
         error("getattr with non-string");
     return this->getattr(key->c_str());
+}
+
+node *node::getattr(const char *key) {
+    if (!strcmp(key, "__class__"))
+        return type();
+    return new(allocator) bound_method(this, type()->getattr(key));
 }
 
 node *node::__hash__() {

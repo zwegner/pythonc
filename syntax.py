@@ -745,7 +745,7 @@ class Assign(Node):
         target_type = ('%s *' % self.target_type) if self.target_type else ''
         return '%s%s = %s' % (target_type, self.target(), self.expr())
 
-@node('&expr', no_flatten=['expr'])
+@node('&expr')
 class Test(Node):
     def __str__(self):
         return '%s->bool_value()' % self.expr()
