@@ -1013,6 +1013,9 @@ public:
 class {oname}: public object {{
 public:
     virtual node *getattr(const char *key) {{
+        auto attr = this->lookup(key);
+        if (attr)
+            return attr;
         if (!strcmp(key, "__class__"))
             return &{cinst};
         return new(allocator) bound_method(this, {cinst}.getattr(key));

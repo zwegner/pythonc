@@ -1,19 +1,28 @@
-def side_effects(r):
+# Test various expressions along with order of evaluation
+def ev(r):
     print('r=%s' % r)
     return r
-for x in range(2):
-    for y in range(2):
-        for z in range(2):
-            print(side_effects(x) if side_effects(y) else side_effects(z))
 
-class SomeClass:
-    r = 'SomeClass.r'
-    def str(self):
-        return '%s' % SomeClass.r
+#def fn(*args, **kwargs):
+#    print(args, kwargs)
 
-def class_init(self):
-    print('class_init')
+class c:
+    def __init__(self, n):
+        self.n = ev(n)
 
-SomeClass.__init__ = class_init
-x = SomeClass()
-print(x.str())
+ev(1) if ev(2) else ev(3)
+ev(1) if ev(0) else ev(3)
+ev(1), ev(2), ev(3), ev(4)
+[ev(1), ev(2), ev(3), ev(4)]
+(ev(1), ev(2), ev(3), ev(4))
+{ev(1), ev(2), ev(3), ev(4)}
+
+# XXX Python documentation is inconsistent with CPython behavior here
+# {ev(1): ev(2), ev(3): ev(4)}
+ev(1) + ev(2) * (ev(3) - ev(4))
+#ev(fn)(ev(2), ev(3), *ev(4), **ev(5))
+
+x = c(6)
+y = c(7)
+#ev(x).a, ev(y).a = ev(1), ev(2)
+ev(x.n), ev(y.n)

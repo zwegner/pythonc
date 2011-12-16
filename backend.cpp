@@ -175,7 +175,7 @@ public:
     // unwrapped versions
     virtual bool contains(node *rhs) { error("contains unimplemented for %s", this->node_type()); }
     virtual int_t len() { error("len unimplemented for %s", this->node_type()); return 0; }
-    virtual node *getattr(const char *key);
+    virtual node *getattr(const char *key) { error("getattr unimplemented for %s", this->node_type()); return NULL; }
     virtual int_t hash() { error("hash unimplemented for %s", this->node_type()); return 0; }
     virtual std::string repr();
     virtual std::string str() { return repr(); }
@@ -1077,22 +1077,39 @@ public:
 
 class object: public node {
 public:
-    dict items;
+    attr_dict attrs;
 
     MARK_LIVE_CHILDREN {
-        this->items.mark_live_children();
+        for (auto it = this->attrs.begin(); it != this->attrs.end(); ++it) {
+            it->second->mark_live();
+        }
     }
 
     virtual bool bool_value() { return true; }
-
-    virtual node *getattr(const char *key) {
-        return items.__getitem__(new(allocator) string_const(key));
-    }
     virtual node *type() {
         return this->getattr("__class__");
     }
+
+    node *lookup(const char *key) {
+        auto attr = std::string(key);
+        auto it = this->attrs.find(attr);
+        if (it == this->attrs.end())
+            return NULL;
+        return attrs[attr];
+    }
+    virtual node *getattr(const char *key) {
+        auto attr = this->lookup(key);
+        if (!attr)
+            error("object has no attribute %s", key);
+        return attr;
+    }
+    void setattr(const char *attr, node *value) {
+        attrs[std::string(attr)] = value;
+    }
     virtual void __setattr__(node *key, node *value) {
-        items.__setitem__(key, value);
+        if (!key->is_str())
+            error("setattr with non-string");
+        return this->setattr(key->c_str(), value);
     }
     virtual bool _eq(node *rhs) { return this == rhs; }
     virtual bool _ne(node *rhs) { return this != rhs; }
@@ -1556,12 +1573,6 @@ node *node::__getattr__(node *key) {
     if (!key->is_str())
         error("getattr with non-string");
     return this->getattr(key->c_str());
-}
-
-node *node::getattr(const char *key) {
-    if (!strcmp(key, "__class__"))
-        return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
 }
 
 node *node::__hash__() {
