@@ -185,7 +185,8 @@ class Transformer(ast.NodeTransformer):
         fn = self.visit(node.func)
 
         if node.starargs:
-            raise TranslateError(node, 'argument unpacking is currently defeatured')
+            assert not node.args
+            args = syntax.TupleFromIter(self.visit(node.starargs))
         else:
             args = syntax.Tuple([self.visit(a) for a in node.args])
 

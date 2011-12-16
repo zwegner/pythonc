@@ -359,7 +359,6 @@ class Context:
                 assert not isinstance(node, (ClassDef, FunctionDef))
                 for i in node.iterate_subtree():
                     if isinstance(i, (Load, Store)):
-                        print(i.name)
                         all_globals.add(i.name)
 
         # Enumerate globals. Index 0 is saved for undefined symbols.
@@ -470,7 +469,9 @@ def node(argstr='', no_flatten=[]):
 
         def reduce_internal(self, ctx):
             if hasattr(self, 'reduce'):
-                self = self.reduce(ctx)
+                new_self = self.reduce(ctx)
+                if new_self != self:
+                    self = new_self.reduce(ctx) if hasattr(new_self, 'reduce') else new_self
 
             if self:
                 self.flatten(ctx)
@@ -669,6 +670,16 @@ class Tuple(Node):
             ctx.add_statement(StoreSubscriptDirect(name, i, item()))
         return name
 
+@node('&items')
+class TupleFromIter(Node):
+    def reduce(self, ctx):
+        name = ctx.get_temp_id()
+        ctx.add_statement(Assign(name, Ref('tuple', []), 'tuple'))
+        iter_temp = ctx.get_temp()
+        stmts = [MethodCall(name, 'append', [Load(iter_temp)])]
+        ctx.add_statement(For(iter_temp, self.items(), stmts))
+        return name
+
 @node('*keys, *values')
 class Dict(Node):
     def reduce(self, ctx):
@@ -761,6 +772,8 @@ class Comprehension(Node):
             l = Dict([], [])
         else:
             l = List([])
+        temp = ctx.get_temp_id()
+        ctx.add_statement(Assign(temp, l, 'node'))
         iter_name = ctx.get_temp()
         ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 
@@ -791,7 +804,7 @@ class Comprehension(Node):
 
         ctx.add_statement(w)
 
-        return l
+        return temp
 
 @node()
 class Break(Node):

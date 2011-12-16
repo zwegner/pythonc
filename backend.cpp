@@ -802,6 +802,10 @@ public:
         return base;
     }
 
+    void append(node *item) {
+        this->items.push_back(item);
+    }
+
     virtual bool bool_value() { return this->items.size() != 0; }
 
     virtual node *__add__(node *rhs);
