@@ -22,109 +22,8 @@
 ################################################################################
 
 import ast
-import sys
 
 import syntax
-
-builtin_functions = {
-    'abs': 1,
-    'all': 1,
-    'any': 1,
-    'isinstance': 2,
-    'iter': 1,
-    'len': 1,
-    'max': 1,
-    'min': 1,
-    'open': 2,
-    'ord': 1,
-    'print': -1,
-    'print_nonl': 1,
-    'repr': 1,
-    'sorted': 1,
-}
-builtin_methods = {
-    'dict': {
-        'clear': 1,
-        'copy': 1,
-        'get': 3,
-        'keys': 1,
-        'items': 1,
-        'values': 1,
-    },
-    'file': {
-        'read': 2,
-        'write': 2,
-    },
-    'list': {
-        'append': 2,
-        'count': 2,
-        'extend': 2,
-        'index': 2,
-        'insert': 3,
-        'pop': (1, 2),
-        'remove': 2,
-        'reverse': 1,
-        'sort': 1,
-    },
-    'set': {
-        'add': 2,
-        'clear': 1,
-        'copy': 1,
-        'difference_update': -1,
-        'discard': 2,
-        'remove': 2,
-        'update': -1,
-    },
-    'str': {
-        'join': 2,
-        'split': (1, 2),
-        'startswith': 2,
-        'upper': 1,
-    },
-    'tuple': {
-        'count': 2,
-        'index': 2,
-    },
-}
-builtin_classes = {
-    'bool': (0, 1),
-    'bytes': (0, 1),
-    'dict': (0, 1),
-    'enumerate': 1,
-    'int': (0, 2),
-    'list': (0, 1),
-    'range': (1, 3),
-    'reversed': 1,
-    'set': (0, 1),
-    'str': (0, 1),
-    'tuple': (0, 1),
-    'type': 1,
-    'zip': 2,
-}
-builtin_hidden_classes = {
-    'NoneType',
-    'bound_method',
-    'builtin_function_or_method',
-    'bytes_iterator',
-    'dict_itemiterator',
-    'dict_items',
-    'dict_keyiterator',
-    'dict_keys',
-    'dict_valueiterator',
-    'dict_values',
-    'file',
-    'function',
-    'list_iterator',
-    'method_descriptor',
-    'range_iterator',
-    'set_iterator',
-    'str_iterator',
-    'tuple_iterator',
-}
-builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
-    '__name__',
-    '__args__',
-]
 
 inplace_op_table = {
     '__%s__' % x: '__i%s__' % x
@@ -139,114 +38,29 @@ class Transformer(ast.NodeTransformer):
     def __init__(self):
         self.temp_id = 0
         self.statements = []
-        self.functions = []
         self.in_class = False
         self.in_function = False
-        self.globals_set = None
-
-    def get_temp_name(self):
-        self.temp_id += 1
-        return 'temp_%02i' % self.temp_id
-
-    def get_temp(self):
-        self.temp_id += 1
-        return syntax.Identifier('temp_%02i' % self.temp_id)
-
-    def flatten_node(self, node, statements=None):
-        old_stmts = self.statements
-        if statements is not None:
-            self.statements = statements
-        node = self.visit(node)
-        if node.is_atom():
-            r = node
-        else:
-            temp = self.get_temp()
-            self.statements.append(syntax.Assign(temp, node, 'node'))
-            r = temp
-        self.statements = old_stmts
-        return r
-
-    def flatten_list(self, node_list):
-        old_stmts = self.statements
-        statements = []
-        for stmt in node_list:
-            self.statements = []
-            stmts = self.visit(stmt)
-            if stmts:
-                if isinstance(stmts, list):
-                    statements += self.statements + stmts
-                else:
-                    statements += self.statements + [stmts]
-        self.statements = old_stmts
-        return statements
-
-    def index_global_class_symbols(self, node, globals_set, class_set):
-        if isinstance(node, ast.Global):
-            for name in node.names:
-                globals_set.add(name)
-        # XXX make this check scope
-        elif isinstance(node, ast.Name) and isinstance(node.ctx,
-                (ast.Store, ast.AugStore)):
-            globals_set.add(node.id)
-            class_set.add(node.id)
-        elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-            globals_set.add(node.name)
-            class_set.add(node.name)
-        elif isinstance(node, ast.Import):
-            for name in node.names:
-                globals_set.add(name.name)
-        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
-            ast.GeneratorExp)):
-            # HACK: set self.iter_temp for the space in the symbol table
-            node.iter_temp = self.get_temp_name()
-            globals_set.add(node.iter_temp)
-        for i in ast.iter_child_nodes(node):
-            self.index_global_class_symbols(i, globals_set, class_set)
-
-    def get_globals(self, node, globals_set, locals_set, all_vars_set):
-        if isinstance(node, ast.Global):
-            for name in node.names:
-                globals_set.add(name)
-        elif isinstance(node, ast.Name):
-            all_vars_set.add(node.id)
-            if isinstance(node.ctx, (ast.Store, ast.AugStore)):
-                locals_set.add(node.id)
-        elif isinstance(node, ast.arg):
-            all_vars_set.add(node.arg)
-            locals_set.add(node.arg)
-        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
-            ast.GeneratorExp)):
-            locals_set.add(node.iter_temp)
-        for i in ast.iter_child_nodes(node):
-            self.get_globals(i, globals_set, locals_set, all_vars_set)
-
-    def get_binding(self, name):
-        if self.in_function:
-            if name in self.globals_set:
-                scope = 'global'
-            else:
-                scope = 'local'
-        elif self.in_class:
-            scope = 'class'
-        else:
-            scope = 'global'
-        if name in self.symbol_idx[scope]:
-            return (scope, self.symbol_idx[scope][name])
-        return (scope, self.symbol_idx[scope]['$undefined'])
 
     def generic_visit(self, node):
         raise TranslateError(node, 'can\'t translate %s' % node)
 
-    def visit_children(self, node):
-        return [self.visit(i) for i in ast.iter_child_nodes(node)]
+    def visit_child_list(self, node):
+        r = []
+        for i in node:
+            c = self.visit(i) 
+            if isinstance(c, list):
+                r.extend(c)
+            else:
+                r.append(c)
+        return r
 
     def visit_Name(self, node):
-        assert isinstance(node.ctx, ast.Load)
+        #assert isinstance(node.ctx, ast.Load)
         if node.id in ['True', 'False']:
             return syntax.BoolConst(node.id == 'True')
         elif node.id == 'None':
             return syntax.NoneConst()
-        return syntax.Load(node.id, self.get_binding(node.id))
+        return syntax.Load(node.id)
 
     def visit_Num(self, node):
         if isinstance(node.n, float):
@@ -269,7 +83,7 @@ class Transformer(ast.NodeTransformer):
     def visit_USub(self, node): return '__neg__'
     def visit_UnaryOp(self, node):
         op = self.visit(node.op)
-        rhs = self.flatten_node(node.operand)
+        rhs = self.visit(node.operand)
         return syntax.UnaryOp(op, rhs)
 
     # Binary Ops
@@ -288,8 +102,8 @@ class Transformer(ast.NodeTransformer):
 
     def visit_BinOp(self, node):
         op = self.visit(node.op)
-        lhs = self.flatten_node(node.left)
-        rhs = self.flatten_node(node.right)
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.right)
         return syntax.BinaryOp(op, lhs, rhs)
 
     # Comparisons
@@ -308,8 +122,8 @@ class Transformer(ast.NodeTransformer):
         assert len(node.ops) == 1
         assert len(node.comparators) == 1
         op = self.visit(node.ops[0])
-        lhs = self.flatten_node(node.left)
-        rhs = self.flatten_node(node.comparators[0])
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.comparators[0])
         # Sigh--Python has these ordered weirdly
         if op in ['__contains__', '__ncontains__']:
             lhs, rhs = rhs, lhs
@@ -322,79 +136,65 @@ class Transformer(ast.NodeTransformer):
     def visit_BoolOp(self, node):
         assert len(node.values) >= 2
         op = self.visit(node.op)
-        rhs_stmts = []
-        rhs_expr = self.flatten_node(node.values[-1], statements=rhs_stmts)
+        rhs = self.visit(node.values[-1])
         for v in reversed(node.values[:-1]):
-            lhs_stmts = []
-            lhs = self.flatten_node(v, statements=lhs_stmts)
-            bool_op = syntax.BoolOp(op, lhs, rhs_stmts, rhs_expr)
-            rhs_expr = bool_op.flatten(self, lhs_stmts)
-            rhs_stmts = lhs_stmts
-        self.statements += rhs_stmts
-        return rhs_expr
+            lhs = self.visit(v)
+            rhs = syntax.BoolOp(op, lhs, rhs)
+        return rhs
 
     def visit_IfExp(self, node):
-        expr = self.flatten_node(node.test)
-        true_stmts = []
-        true_expr = self.flatten_node(node.body, statements=true_stmts)
-        false_stmts = []
-        false_expr = self.flatten_node(node.orelse, statements=false_stmts)
-        if_exp = syntax.IfExp(expr, true_stmts, true_expr, false_stmts, false_expr)
-        return if_exp.flatten(self)
+        expr = syntax.Test(self.visit(node.test))
+        true_expr = self.visit(node.body)
+        false_expr = self.visit(node.orelse)
+        return syntax.IfExp(expr, true_expr, false_expr)
 
     def visit_List(self, node):
-        items = [self.flatten_node(i) for i in node.elts]
-        l = syntax.List(items)
-        return l.flatten(self)
+        items = [self.visit(i) for i in node.elts]
+        return syntax.List(items)
 
     def visit_Tuple(self, node):
-        items = [self.flatten_node(i) for i in node.elts]
-        l = syntax.Tuple(items)
-        return l.flatten(self)
+        items = [self.visit(i) for i in node.elts]
+        return syntax.Tuple(items)
 
     def visit_Dict(self, node):
-        keys = [self.flatten_node(i) for i in node.keys]
-        values = [self.flatten_node(i) for i in node.values]
-        d = syntax.Dict(keys, values)
-        return d.flatten(self)
+        keys = [self.visit(i) for i in node.keys]
+        values = [self.visit(i) for i in node.values]
+        return syntax.Dict(keys, values)
 
     def visit_Set(self, node):
-        items = [self.flatten_node(i) for i in node.elts]
-        d = syntax.Set(items)
-        return d.flatten(self)
+        items = [self.visit(i) for i in node.elts]
+        return syntax.Set(items)
 
     def visit_Subscript(self, node):
-        l = self.flatten_node(node.value)
+        l = self.visit(node.value)
         if isinstance(node.slice, ast.Index):
-            index = self.flatten_node(node.slice.value)
+            index = self.visit(node.slice.value)
             return syntax.Subscript(l, index)
         elif isinstance(node.slice, ast.Slice):
-            [start, end, step] = [self.flatten_node(a) if a else syntax.NoneConst() for a in
+            [start, end, step] = [self.visit(a) if a else syntax.NoneConst() for a in
                     [node.slice.lower, node.slice.upper, node.slice.step]]
             return syntax.Slice(l, start, end, step)
 
     def visit_Attribute(self, node):
         assert isinstance(node.ctx, ast.Load)
-        l = self.flatten_node(node.value)
+        l = self.visit(node.value)
         attr = syntax.Attribute(l, syntax.StringConst(node.attr))
         return attr
 
     def visit_Call(self, node):
-        fn = self.flatten_node(node.func)
+        fn = self.visit(node.func)
 
         if node.starargs:
             assert not node.args
-            args = syntax.Tuple(self.flatten_node(node.starargs))
+            args = syntax.TupleFromIter(self.visit(node.starargs))
         else:
-            args = syntax.Tuple([self.flatten_node(a) for a in node.args])
-        args = args.flatten(self)
+            args = syntax.Tuple([self.visit(a) for a in node.args])
 
         assert not node.kwargs
         if node.keywords:
             keys = [syntax.StringConst(i.arg) for i in node.keywords]
-            values = [self.flatten_node(i.value) for i in node.keywords]
+            values = [self.visit(i.value) for i in node.keywords]
             kwargs = syntax.Dict(keys, values)
-            kwargs = kwargs.flatten(self)
         else:
             kwargs = syntax.NullConst()
 
@@ -403,46 +203,46 @@ class Transformer(ast.NodeTransformer):
     def visit_Assign(self, node):
         assert len(node.targets) == 1
         target = node.targets[0]
-        value = self.flatten_node(node.value)
+        value = self.visit(node.value)
         if isinstance(target, ast.Name):
-            return [syntax.Store(target.id, value, self.get_binding(target.id))]
+            return [syntax.Store(target.id, value)]
         elif isinstance(target, ast.Tuple):
             if not all(isinstance(t, ast.Name) for t in target.elts):
                 raise TranslateError(target, 'Pythonc does not yet support nested tuple assignment')
             stmts = []
             for i, t in enumerate(target.elts):
-                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)), self.get_binding(t.id))]
+                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)))]
             return stmts
         elif isinstance(target, ast.Attribute):
-            base = self.flatten_node(target.value)
+            base = self.visit(target.value)
             return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
         elif isinstance(target, ast.Subscript):
             assert isinstance(target.slice, ast.Index)
-            base = self.flatten_node(target.value)
-            index = self.flatten_node(target.slice.value)
+            base = self.visit(target.value)
+            index = self.visit(target.slice.value)
             return [syntax.StoreSubscript(base, index, value)]
         else:
             assert False
 
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
-        value = self.flatten_node(node.value)
+        value = self.visit(node.value)
         op = inplace_op_table[op]
         if isinstance(node.target, ast.Name):
             target = node.target.id
             # XXX HACK: doesn't modify in place
-            binop = syntax.BinaryOp(op, syntax.Load(target, self.get_binding(target)), value)
-            return [syntax.Store(target, binop, self.get_binding(target))]
+            binop = syntax.BinaryOp(op, syntax.Load(target), value)
+            return [syntax.Store(target, binop)]
         elif isinstance(node.target, ast.Attribute):
-            l = self.flatten_node(node.target.value)
+            l = self.visit(node.target.value)
             attr_name = syntax.StringConst(node.target.attr)
             attr = syntax.Attribute(l, attr_name)
             binop = syntax.BinaryOp(op, attr, value)
             return [syntax.StoreAttr(l, attr_name, binop)]
         elif isinstance(node.target, ast.Subscript):
             assert isinstance(node.target.slice, ast.Index)
-            base = self.flatten_node(node.target.value)
-            index = self.flatten_node(node.target.slice.value)
+            base = self.visit(node.target.value)
+            index = self.visit(node.target.slice.value)
             old = syntax.Subscript(base, index)
             binop = syntax.BinaryOp(op, old, value)
             return [syntax.StoreSubscript(base, index, binop)]
@@ -455,15 +255,15 @@ class Transformer(ast.NodeTransformer):
         assert isinstance(target, ast.Subscript)
         assert isinstance(target.slice, ast.Index)
 
-        name = self.flatten_node(target.value)
-        value = self.flatten_node(target.slice.value)
+        name = self.visit(target.value)
+        value = self.visit(target.slice.value)
         return [syntax.DeleteSubscript(name, value)]
 
     def visit_If(self, node):
-        expr = self.flatten_node(node.test)
-        stmts = self.flatten_list(node.body)
+        expr = syntax.Test(self.visit(node.test))
+        stmts = self.visit_child_list(node.body)
         if node.orelse:
-            else_block = self.flatten_list(node.orelse)
+            else_block = self.visit_child_list(node.orelse)
         else:
             else_block = []
         return syntax.If(expr, stmts, else_block)
@@ -476,34 +276,35 @@ class Transformer(ast.NodeTransformer):
 
     def visit_For(self, node):
         assert not node.orelse
-        iter = self.flatten_node(node.iter)
-        stmts = self.flatten_list(node.body)
+        iter = self.visit(node.iter)
+        stmts = self.visit_child_list(node.body)
         stmts.append(syntax.CollectGarbage(None))
 
         if isinstance(node.target, ast.Name):
-            target = (node.target.id, self.get_binding(node.target.id))
+            target = node.target.id
         elif isinstance(node.target, ast.Tuple):
-            target = [(t.id, self.get_binding(t.id)) for t in node.target.elts]
+            target = [t.id for t in node.target.elts]
         else:
             assert False
-        # HACK: self.iter_temp gets set when enumerating symbols
-        for_loop = syntax.For(target, iter, stmts, node.iter_temp, self.get_binding(node.iter_temp))
-        return for_loop.flatten(self)
+        return syntax.For(target, iter, stmts)
 
     def visit_While(self, node):
         assert not node.orelse
-        test_stmts = []
-        test = self.flatten_node(node.test, statements=test_stmts)
-        stmts = self.flatten_list(node.body)
+        test = self.visit(node.test)
+        test = syntax.If(syntax.Test(syntax.UnaryOp('__not__', test)),
+                [syntax.Break()], [])
+        stmts = [test] + self.visit_child_list(node.body)
+
         stmts.append(syntax.CollectGarbage(None))
-        return syntax.While(test_stmts, test, stmts)
+
+        return syntax.While(stmts)
 
     # XXX We are just flattening "with x as y:" into "y = x" (this works in some simple cases with open()).
     def visit_With(self, node):
         assert node.optional_vars
-        expr = self.flatten_node(node.context_expr)
-        stmts = [syntax.Store(node.optional_vars.id, expr, self.get_binding(node.optional_vars.id))]
-        stmts += self.flatten_list(node.body)
+        expr = self.visit(node.context_expr)
+        stmts = [syntax.Store(node.optional_vars.id, expr)]
+        stmts += self.visit_child_list(node.body)
         return stmts
 
     def visit_Comprehension(self, node, comp_type):
@@ -512,28 +313,23 @@ class Transformer(ast.NodeTransformer):
         assert len(gen.ifs) <= 1
 
         if isinstance(gen.target, ast.Name):
-            target = (gen.target.id, self.get_binding(gen.target.id))
+            target = (gen.target.id)
         elif isinstance(gen.target, ast.Tuple):
-            target = [(t.id, self.get_binding(t.id)) for t in gen.target.elts]
+            target = [(t.id) for t in gen.target.elts]
         else:
             assert False
 
-        iter = self.flatten_node(gen.iter)
-        cond_stmts = []
-        expr_stmts = []
+        iter = self.visit(gen.iter)
         cond = None
         if gen.ifs:
-            cond = self.flatten_node(gen.ifs[0], statements=cond_stmts)
+            cond = self.visit(gen.ifs[0])
         if comp_type == 'dict':
-            expr = self.flatten_node(node.key, statements=expr_stmts)
-            expr2 = self.flatten_node(node.value, statements=expr_stmts)
+            expr = self.visit(node.key)
+            expr2 = self.visit(node.value)
         else:
-            expr = self.flatten_node(node.elt, statements=expr_stmts)
+            expr = self.visit(node.elt)
             expr2 = None
-        comp = syntax.Comprehension(comp_type, target, iter, node.iter_temp,
-                self.get_binding(node.iter_temp), cond_stmts, cond, expr_stmts,
-                expr, expr2)
-        return comp.flatten(self)
+        return syntax.Comprehension(comp_type, target, iter, cond, expr, expr2)
 
     def visit_ListComp(self, node):
         return self.visit_Comprehension(node, 'list')
@@ -549,19 +345,19 @@ class Transformer(ast.NodeTransformer):
 
     def visit_Return(self, node):
         if node.value is not None:
-            expr = self.flatten_node(node.value)
+            expr = self.visit(node.value)
             self.statements.append(syntax.CollectGarbage(expr))
             return syntax.Return(expr)
         else:
             return syntax.Return(None)
 
     def visit_Assert(self, node):
-        expr = self.flatten_node(node.test)
+        expr = self.visit(node.test)
         return syntax.Assert(expr, node.lineno)
 
     def visit_Raise(self, node):
         assert not node.cause
-        expr = self.flatten_node(node.exc)
+        expr = self.visit(node.exc)
         return syntax.Raise(expr, node.lineno)
 
     def visit_arguments(self, node):
@@ -569,10 +365,8 @@ class Transformer(ast.NodeTransformer):
         assert not node.kwarg
 
         args = [a.arg for a in node.args]
-        binding = [self.get_binding(a) for a in args]
-        defaults = self.flatten_list(node.defaults)
-        args = syntax.Arguments(args, binding, defaults)
-        return args.flatten(self)
+        defaults = self.visit_child_list(node.defaults)
+        return syntax.Arguments(args, defaults)
 
     def visit_FunctionDef(self, node):
         assert not self.in_function
@@ -582,31 +376,16 @@ class Transformer(ast.NodeTransformer):
             assert isinstance(decorator, ast.Name)
             decorators.add(decorator.id)
 
-        # Get bindings of all variables. Globals are the variables that have "global x"
-        # somewhere in the function, or are never written in the function.
-        globals_set = set()
-        locals_set = set()
-        all_vars_set = set()
-        self.get_globals(node, globals_set, locals_set, all_vars_set)
-        globals_set |= (all_vars_set - locals_set)
-
-        self.symbol_idx['local'] = {symbol: idx for idx, symbol in enumerate(sorted(locals_set))}
-
         # Set some state and recursively visit child nodes, then restore state
-        self.globals_set = globals_set
         self.in_function = True
         args = self.visit(node.args)
-        body = self.flatten_list(node.body)
+        body = [args] + self.visit_child_list(node.body)
         if not body or not isinstance(body[-1], syntax.Return):
             body.append(syntax.Return(None))
-        self.globals_set = None
         self.in_function = False
 
-        args.no_kwargs = 'no_kwargs' in decorators
-
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        fn = syntax.FunctionDef(node.name, args, body, exp_name, self.get_binding(node.name), len(locals_set))
-        return fn.flatten(self)
+        return syntax.FunctionDef(node.name, body, exp_name)
 
     def visit_ClassDef(self, node):
         assert not node.bases
@@ -622,11 +401,10 @@ class Transformer(ast.NodeTransformer):
                 fn.exp_name = '_%s_%s' % (node.name, fn.name)
 
         self.in_class = True
-        body = self.flatten_list(node.body)
+        body = self.visit_child_list(node.body)
         self.in_class = False
 
-        c = syntax.ClassDef(node.name, self.get_binding(node.name), body)
-        return c.flatten(self)
+        return syntax.ClassDef(node.name, body)
 
     # XXX This just turns "import x" into "x = 0".  It's certainly not what we really want...
     def visit_Import(self, node):
@@ -634,140 +412,24 @@ class Transformer(ast.NodeTransformer):
         for name in node.names:
             assert not name.asname
             assert name.name
-            statements.append(syntax.Store(name.name, syntax.IntConst(0), self.get_binding(name.name)))
+            statements.append(syntax.Store(name.name, syntax.IntConst(0)))
         return statements
 
     def visit_Expr(self, node):
         return self.visit(node.value)
 
     def visit_Module(self, node):
-        # Set up an index of all possible global/class symbols
-        all_global_syms = set()
-        all_class_syms = set()
-        self.index_global_class_symbols(node, all_global_syms, all_class_syms)
+        return self.visit_child_list(node.body)
 
-        all_global_syms.add('$undefined')
-        all_global_syms |= set(builtin_symbols)
-
-        self.symbol_idx = {
-            scope: {symbol: idx for idx, symbol in enumerate(sorted(symbols))}
-            for scope, symbols in [['class', all_class_syms], ['global', all_global_syms]]
-        }
-        self.global_sym_count = len(all_global_syms)
-        self.class_sym_count = len(all_class_syms)
-
-        return self.flatten_list(node.body)
+    def visit_Global(self, node):
+        return syntax.Global(node.names)
 
     def visit_Pass(self, node): pass
     def visit_Load(self, node): pass
     def visit_Store(self, node): pass
-    def visit_Global(self, node): pass
 
-def print_arg_logic(f, n_args, self_class=None, method_name=None):
-    f.write('    if (kwargs && kwargs->items.size())\n')
-    f.write('        error("%s() does not take keyword arguments");\n' % name)
+def transform(path):
+    with open(path) as f:
+        node = ast.parse(f.read())
 
-    if isinstance(n_args, tuple):
-        (min_args, max_args) = n_args
-        assert max_args > min_args
-        f.write('    size_t args_len = args->items.size();\n')
-        f.write('    if (args_len < %d)\n' % min_args)
-        f.write('        error("too few arguments to %s()");\n' % name)
-        f.write('    if (args_len > %d)\n' % max_args)
-        f.write('        error("too many arguments to %s()");\n' % name)
-        for i in range(min_args):
-            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
-        for i in range(min_args, max_args):
-            f.write('    node *arg%d = (args_len > %d) ? args->items[%d] : NULL;\n' % (i, i, i))
-        return ', '.join('arg%d' % i for i in range(max_args))
-    elif n_args < 0:
-        return 'args'
-    else:
-        f.write('    if (args->items.size() != %d)\n' % n_args)
-        f.write('        error("wrong number of arguments to %s()");\n' % name)
-        for i in range(n_args):
-            f.write('    node *arg%d = args->items[%d];\n' % (i, i))
-        if self_class:
-            f.write('    if (!arg0->is_%s())\n' % self_class)
-            f.write('        error("bad argument to %s.%s()");\n' % (self_class, method_name))
-            class_name = {'str': 'string_const', 'int': 'int_const'}.get(self_class, self_class)
-            f.write('    %s *self = (%s *)arg0;\n' % (class_name, class_name))
-            return ', '.join(['self'] + ['arg%d' % i for i in range(1, n_args)])
-        else:
-            return ', '.join('arg%d' % i for i in range(n_args))
-
-with open(sys.argv[1]) as f:
-    node = ast.parse(f.read())
-
-transformer = Transformer()
-node = transformer.visit(node)
-
-with open(sys.argv[2], 'w') as f:
-    f.write('class node;\n')
-    f.write('class tuple;\n')
-    f.write('class dict;\n')
-    f.write('class context;\n')
-
-    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
-    f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
-    f.write('#define LIST_BUILTIN_HIDDEN_CLASSES(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_hidden_classes)))
-
-    for class_name in sorted(builtin_classes) + ['file']:
-        methods = builtin_methods.get(class_name, [])
-        f.write('#define LIST_%s_CLASS_METHODS(x) %s\n' % (class_name,
-            ' '.join('x(%s, %s)' % (class_name, name) for name in sorted(methods))))
-
-    f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
-        ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
-
-    for x in builtin_symbols:
-        f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
-
-    for name in sorted(builtin_functions):
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
-    for class_name in sorted(builtin_methods):
-        methods = builtin_methods[class_name]
-        for name in sorted(methods):
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
-
-    f.write('#include "backend.cpp"\n')
-
-    for name in sorted(builtin_functions):
-        n_args = builtin_functions[name]
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
-        args = print_arg_logic(f, n_args)
-        f.write('    return builtin_%s(%s);\n' % (name, args))
-        f.write('}\n')
-
-    for class_name in sorted(builtin_methods):
-        methods = builtin_methods[class_name]
-        for name in sorted(methods):
-            n_args = methods[name]
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
-            args = print_arg_logic(f, n_args, self_class=class_name, method_name=name)
-            f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
-            f.write('}\n')
-
-    for name in sorted(builtin_classes):
-        n_args = builtin_classes[name]
-        f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
-        args = print_arg_logic(f, n_args)
-        f.write('    return %s_init(%s);\n' % (name, args))
-        f.write('}\n')
-
-    syntax.export_consts(f)
-
-    for func in transformer.functions:
-        f.write('%s\n' % func)
-
-    f.write('int main(int argc, char **argv) {\n')
-    f.write('    node *global_syms[%s] = {0};\n' % (transformer.global_sym_count))
-    f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (transformer.global_sym_count))
-    f.write('    init_context(&ctx, argc, argv);\n')
-
-    f.write(syntax.indent(node))
-
-    f.write('\n}\n')
+    return Transformer().visit(node)

@@ -671,6 +671,9 @@ public:
             base += size;
         return base;
     }
+    void append(node *item) {
+        this->items.push_back(item);
+    }
     node *pop(int_t idx) {
         idx = this->index(idx);
         node *popped = this->items[idx];
@@ -797,6 +800,10 @@ public:
         if (base < 0)
             base += size;
         return base;
+    }
+
+    void append(node *item) {
+        this->items.push_back(item);
     }
 
     virtual bool bool_value() { return this->items.size() != 0; }
