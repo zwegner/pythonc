@@ -370,7 +370,7 @@ class Context:
                     if node.scope == 'global':
                         node.set_binding('global', self.global_idx.get(node.name, 0))
 
-        self.global_sym_count = len(self.global_idx)
+        self.global_sym_count = len(self.global_idx) + 1
 
         return stmts
 
@@ -779,8 +779,10 @@ class Comprehension(Node):
 
         # Construct body of while loop that implements comprehension
         # Get next item of iterable
-        item = MethodCall(Load(iter_name), 'next', [])
-        stmts = [If(item, [], [Break()])]
+        iter_next = MethodCall(Load(iter_name), 'next', [])
+        item = ctx.get_temp_id()
+        stmts = [Assign(item, iter_next, 'node')]
+        stmts += [If(item, [], [Break()])]
 
         # Unpack arguments
         if isinstance(self.target, tuple):
@@ -794,11 +796,11 @@ class Comprehension(Node):
             stmts += [If(Test(self.cond()), [], [Continue()])]
 
         if self.comp_type == 'set':
-            stmts += [MethodCall(l, 'add', [self.expr()])]
+            stmts += [MethodCall(temp, 'add', [self.expr()])]
         elif self.comp_type == 'dict':
-            stmts += [MethodCall(l, '__setitem__', [self.expr(), self.expr2()])]
+            stmts += [MethodCall(temp, '__setitem__', [self.expr(), self.expr2()])]
         else:
-            stmts += [MethodCall(l, 'append', [self.expr()])]
+            stmts += [MethodCall(temp, 'append', [self.expr()])]
 
         w = While(stmts)
 
