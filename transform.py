@@ -143,10 +143,10 @@ class Transformer(ast.NodeTransformer):
         return rhs_expr
 
     def visit_IfExp(self, node):
-        expr = self.visit(node.test)
+        expr = syntax.Test(self.visit(node.test))
         true_expr = self.visit(node.body)
         false_expr = self.visit(node.orelse)
-        return syntax.IfExp(expr, true_stmts, true_expr, false_stmts, false_expr)
+        return syntax.IfExp(expr, true_expr, false_expr)
 
     def visit_List(self, node):
         items = [self.visit(i) for i in node.elts]
@@ -259,7 +259,7 @@ class Transformer(ast.NodeTransformer):
         return [syntax.DeleteSubscript(name, value)]
 
     def visit_If(self, node):
-        expr = self.visit(node.test)
+        expr = syntax.Test(self.visit(node.test))
         stmts = self.visit_child_list(node.body)
         if node.orelse:
             else_block = self.visit_child_list(node.orelse)
@@ -290,9 +290,13 @@ class Transformer(ast.NodeTransformer):
     def visit_While(self, node):
         assert not node.orelse
         test = self.visit(node.test)
-        stmts = self.visit_child_list(node.body)
+        test = syntax.If(syntax.Test(syntax.UnaryOp('__not__', test)),
+                [syntax.Break()], [])
+        stmts = [test] + self.visit_child_list(node.body)
+
         stmts.append(syntax.CollectGarbage(None))
-        return syntax.While(test, stmts)
+
+        return syntax.While(stmts)
 
     # XXX We are just flattening "with x as y:" into "y = x" (this works in some simple cases with open()).
     def visit_With(self, node):

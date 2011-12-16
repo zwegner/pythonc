@@ -307,11 +307,11 @@ class Context:
     def get_temp_id(self):
         return Identifier(self.get_temp())
 
-    def flatten_edge(self, edge):
+    def flatten_edge(self, edge, force_atom):
         node = edge()
         node = node.reduce_internal(self)
         edge.set(node)
-        if not node.is_atom():
+        if not force_atom and not node.is_atom():
             temp = self.get_temp()
             edge.set(Load(temp))
             self.statements.append(Edge(Store(temp, node)))
@@ -426,7 +426,7 @@ arg_map = {'&': ARG_EDGE, '*': ARG_EDGE_LIST, '$': ARG_BLOCK}
 # &expr -> edge attribute, will create an Edge object (used for linking to other Nodes)
 # *explist -> python list of edges
 # $stmts -> also python list of edges, but representing an enclosed block
-def node(argstr=''):
+def node(argstr='', no_flatten=[]):
     args = [a.strip() for a in argstr.split(',') if a.strip()]
     new_args = []
     for a in args:
@@ -482,10 +482,10 @@ def node(argstr=''):
                 if arg_type == ARG_EDGE:
                     edge = getattr(self, arg_name)
                     if edge:
-                        ctx.flatten_edge(edge)
+                        ctx.flatten_edge(edge, arg_name in no_flatten)
                 elif arg_type == ARG_EDGE_LIST:
                     for edge in getattr(self, arg_name):
-                        ctx.flatten_edge(edge)
+                        ctx.flatten_edge(edge, arg_name in no_flatten)
                 elif arg_type == ARG_BLOCK:
                     setattr(self, arg_name, ctx.flatten_list(getattr(self, arg_name)))
 
@@ -572,6 +572,11 @@ class Identifier(Node):
 class Global(Node):
     def reduce(self, ctx):
         return None
+
+@node('name')
+class SingletonRef(Node):
+    def __str__(self):
+        return '&%s' % self.name
 
 @node('ref_type, args')
 class Ref(Node):
@@ -725,24 +730,29 @@ class BoolOp(Node):
         temp=self.temp.name, rhs_stmts=rhs_stmts, rhs_expr=self.rhs_expr())
         return body
 
-@node('&target, &expr, target_type')
+@node('&target, &expr, target_type', no_flatten=['expr'])
 class Assign(Node):
     def __str__(self):
         target_type = ('%s *' % self.target_type) if self.target_type else ''
         return '%s%s = %s' % (target_type, self.target(), self.expr())
 
-@node('&expr, $true_stmts, $false_stmts')
+@node('&expr', no_flatten=['expr'])
+class Test(Node):
+    def __str__(self):
+        return '%s->bool_value()' % self.expr()
+
+@node('&expr, $true_stmts, $false_stmts', no_flatten=['expr'])
 class If(Node):
     def __str__(self):
-        stmts = block_str(self.true_stmts)
-        body =  """if ({expr}->bool_value()) {{
+        true_stmts = block_str(self.true_stmts)
+        body =  """if ({expr}) {{
 {stmts}
-}}""".format(expr=self.expr(), stmts=stmts)
+}}""".format(expr=self.expr(), stmts=true_stmts)
         if self.false_stmts:
-            stmts = block_str(self.false_stmts)
+            false_stmts = block_str(self.false_stmts)
             body +=  """ else {{
 {stmts}
-}}""".format(stmts=stmts)
+}}""".format(stmts=false_stmts)
         return body
 
 @node('comp_type, target, &iter, &cond, &expr, &expr2')
@@ -754,14 +764,13 @@ class Comprehension(Node):
             l = Dict([], [])
         else:
             l = List([])
-        temp = l.reduce(ctx)
         iter_name = ctx.get_temp()
         ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 
         # Construct body of while loop that implements comprehension
         # Get next item of iterable
         item = MethodCall(Load(iter_name), 'next', [])
-        stmts = [If(UnaryOp('__not__', item), [Break()], [])]
+        stmts = [If(item, [], [Break()])]
 
         # Unpack arguments
         if isinstance(self.target, tuple):
@@ -772,20 +781,20 @@ class Comprehension(Node):
 
         # Condtional
         if self.cond:
-            stmts += [If(UnaryOp('__not__', self.cond()), [Continue()], [])]
+            stmts += [If(Test(self.cond()), [], [Continue()])]
 
         if self.comp_type == 'set':
-            stmts += [MethodCall(temp, 'add', [self.expr()])]
+            stmts += [MethodCall(l, 'add', [self.expr()])]
         elif self.comp_type == 'dict':
-            stmts += [MethodCall(temp, '__setitem__', [self.expr(), self.expr2()])]
+            stmts += [MethodCall(l, '__setitem__', [self.expr(), self.expr2()])]
         else:
-            stmts += [MethodCall(temp, 'append', [self.expr()])]
+            stmts += [MethodCall(l, 'append', [self.expr()])]
 
-        w = While(None, stmts)
+        w = While(stmts)
 
-        ctx.add_statement(l)
+        ctx.add_statement(w)
 
-        return temp
+        return l
 
 @node()
 class Break(Node):
@@ -804,8 +813,10 @@ class For(Node):
         ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 
         # Get next item of iterable
-        item = MethodCall(Load(iter_name), 'next', [])
-        stmts = [If(UnaryOp('__not__', item), [Break()], [])]
+        iter_next = MethodCall(Load(iter_name), 'next', [])
+        item = ctx.get_temp_id()
+        stmts = [Assign(item, iter_next, 'node')]
+        stmts += [If(item, [], [Break()])]
 
         # Unpack arguments
         if isinstance(self.target, tuple):
@@ -814,18 +825,14 @@ class For(Node):
         else:
             stmts += [Store(self.target, item)]
 
-        w = While(None, stmts)
+        stmts += [s() for s in self.stmts]
+
+        w = While(stmts)
 
         return w
 
-@node('&test, $stmts')
+@node('$stmts')
 class While(Node):
-    def reduce(self, ctx):
-        test = If(UnaryOp('__not__', self.test()), [Break()], [])
-        self.stmts = [Edge(test)] + self.stmts
-        self.test = None
-        return self
-
     def __str__(self):
         stmts = block_str(self.stmts)
         body = """\
@@ -950,7 +957,32 @@ class ClassDef(Node):
 
     def reduce(self, ctx):
         ctx.add_class(self)
-        return Store(self.name, Ref(self.class_name, []))
+        return Store(self.name, SingletonRef(self.class_name))
+
+    def set_binding(self, ctx):
+        # Get bindings of all variables. Globals are the variables that have "global x"
+        # somewhere in the function, or are never written in the function.
+        all_globals = set()
+        all_loads = set()
+        all_stores = set()
+
+        for node in self.iterate_subtree():
+            if isinstance(node, Global):
+                for name in node.names:
+                    all_globals.add(name)
+            elif isinstance(node, Load):
+                all_loads.add(node.name)
+            elif isinstance(node, Store):
+                all_stores.add(node.name)
+
+        all_globals |= (all_loads - all_stores)
+
+        for node in self.iterate_subtree():
+            if isinstance(node, (Load, Store)):
+                if node.name not in all_globals:
+                    node.set_binding('class', 0)
+
+        self.all_globals = all_globals
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
