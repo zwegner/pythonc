@@ -240,7 +240,7 @@ def write_output(stmts, path):
 
         write_backend_post_setup(f)
 
-        for func in ctx.functions:
+        for func in ctx.functions + ctx.classes:
             f.write('%s\n' % func)
 
         f.write('int main(int argc, char **argv) {\n')
@@ -289,9 +289,6 @@ def register_bytes(value):
 
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
-
-def flatten_node_list(stmts):
-    ctx = Context()
 
 class Context:
     def __init__(self):
@@ -367,10 +364,8 @@ class Context:
         for s in self.classes + self.functions + stmts:
             for node in s.iterate_subtree():
                 if isinstance(node, (Load, Store)):
-                    if node.name in all_globals:
+                    if node.scope == 'global':
                         node.set_binding('global', self.global_idx.get(node.name, 0))
-                    else:
-                        assert node.scope
 
         self.global_sym_count = len(self.global_idx)
 
@@ -595,6 +590,9 @@ class BinaryOp(Node):
 
 @node('name')
 class Load(Node):
+    def setup(self):
+        self.scope = 'global'
+
     def set_binding(self, scope, idx):
         self.scope = scope
         self.idx = idx
@@ -608,6 +606,9 @@ class Load(Node):
 
 @node('name, &expr')
 class Store(Node):
+    def setup(self):
+        self.scope = 'global'
+
     def set_binding(self, scope, idx):
         self.scope = scope
         self.idx = idx
@@ -619,10 +620,10 @@ class Store(Node):
             return 'this->setattr("%s", %s)' % (self.name, self.expr())
         return 'ctx.store(%s, %s)' % (self.idx, self.expr())
 
-@node('name, attr, &expr')
+@node('&name, attr, &expr')
 class StoreAttr(Node):
     def __str__(self):
-        return '%s->__setattr__(%s, %s)' % (self.name, self.attr, self.expr())
+        return '%s->__setattr__(%s, %s)' % (self.name(), self.attr, self.expr())
 
 @node('&expr, &index, &value')
 class StoreSubscript(Node):
@@ -706,8 +707,8 @@ class IfExp(Node):
     def reduce(self, ctx):
         temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, NullConst(), 'node'))
-        ctx.add_statement(If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
-            [Assign(temp, self.false_expr(), 'node')]))
+        ctx.add_statement(If(self.expr(), [Assign(temp, self.true_expr(), None)],
+            [Assign(temp, self.false_expr(), None)]))
         return temp
 
 @node('op, &lhs_expr, &rhs_expr')
@@ -957,7 +958,7 @@ class ClassDef(Node):
 
     def reduce(self, ctx):
         ctx.add_class(self)
-        return Store(self.name, SingletonRef(self.class_name))
+        return Store(self.name, SingletonRef(self.class_inst))
 
     def set_binding(self, ctx):
         # Get bindings of all variables. Globals are the variables that have "global x"
