@@ -22,7 +22,7 @@
 #include <assert.h>
 
 #define BLOCK_SIZE (1 << 14)
-#define CHUNK_SIZE (1 << 22)
+#define CHUNK_SIZE (1 << 21)
 
 typedef unsigned char byte;
 
@@ -34,25 +34,32 @@ uint32_t bitscan64(uint64_t r) {
 template <uint64_t obj_size>
 class arena_block {
 public:
+    // Static head pointer, one per arena block size.
     static arena_block<obj_size> *head;
     static const uint64_t capacity = BLOCK_SIZE - sizeof(void *);
-    static const uint64_t n_objects = (capacity * 64 / (obj_size * 64 + 8)) & ~63;
+    static const uint64_t n_objects = (capacity * 8 / (obj_size * 8 + 1));
+    static const uint64_t n_live = (n_objects + 63) / 64;
+
     byte data[obj_size * n_objects];
+    uint64_t live_bits[n_live];
     arena_block<obj_size> *next_block;
-    uint64_t live_bits[n_objects / 64];
-    byte padding[capacity - (obj_size * n_objects + n_objects / 8)];
+    byte padding[capacity - (sizeof(data) + sizeof(live_bits))];
 
     void init() {
         assert(sizeof(arena_block<obj_size>) == BLOCK_SIZE);
-        assert(sizeof(this->live_bits) * 8 == n_objects);
+        assert(sizeof(this->live_bits) * 8 >= n_objects);
         mark_dead();
     }
     void mark_dead() {
-        for (uint32_t t = 0; t < n_objects / 64; t++)
+        for (uint32_t t = 0; t < n_live - 1; t++)
             this->live_bits[t] = 0;
+        // For the last chunk of live bits, some bits could represent objects past
+        // the end of the block, so make sure their live bits are always set,
+        // and thus not be used
+        this->live_bits[n_live - 1] = -1ull << (n_objects & 63);
     }
     void *get_obj() {
-        for (uint32_t t = 0; t < n_objects / 64; t++) {
+        for (uint32_t t = 0; t < n_live; t++) {
             uint64_t dead = ~this->live_bits[t];
             if (dead) {
                 uint32_t bit = bitscan64(dead);
@@ -64,7 +71,8 @@ public:
         }
         return NULL;
     }
-    bool mark_live(uint32_t idx) {
+    bool mark_live(void *object) {
+        uint32_t idx = ((uint64_t)object & (BLOCK_SIZE - 1)) / obj_size;
         uint32_t t = idx / 64;
         uint64_t bit = 1ull << (idx & 63);
         bool already_live = (this->live_bits[t] & bit) != 0ull;
@@ -76,7 +84,7 @@ public:
 template<uint64_t x> arena_block<x> *arena_block<x>::head;
 
 // Silly preprocessor stuff for "cleanly" handling multiple block sizes.
-#define FOR_EACH_OBJ_SIZE(x) x(16) x(24) x(32) x(40) x(56) x(64) x(72)
+#define FOR_EACH_OBJ_SIZE(x) x(16) x(24) x(32) x(56)
 
 class arena {
 private:
@@ -132,9 +140,8 @@ public:
     }
     template<size_t bytes>
     bool mark_live(void *object) {
-        uint32_t idx = ((uint64_t)object & (BLOCK_SIZE - 1)) / bytes;
         void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));
-        return ((arena_block<bytes> *)block)->mark_live(idx);
+        return ((arena_block<bytes> *)block)->mark_live(object);
     }
 };
 
