@@ -61,7 +61,6 @@ typedef std::vector<node *> node_list;
 inline node *create_bool_const(bool b);
 
 class node {
-private:
 public:
     node() { }
     const char *node_type() { return type()->type_name(); }

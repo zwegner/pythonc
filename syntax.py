@@ -610,7 +610,7 @@ class Load(Node):
             return 'this->getattr("%s")' % self.name
         return 'ctx.load(%s)' % self.idx
 
-@node('name, &expr')
+@node('name, &expr', no_flatten=['expr'])
 class Store(Node):
     def setup(self):
         self.scope = 'global'
@@ -626,15 +626,15 @@ class Store(Node):
             return 'this->setattr("%s", %s)' % (self.name, self.expr())
         return 'ctx.store(%s, %s)' % (self.idx, self.expr())
 
-@node('&name, attr, &expr')
+@node('&name, attr, &expr', no_flatten=['expr'])
 class StoreAttr(Node):
     def __str__(self):
         return '%s->__setattr__(%s, %s)' % (self.name(), self.attr, self.expr())
 
-@node('&expr, &index, &value')
+@node('&name, &index, &expr', no_flatten=['expr'])
 class StoreSubscript(Node):
     def __str__(self):
-        return '%s->__setitem__(%s, %s)' % (self.expr(), self.index(), self.value())
+        return '%s->__setitem__(%s, %s)' % (self.name(), self.index(), self.expr())
 
 @node('&expr, &index')
 class DeleteSubscript(Node):
@@ -753,13 +753,20 @@ class Test(Node):
 @node('&expr, $true_stmts, $false_stmts', no_flatten=['expr'])
 class If(Node):
     def __str__(self):
-        true_stmts = block_str(self.true_stmts)
-        body =  """if ({expr}) {{
+        # Invert expression if nothing in the if-block
+        if not self.true_stmts and self.false_stmts:
+            true_stmts = block_str(self.false_stmts)
+            body =  """if (!{expr}) {{
 {stmts}
 }}""".format(expr=self.expr(), stmts=true_stmts)
-        if self.false_stmts:
-            false_stmts = block_str(self.false_stmts)
-            body +=  """ else {{
+        else:
+            true_stmts = block_str(self.true_stmts)
+            body =  """if ({expr}) {{
+{stmts}
+}}""".format(expr=self.expr(), stmts=true_stmts)
+            if self.false_stmts:
+                false_stmts = block_str(self.false_stmts)
+                body +=  """ else {{
 {stmts}
 }}""".format(stmts=false_stmts)
         return body
