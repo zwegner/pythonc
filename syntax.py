@@ -144,9 +144,6 @@ def write_backend_setup(f):
     f.write('#define LIST_BUILTIN_CLASS_METHODS(x) %s\n' %
         ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
 
-#    for x in builtin_symbols:
-#        f.write('#define sym_id_%s %s\n' % (x, transformer.symbol_idx['global'][x]))
-
     for name in sorted(builtin_functions):
         f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
     for class_name in sorted(builtin_methods):
@@ -229,23 +226,26 @@ def write_backend_post_setup(f):
         f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
         f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
-def write_output(node, path):
-    stmts, functions = flatten_node_list(node)
+def write_output(stmts, path):
+    ctx = Context()
+    stmts = ctx.translate(stmts)
 
     with open(path, 'w') as f:
         write_backend_setup(f)
+
+        for x in builtin_symbols:
+            f.write('#define sym_id_%s %s\n' % (x, ctx.global_idx[x]))
 
         f.write('#include "backend.cpp"\n')
 
         write_backend_post_setup(f)
 
-        for func in functions:
+        for func in ctx.functions:
             f.write('%s\n' % func)
 
-        global_sym_count = 100
         f.write('int main(int argc, char **argv) {\n')
-        f.write('    node *global_syms[%s] = {0};\n' % (global_sym_count))
-        f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (global_sym_count))
+        f.write('    node *global_syms[%s] = {};\n' % (ctx.global_sym_count))
+        f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (ctx.global_sym_count))
         f.write('    init_context(&ctx, argc, argv);\n')
 
         f.write(indent(stmts))
@@ -291,27 +291,21 @@ def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
 def flatten_node_list(stmts):
-    ctx = Flattener()
-    for i in stmts:
-        i = i.reduce_internal(ctx)
-        ctx.statements.append(Edge(i))
-    stmts = [v.value for v in ctx.statements]
+    ctx = Context()
 
-    return stmts, ctx.functions
-
-class Flattener:
+class Context:
     def __init__(self):
         self.statements = []
         self.functions = []
+        self.classes = []
         self.temp_id = 0
-
-    def get_temp_name(self):
-        self.temp_id += 1
-        return 'temp_%02i' % self.temp_id
 
     def get_temp(self):
         self.temp_id += 1
-        return Identifier('temp_%02i' % self.temp_id)
+        return 'temp_%02i' % self.temp_id
+
+    def get_temp_id(self):
+        return Identifier(self.get_temp())
 
     def flatten_edge(self, edge):
         node = edge()
@@ -319,8 +313,8 @@ class Flattener:
         edge.set(node)
         if not node.is_atom():
             temp = self.get_temp()
-            edge.set(temp)
-            self.statements.append(Edge(Assign(temp, node, 'node')))
+            edge.set(Load(temp))
+            self.statements.append(Edge(Store(temp, node)))
 
     def flatten_list(self, node_list):
         old_stmts = self.statements
@@ -331,82 +325,56 @@ class Flattener:
         [statements, self.statements] = self.statements, old_stmts
         return statements
 
+    def add_class(self, c):
+        c.flatten(self)
+        self.classes.append(c)
+
+    def add_function(self, fn):
+        fn.flatten(self)
+        self.functions.append(fn)
+
     def add_statement(self, stmt):
         stmt = stmt.reduce_internal(self)
         self.statements.append(Edge(stmt))
 
-    def get_sym_id(self, scope, name):
-        if name in self.symbol_idx[scope]:
-            return self.symbol_idx[scope][name]
-        return self.symbol_idx[scope]['$undefined']
+    def translate(self, stmts):
+        # Add all the statements. This reduces/flattens as well.
+        for i in stmts:
+            self.add_statement(i)
+        stmts = [s.value for s in self.statements]
 
-    def get_binding(self, name):
-        if self.in_function:
-            if name in self.globals_set:
-                scope = 'global'
+        all_globals = set(builtin_symbols)
+
+        # Get bindings for all classes/functions
+        for node in self.classes + self.functions:
+            assert isinstance(node, (ClassDef, FunctionDef))
+            node.set_binding(self)
+            all_globals |= node.all_globals
+
+        for node in stmts:
+            if isinstance(node, Global):
+                for name in node.names:
+                    all_globals.add(name)
             else:
-                scope = 'local'
-        elif self.in_class:
-            scope = 'class'
-        else:
-            scope = 'global'
-        return scope
+                assert not isinstance(node, (ClassDef, FunctionDef))
+                for i in node.iterate_subtree():
+                    if isinstance(i, (Load, Store)):
+                        all_globals.add(i.name)
 
-    def index_global_class_symbols(self, node, globals_set, class_set):
-        if isinstance(node, ast.Global):
-            for name in node.names:
-                globals_set.add(name)
-        # XXX make this check scope
-        elif isinstance(node, ast.Name) and isinstance(node.ctx,
-                (ast.Store, ast.AugStore)):
-            globals_set.add(node.id)
-            class_set.add(node.id)
-        elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-            globals_set.add(node.name)
-            class_set.add(node.name)
-        elif isinstance(node, ast.Import):
-            for name in node.names:
-                globals_set.add(name.name)
-        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
-            ast.GeneratorExp)):
-            # HACK: set self.iter_temp for the space in the symbol table
-            node.iter_temp = self.get_temp_name()
-            globals_set.add(node.iter_temp)
-        for i in ast.iter_child_nodes(node):
-            self.index_global_class_symbols(i, globals_set, class_set)
+        # Enumerate globals. Index 0 is saved for undefined symbols.
+        self.global_idx = {symbol: idx+1 for idx, symbol in enumerate(sorted(all_globals))}
 
-    def get_globals(self, node, globals_set, locals_set, all_vars_set):
-        if isinstance(node, ast.Global):
-            for name in node.names:
-                globals_set.add(name)
-        elif isinstance(node, ast.Name):
-            all_vars_set.add(node.id)
-            if isinstance(node.ctx, (ast.Store, ast.AugStore)):
-                locals_set.add(node.id)
-        elif isinstance(node, ast.arg):
-            all_vars_set.add(node.arg)
-            locals_set.add(node.arg)
-        elif isinstance(node, (ast.For, ast.ListComp, ast.DictComp, ast.SetComp,
-            ast.GeneratorExp)):
-            locals_set.add(node.iter_temp)
-        for i in ast.iter_child_nodes(node):
-            self.get_globals(i, globals_set, locals_set, all_vars_set)
+        for s in self.classes + self.functions + stmts:
+            for node in s.iterate_subtree():
+                if isinstance(node, (Load, Store)):
+                    if node.name in all_globals:
+                        node.set_binding('global', self.global_idx.get(node.name, 0))
+                    else:
+                        assert node.scope
 
-    def analyze_scoping(self):
-        # Set up an index of all possible global/class symbols
-        all_global_syms = set()
-        all_class_syms = set()
-        self.index_global_class_symbols(node, all_global_syms, all_class_syms)
+        self.global_sym_count = len(self.global_idx)
 
-        all_global_syms.add('$undefined')
-        all_global_syms |= set(builtin_symbols)
-
-        self.symbol_idx = {
-            scope: {symbol: idx for idx, symbol in enumerate(sorted(symbols))}
-            for scope, symbols in [['class', all_class_syms], ['global', all_global_syms]]
-        }
-        self.global_sym_count = len(all_global_syms)
-        self.class_sym_count = len(all_class_syms)
+        return stmts
 
 class Node:
     def add_use(self, edge):
@@ -428,7 +396,7 @@ class Node:
 # Edge class represents the use of a Node by another. This allows us to use
 # value forwarding and such. It is used like so:
 #
-# self.expr = Edge(self, expr) # done implicitly by each class' constructor
+# self.expr = Edge(expr) # done implicitly by each class' constructor
 # value = self.expr()
 # self.expr.set(new_value)
 class Edge:
@@ -488,6 +456,19 @@ def node(argstr=''):
             if hasattr(self, 'setup'):
                 self.setup()
 
+        def iterate_subtree(self):
+            yield self
+            for (arg_type, arg_name) in args:
+                if arg_type == ARG_EDGE:
+                    edge = getattr(self, arg_name)
+                    if edge:
+                        for i in edge().iterate_subtree():
+                            yield i
+                elif arg_type in {ARG_EDGE_LIST, ARG_BLOCK}:
+                    for edge in getattr(self, arg_name):
+                        for i in edge().iterate_subtree():
+                            yield i
+
         def reduce_internal(self, ctx):
             if hasattr(self, 'reduce'):
                 self = self.reduce(ctx)
@@ -533,6 +514,7 @@ def node(argstr=''):
             return atom
 
         node.__init__ = __init__
+        node.iterate_subtree = iterate_subtree
         node.reduce_internal = reduce_internal
         node.flatten = flatten
         node.print_tree = print_tree
@@ -586,6 +568,11 @@ class Identifier(Node):
     def __str__(self):
         return self.name
 
+@node('names')
+class Global(Node):
+    def reduce(self, ctx):
+        return None
+
 @node('ref_type, args')
 class Ref(Node):
     def __str__(self):
@@ -603,10 +590,9 @@ class BinaryOp(Node):
 
 @node('name')
 class Load(Node):
-    # XXX temporary hack
-    def setup(self):
-        self.scope = 'local'
-        self.idx = 0
+    def set_binding(self, scope, idx):
+        self.scope = scope
+        self.idx = idx
 
     def __str__(self):
         if self.scope == 'global':
@@ -617,10 +603,9 @@ class Load(Node):
 
 @node('name, &expr')
 class Store(Node):
-    # XXX temporary hack
-    def setup(self):
-        self.scope = 'local'
-        self.idx = 0
+    def set_binding(self, scope, idx):
+        self.scope = scope
+        self.idx = idx
 
     def __str__(self):
         if self.scope == 'global':
@@ -658,7 +643,7 @@ class MethodCall(Node):
 @node('*items')
 class List(Node):
     def reduce(self, ctx):
-        name = ctx.get_temp()
+        name = ctx.get_temp_id()
         ctx.add_statement(Assign(name, Ref('list', [len(self.items)]), 'list'))
         for i, item in enumerate(self.items):
             ctx.add_statement(StoreSubscriptDirect(name, i, item()))
@@ -667,7 +652,7 @@ class List(Node):
 @node('*items')
 class Tuple(Node):
     def reduce(self, ctx):
-        name = ctx.get_temp()
+        name = ctx.get_temp_id()
         ctx.add_statement(Assign(name, Ref('tuple', [len(self.items)]), 'tuple'))
         for i, item in enumerate(self.items):
             ctx.add_statement(StoreSubscriptDirect(name, i, item()))
@@ -676,7 +661,7 @@ class Tuple(Node):
 @node('*keys, *values')
 class Dict(Node):
     def reduce(self, ctx):
-        name = ctx.get_temp()
+        name = ctx.get_temp_id()
         ctx.add_statement(Assign(name, Ref('dict', []), 'dict'))
         for k, v in zip(self.keys, self.values):
             ctx.add_statement(StoreSubscript(name, k(), v()))
@@ -685,7 +670,7 @@ class Dict(Node):
 @node('*items')
 class Set(Node):
     def reduce(self, ctx):
-        name = ctx.get_temp()
+        name = ctx.get_temp_id()
         ctx.add_statement(Assign(name, Ref('set', []), 'set'))
         for i in self.items:
             ctx.add_statement(MethodCall(name, 'add', [i()]))
@@ -714,7 +699,7 @@ class Call(Node):
 @node('&expr, &true_expr, &false_expr')
 class IfExp(Node):
     def reduce(self, ctx):
-        temp = ctx.get_temp()
+        temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, NullConst(), 'node'))
         ctx.add_statement(If(self.expr(), [Assign(temp, self.true_expr(), 'node')],
             [Assign(temp, self.false_expr(), 'node')]))
@@ -723,7 +708,7 @@ class IfExp(Node):
 @node('op, &lhs_expr, &rhs_expr')
 class BoolOp(Node):
     def reduce(self, ctx):
-        temp = ctx.get_temp()
+        temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, self.lhs_expr(), 'node'))
         expr = self.expr()
         if self.op == 'or':
@@ -885,47 +870,75 @@ class Arguments(Node):
         defaults = new_def + self.defaults
         name_strings = [Edge(StringConst(a)) for a in self.args]
 
-        arg_unpacking = []
+        args = Identifier('args')
+        kwargs = Identifier('kwargs')
         for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
-            arg_unpacking += [IfExp()]
+            arg_value = Subscript(args, IntConst(i))
             if default:
-                arg_value = '(args->len() > %d) ? args->items[%d] : %s' % (i, i, default())
-            else:
-                arg_value = 'args->__getitem__(%d)' % i
-            if not self.no_kwargs:
-                arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
-                    (name(), name(), arg_value)
-            arg_unpacking += [Edge(Store(arg, arg_value))]
-        if self.no_kwargs:
-            arg_unpacking = '    if (kwargs && kwargs->len()) error("function does not take keyword arguments");\n' + arg_unpacking
+                comp = BinaryOp('__gt__', MethodCall(args, 'len', []), IntConst(i))
+                arg_value = IfExp(comp, arg_value, default())
+
+#            temp = ctx.get_temp_id()
+#            ctx.add_statement(Assign(temp, MethodCall(kwargs, 'lookup', [name()])))
+#            comp = BinaryOp('__gt__', MethodCall(args, 'len', []), IntConst(i))
+#            arg_value = IfExp(comp, arg_value, default())
+#            arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
+#                (name(), name(), arg_value)
+
+            ctx.add_statement(Store(arg, arg_value))
 
         return self
 
     def __str__(self):
-        arg_unpacking = block_str(arg_unpacking)
-        return arg_unpacking
+        return ''
 
-@node('name, &args, $stmts, exp_name, local_count')
+@node('name, $stmts, exp_name')
 class FunctionDef(Node):
     def setup(self):
         self.exp_name = self.exp_name if self.exp_name else self.name
         self.exp_name = 'fn_%s' % self.exp_name # make sure no name collisions
 
     def reduce(self, ctx):
-        ctx.functions += [self]
+        ctx.add_function(self)
         return Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))
+
+    def set_binding(self, ctx):
+        # Get bindings of all variables. Globals are the variables that have "global x"
+        # somewhere in the function, or are never written in the function.
+        all_globals = set()
+        all_loads = set()
+        all_stores = set()
+
+        for node in self.iterate_subtree():
+            if isinstance(node, Global):
+                for name in node.names:
+                    all_globals.add(name)
+            elif isinstance(node, Load):
+                all_loads.add(node.name)
+            elif isinstance(node, Store):
+                all_stores.add(node.name)
+
+        all_globals |= (all_loads - all_stores)
+        all_locals = (all_loads | all_stores) - all_globals
+        self.local_count = len(all_locals)
+
+        local_idx = {symbol: idx for idx, symbol in enumerate(sorted(all_locals))}
+
+        for node in self.iterate_subtree():
+            if isinstance(node, (Load, Store)):
+                if node.name not in all_globals:
+                    node.set_binding('local', local_idx[node.name])
+
+        self.all_globals = all_globals
 
     def __str__(self):
         stmts = block_str(self.stmts)
-        arg_unpacking = str(self.args())
         body = """
 node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {{
-    node *local_syms[{local_count}] = {{0}};
+    node *local_syms[{local_count}] = {{}};
     context ctx(parent_ctx, {local_count}, local_syms);
-{arg_unpacking}
 {stmts}
-}}""".format(name=self.exp_name, local_count=self.local_count,
-        arg_unpacking=arg_unpacking, stmts=stmts)
+}}""".format(name=self.exp_name, local_count=self.local_count, stmts=stmts)
         return body
 
 @node('name, $stmts')
@@ -934,7 +947,7 @@ class ClassDef(Node):
         self.class_name = 'class_%s' % self.name
 
     def reduce(self, ctx):
-        ctx.functions += [self]
+        ctx.add_class(self)
         return Store(self.name, Ref(self.class_name, []))
 
     def __str__(self):

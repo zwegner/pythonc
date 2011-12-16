@@ -40,7 +40,6 @@ class Transformer(ast.NodeTransformer):
         self.statements = []
         self.in_class = False
         self.in_function = False
-        self.globals_set = None
 
     def generic_visit(self, node):
         raise TranslateError(node, 'can\'t translate %s' % node)
@@ -373,30 +372,16 @@ class Transformer(ast.NodeTransformer):
             assert isinstance(decorator, ast.Name)
             decorators.add(decorator.id)
 
-        # Get bindings of all variables. Globals are the variables that have "global x"
-        # somewhere in the function, or are never written in the function.
-        globals_set = set()
-        locals_set = set()
-        all_vars_set = set()
-        self.get_globals(node, globals_set, locals_set, all_vars_set)
-        globals_set |= (all_vars_set - locals_set)
-
-        self.symbol_idx['local'] = {symbol: idx for idx, symbol in enumerate(sorted(locals_set))}
-
         # Set some state and recursively visit child nodes, then restore state
-        self.globals_set = globals_set
         self.in_function = True
         args = self.visit(node.args)
-        body = self.visit_child_list(node.body)
+        body = [args] + self.visit_child_list(node.body)
         if not body or not isinstance(body[-1], syntax.Return):
             body.append(syntax.Return(None))
-        self.globals_set = None
         self.in_function = False
 
-        args.no_kwargs = 'no_kwargs' in decorators
-
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        return syntax.FunctionDef(node.name, args, body, exp_name, len(locals_set))
+        return syntax.FunctionDef(node.name, body, exp_name)
 
     def visit_ClassDef(self, node):
         assert not node.bases
@@ -432,10 +417,12 @@ class Transformer(ast.NodeTransformer):
     def visit_Module(self, node):
         return self.visit_child_list(node.body)
 
+    def visit_Global(self, node):
+        return syntax.Global(node.names)
+
     def visit_Pass(self, node): pass
     def visit_Load(self, node): pass
     def visit_Store(self, node): pass
-    def visit_Global(self, node): pass
 
 def transform(path):
     with open(path) as f:
