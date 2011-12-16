@@ -49,6 +49,10 @@ class string_const;
 
 typedef int64_t int_t;
 
+// XXX Any use of the STL is basically a big hack right now. Their use is slow
+// and bad and ugly, and since our GC doesn't call destructors by design, they
+// are leaking memory right now.
+typedef std::map<std::string, node *> attr_dict;
 typedef std::pair<node *, node *> node_pair;
 typedef std::map<int_t, node_pair> node_dict;
 typedef std::map<int_t, node *> node_set;
@@ -246,7 +250,7 @@ public:
     node *load(uint32_t idx) {
         node *ret = this->symbols[idx];
         if (!ret)
-            error("name %i is not defined", idx);
+            error("symbol %i is not defined", idx);
         return ret;
     }
 };
@@ -1306,44 +1310,29 @@ public:
     virtual node *type() { return &builtin_class_function; }
 };
 
+// Abstract base class of user class singleton classes
 class class_def : public node {
-private:
-    dict items;
+protected:
+    attr_dict attrs;
 
 public:
-    MARK_LIVE_CHILDREN {
-        this->items.mark_live_children();
-    }
-
-    node *load(const char *name) {
-        return items.__getitem__(new(allocator) string_const(name));
-    }
-    void store(const char *name, node *value) {
-        items.__setitem__(new(allocator) string_const(name), value);
-    }
-
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        node *init = this->load("__init__");
-        node *obj = new(allocator) object();
-
-        obj->__setattr__(new(allocator) string_const("__class__"), this);
-
-        // Create bound methods
-        for (auto it = items.items.begin(); it != items.items.end(); ++it) {
-            if (it->second.second->is_function())
-                obj->__setattr__(it->second.first, new(allocator) bound_method(obj, it->second.second));
+    virtual void mark_live() {
+        // Note that we are a singleton and thus do not mark ourselves live...
+        for (auto it = this->attrs.begin(); it != this->attrs.end(); ++it) {
+            it->second->mark_live();
         }
-
-        int_t len = args->items.size();
-        tuple *new_args = new(allocator) tuple(len + 1);
-        new_args->items[0] = obj;
-        for (int_t i = 0; i < len; i++)
-            new_args->items[i+1] = args->items[i];
-        init->__call__(globals, ctx, new_args, kwargs);
-        return obj;
     }
+
     virtual node *getattr(const char *attr) {
-        return this->load(attr);
+        return attrs[std::string(attr)];
+    }
+    void setattr(const char *attr, node *value) {
+        attrs[std::string(attr)] = value;
+    }
+    virtual void __setattr__(node *key, node *value) {
+        if (!key->is_str())
+            error("setattr with non-string");
+        return this->setattr(key->c_str(), value);
     }
     virtual node *type() { return &builtin_class_type; }
 };
