@@ -317,8 +317,10 @@ class Context:
         old_stmts = self.statements
         self.statements = []
         for edge in node_list:
-            edge.set(edge().reduce_internal(self))
-            self.statements.append(edge)
+            node = edge().reduce_internal(self)
+            if node:
+                edge.set(node)
+                self.statements.append(edge)
         [statements, self.statements] = self.statements, old_stmts
         return statements
 
@@ -332,7 +334,8 @@ class Context:
 
     def add_statement(self, stmt):
         stmt = stmt.reduce_internal(self)
-        self.statements.append(Edge(stmt))
+        if stmt:
+            self.statements.append(Edge(stmt))
 
     def translate(self, stmts):
         # Add all the statements. This reduces/flattens as well.
@@ -356,6 +359,7 @@ class Context:
                 assert not isinstance(node, (ClassDef, FunctionDef))
                 for i in node.iterate_subtree():
                     if isinstance(i, (Load, Store)):
+                        print(i.name)
                         all_globals.add(i.name)
 
         # Enumerate globals. Index 0 is saved for undefined symbols.
@@ -468,7 +472,8 @@ def node(argstr='', no_flatten=[]):
             if hasattr(self, 'reduce'):
                 self = self.reduce(ctx)
 
-            self.flatten(ctx)
+            if self:
+                self.flatten(ctx)
 
             return self
 
@@ -716,20 +721,11 @@ class BoolOp(Node):
     def reduce(self, ctx):
         temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, self.lhs_expr(), 'node'))
-        expr = self.expr()
+        expr = temp
         if self.op == 'or':
             expr = UnaryOp('__not__', expr)
-        ctx.add_statement(If(expr, [Assign(temp, self.rhs_expr(), 'node')], []))
-        return self.temp
-
-    def __str__(self):
-        rhs_stmts = block_str(self.rhs_stmts)
-        body =  """if ({op}{lhs_expr}->bool_value()) {{
-{rhs_stmts}
-    {temp} = {rhs_expr};
-}}""".format(op='!' if self.op == 'or' else '', lhs_expr=self.lhs_expr(),
-        temp=self.temp.name, rhs_stmts=rhs_stmts, rhs_expr=self.rhs_expr())
-        return body
+        ctx.add_statement(If(expr, [Assign(temp, self.rhs_expr(), None)], []))
+        return temp
 
 @node('&target, &expr, target_type', no_flatten=['expr'])
 class Assign(Node):
@@ -820,9 +816,9 @@ class For(Node):
         stmts += [If(item, [], [Break()])]
 
         # Unpack arguments
-        if isinstance(self.target, tuple):
+        if isinstance(self.target, list):
             for i, target in enumerate(self.target):
-                stmts += [Store(target, '%s->__getitem__(%s)' % (item, i))]
+                stmts += [Store(target, MethodCall(item, '__getitem__', [IntConst(i)]))]
         else:
             stmts += [Store(self.target, item)]
 

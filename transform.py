@@ -140,7 +140,7 @@ class Transformer(ast.NodeTransformer):
         for v in reversed(node.values[:-1]):
             lhs = self.visit(v)
             rhs = syntax.BoolOp(op, lhs, rhs)
-        return rhs_expr
+        return rhs
 
     def visit_IfExp(self, node):
         expr = syntax.Test(self.visit(node.test))
@@ -328,8 +328,7 @@ class Transformer(ast.NodeTransformer):
         else:
             expr = self.visit(node.elt)
             expr2 = None
-        return syntax.Comprehension(comp_type, target, iter, node.iter_temp,
-                cond, expr, expr2)
+        return syntax.Comprehension(comp_type, target, iter, cond, expr, expr2)
 
     def visit_ListComp(self, node):
         return self.visit_Comprehension(node, 'list')
