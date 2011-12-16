@@ -733,9 +733,10 @@ class BoolOp(Node):
         temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, self.lhs_expr(), 'node'))
         expr = temp
+        true, false = [Assign(temp, self.rhs_expr(), None)], []
         if self.op == 'or':
-            expr = UnaryOp('__not__', expr)
-        ctx.add_statement(If(expr, [Assign(temp, self.rhs_expr(), None)], []))
+            true, false, = false, true
+        ctx.add_statement(If(Test(expr), true, false))
         return temp
 
 @node('&target, &expr, target_type', no_flatten=['expr'])
@@ -773,7 +774,7 @@ class Comprehension(Node):
         else:
             l = List([])
         temp = ctx.get_temp_id()
-        ctx.add_statement(Assign(temp, l, 'node'))
+        ctx.add_statement(Assign(temp, l, self.comp_type))
         iter_name = ctx.get_temp()
         ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
 

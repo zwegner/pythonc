@@ -12,6 +12,10 @@ class c:
 
 ev(1) if ev(2) else ev(3)
 ev(1) if ev(0) else ev(3)
+ev(1) and ev(0)
+ev(0) and ev(1)
+ev(1) or ev(0)
+ev(0) or ev(1)
 ev(1), ev(2), ev(3), ev(4)
 [ev(1), ev(2), ev(3), ev(4)]
 (ev(1), ev(2), ev(3), ev(4))
