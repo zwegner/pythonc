@@ -44,6 +44,8 @@ typedef std::vector<node *> node_list;
 
 inline node *create_bool_const(bool b);
 
+#define pc_new(T) new(pc_alloc_obj<T>()) T
+
 class node {
 public:
     node() { }
@@ -53,7 +55,7 @@ public:
 
     // Macros for standard mark_live() patterns
 #define MARK_LIVE_FN \
-    virtual void mark_live() { allocator->mark_live<sizeof(*this)>(this); }
+    virtual void mark_live() { alloc_mark_live<sizeof(*this)>(this); }
 
 #define MARK_LIVE_SINGLETON_FN \
     virtual void mark_live() { }
@@ -61,7 +63,7 @@ public:
     // This one is kind of weird...
 #define MARK_LIVE_CHILDREN \
     virtual void mark_live() { \
-        if (!allocator->mark_live<sizeof(*this)>(this)) \
+        if (!alloc_mark_live<sizeof(*this)>(this)) \
             this->mark_live_children(); \
     } \
     inline void mark_live_children()
@@ -273,7 +275,7 @@ public:
         return this->int_value() OP rhs->int_value(); \
     } \
     virtual node *__##NAME##__(node *rhs) { \
-        return new(allocator) int_const(this->_##NAME(rhs)); \
+        return pc_new(int_const)(this->_##NAME(rhs)); \
     }
     INT_OP(add, +)
     INT_OP(and, &)
@@ -300,7 +302,7 @@ public:
 
 #define INT_UNOP(NAME, OP) \
     virtual node *__##NAME##__() { \
-        return new(allocator) int_const(OP this->int_value()); \
+        return pc_new(int_const)(OP this->int_value()); \
     }
     INT_UNOP(invert, ~)
     INT_UNOP(pos, +)
@@ -308,7 +310,7 @@ public:
 
     virtual node *__abs__() {
         int_t ret = (this->value >= 0) ? this->value : -this->value;
-        return new(allocator) int_const(ret);
+        return pc_new(int_const)(ret);
     }
 
     virtual int_t hash() { return this->value; }
@@ -338,7 +340,7 @@ public:
 #define BOOL_AS_INT_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_int_const() || rhs->is_bool()) \
-            return new(allocator) int_const(this->int_value() OP rhs->int_value()); \
+            return pc_new(int_const)(this->int_value() OP rhs->int_value()); \
         error(#NAME " error in bool"); \
         return NULL; \
     }
@@ -353,9 +355,9 @@ public:
 #define BOOL_INT_CHECK_OP(NAME, OP) \
     virtual node *__##NAME##__(node *rhs) { \
         if (rhs->is_bool()) \
-            return new(allocator) bool_const((bool)(this->int_value() OP rhs->int_value())); \
+            return pc_new(bool_const)((bool)(this->int_value() OP rhs->int_value())); \
         else if (rhs->is_int_const()) \
-            return new(allocator) int_const(this->int_value() OP rhs->int_value()); \
+            return pc_new(int_const)(this->int_value() OP rhs->int_value()); \
         error(#NAME " error in bool"); \
         return NULL; \
     }
@@ -410,7 +412,7 @@ public:
             ret[0] = *this->it;
             ret[1] = 0;
             ++this->it;
-            return new(allocator) string_const(ret);
+            return pc_new(string_const)(ret);
         }
         virtual node *type() { return &builtin_class_str_iterator; }
     };
@@ -449,7 +451,7 @@ public:
             error("getitem unimplemented");
             return NULL;
         }
-        return new(allocator) string_const(value.substr(rhs->int_value(), 1));
+        return pc_new(string_const)(value.substr(rhs->int_value(), 1));
     }
     // FNV-1a algorithm
     virtual int_t hash() {
@@ -471,7 +473,7 @@ public:
         int_t st = step->is_none() ? 1 : step->int_value();
         if (st != 1)
             error("slice step != 1 not supported for string");
-        return new(allocator) string_const(this->value.substr(lo, hi - lo + 1));
+        return pc_new(string_const)(this->value.substr(lo, hi - lo + 1));
     }
     virtual std::string repr() {
         bool has_single_quotes = false;
@@ -505,7 +507,7 @@ public:
     }
     virtual std::string str() { return this->value; }
     virtual node *type() { return &builtin_class_str; }
-    virtual node *__iter__() { return new(allocator) str_iter(this); }
+    virtual node *__iter__() { return pc_new(str_iter)(this); }
 };
 
 class string_const_singleton : public string_const {
@@ -547,7 +549,7 @@ public:
                 return NULL;
             uint8_t ret = *this->it;
             ++this->it;
-            return new(allocator) int_const(ret);
+            return pc_new(int_const)(ret);
         }
         virtual node *type() { return &builtin_class_bytes_iterator; }
     };
@@ -598,7 +600,7 @@ public:
         }
         return s + "'";
     }
-    virtual node *__iter__() { return new(allocator) bytes_iter(this); }
+    virtual node *__iter__() { return pc_new(bytes_iter)(this); }
 };
 
 class bytes_singleton: public bytes {
@@ -715,7 +717,7 @@ public:
         int_t lo = start->is_none() ? 0 : start->int_value();
         int_t hi = end->is_none() ? items.size() : end->int_value();
         int_t st = step->is_none() ? 1 : step->int_value();
-        list *new_list = new(allocator) list;
+        list *new_list = pc_new(list)();
         for (; st > 0 ? (lo < hi) : (lo > hi); lo += st)
             new_list->items.push_back(items[lo]);
         return new_list;
@@ -733,7 +735,7 @@ public:
         return new_string;
     }
     virtual node *type() { return &builtin_class_list; }
-    virtual node *__iter__() { return new(allocator) list_iter(this); }
+    virtual node *__iter__() { return pc_new(list_iter)(this); }
 };
 
 class tuple: public node {
@@ -830,7 +832,7 @@ public:
         new_string += ")";
         return new_string;
     }
-    virtual node *__iter__() { return new(allocator) tuple_iter(this); }
+    virtual node *__iter__() { return pc_new(tuple_iter)(this); }
 };
 
 class dict: public node {
@@ -861,7 +863,7 @@ public:
         return it->second.second;
     }
     dict *copy() {
-        dict *ret = new(allocator) dict;
+        dict *ret = pc_new(dict)();
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
             ret->items[it->first] = it->second;
         return ret;
@@ -930,7 +932,7 @@ public:
         MARK_LIVE_CHILDREN { this->parent->mark_live(); } \
         virtual bool bool_value() { return this->parent->items.size() != 0; } \
         virtual int_t len() { return this->parent->items.size(); } \
-        virtual node *__iter__() { return new(allocator) dict_##name##s_iter(this->parent); } \
+        virtual node *__iter__() { return pc_new(dict_##name##s_iter)(this->parent); } \
         virtual std::string repr() { \
             std::string new_string = "dict_" #name "s(["; \
             bool first = true; \
@@ -952,7 +954,7 @@ DICT_ITER(key,
     auto ret = this->it->second.first;
 )
 DICT_ITER(item,
-    tuple *ret = new(allocator) tuple(2);
+    tuple *ret = pc_new(tuple)(2);
     ret->items[0] = this->it->second.first;
     ret->items[1] = this->it->second.second;
 )
@@ -1019,7 +1021,7 @@ public:
         this->items.erase(it);
     }
     set *copy() {
-        set *ret = new(allocator) set;
+        set *ret = pc_new(set)();
         for (auto it = this->items.begin(); it != this->items.end(); ++it)
             ret->items[it->first] = it->second;
         return ret;
@@ -1055,7 +1057,7 @@ public:
         return new_string;
     }
     virtual node *type() { return &builtin_class_set; }
-    virtual node *__iter__() { return new(allocator) set_iter(this); }
+    virtual node *__iter__() { return pc_new(set_iter)(this); }
 };
 
 class object: public node {
@@ -1114,7 +1116,7 @@ public:
         static char buf[64*1024];
         size_t ret = fread(buf, 1, len, this->f);
         std::string s(buf, ret);
-        return new(allocator) string_const(s);
+        return pc_new(string_const)(s);
     }
     void write(string_const *data) {
         size_t len = data->len();
@@ -1148,8 +1150,8 @@ public:
         node *item = this->iter->next();
         if (!item)
             return NULL;
-        tuple *ret = new(allocator) tuple(2);
-        ret->items[0] = new(allocator) int_const(this->i++);
+        tuple *ret = pc_new(tuple)(2);
+        ret->items[0] = pc_new(int_const)(this->i++);
         ret->items[1] = item;
         return ret;
     }
@@ -1182,7 +1184,7 @@ private:
                 if (this->start <= this->end)
                     return NULL;
             }
-            node *ret = new(allocator) int_const(this->start);
+            node *ret = pc_new(int_const)(this->start);
             this->start += this->step;
             return ret;
         }
@@ -1200,7 +1202,7 @@ public:
  
     MARK_LIVE_FN
 
-    virtual node *__iter__() { return new(allocator) range_iter(this); }
+    virtual node *__iter__() { return pc_new(range_iter)(this); }
 
     virtual node *type() { return &builtin_class_range; }
     virtual std::string repr() {
@@ -1262,7 +1264,7 @@ public:
         node *item2 = this->iter2->next();
         if (!item1 || !item2)
             return NULL;
-        tuple *ret = new(allocator) tuple(2);
+        tuple *ret = pc_new(tuple)(2);
         ret->items[0] = item1;
         ret->items[1] = item2;
         return ret;
@@ -1288,7 +1290,7 @@ public:
 
     virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
         int_t len = args->items.size();
-        tuple *new_args = new(allocator) tuple(len + 1);
+        tuple *new_args = pc_new(tuple)(len + 1);
         new_args->items[0] = this->self;
         for (int_t i = 0; i < len; i++)
             new_args->items[i+1] = args->items[i];
@@ -1370,7 +1372,7 @@ inline node *bool_init(node *arg) {
 }
 
 inline node *bytes_init(node *arg) {
-    bytes *ret = new(allocator) bytes;
+    bytes *ret = pc_new(bytes)();
     if (!arg)
         return ret;
     if (arg->is_int_const()) {
@@ -1392,7 +1394,7 @@ inline node *bytes_init(node *arg) {
 }
 
 inline node *dict_init(node *arg) {
-    dict *ret = new(allocator) dict;
+    dict *ret = pc_new(dict)();
     if (!arg)
         return ret;
     node *iter = arg->__iter__();
@@ -1408,12 +1410,12 @@ inline node *dict_init(node *arg) {
 
 inline node *enumerate_init(node *arg) {
     node *iter = arg->__iter__();
-    return new(allocator) enumerate(iter);
+    return pc_new(enumerate)(iter);
 }
 
 inline node *int_init(node *arg0, node *arg1) {
     if (!arg0)
-        return new(allocator) int_const(0);
+        return pc_new(int_const)(0);
     if (arg0->is_int_const()) {
         if (arg1)
             error("int() cannot accept a base when passed an int");
@@ -1422,7 +1424,7 @@ inline node *int_init(node *arg0, node *arg1) {
     if (arg0->is_bool()) {
         if (arg1)
             error("int() cannot accept a base when passed a bool");
-        return new(allocator) int_const(arg0->int_value());
+        return pc_new(int_const)(arg0->int_value());
     }
     if (arg0->is_str()) {
         int_t base = 10;
@@ -1463,13 +1465,13 @@ inline node *int_init(node *arg0, node *arg1) {
                 error("digit not valid in base");
             value = value*base + digit;
         }
-        return new(allocator) int_const(sign*value);
+        return pc_new(int_const)(sign*value);
     }
     error("don't know how to handle argument to int()");
 }
 
 inline node *list_init(node *arg) {
-    list *ret = new(allocator) list;
+    list *ret = pc_new(list)();
     if (!arg)
         return ret;
     node *iter = arg->__iter__();
@@ -1488,7 +1490,7 @@ inline node *range_init(node *arg0, node *arg1, node *arg2) {
         if (arg2)
             step = arg2->int_value();
     }
-    return new(allocator) range(start, end, step);
+    return pc_new(range)(start, end, step);
 }
 
 // XXX This will actually work on dictionaries if they have keys of 0..len-1.
@@ -1497,11 +1499,11 @@ inline node *range_init(node *arg0, node *arg1, node *arg2) {
 // sufficient.  This seems like a documentation error.
 inline node *reversed_init(node *arg) {
     int_t len = arg->len();
-    return new(allocator) reversed(arg, len);
+    return pc_new(reversed)(arg, len);
 }
 
 inline node *set_init(node *arg) {
-    set *ret = new(allocator) set;
+    set *ret = pc_new(set)();
     if (!arg)
         return ret;
     node *iter = arg->__iter__();
@@ -1512,12 +1514,12 @@ inline node *set_init(node *arg) {
 
 inline node *str_init(node *arg) {
     if (!arg)
-        return new(allocator) string_const("");
+        return pc_new(string_const)("");
     return arg->__str__();
 }
 
 inline node *tuple_init(node *arg) {
-    tuple *ret = new(allocator) tuple;
+    tuple *ret = pc_new(tuple)();
     if (!arg)
         return ret;
     node *iter = arg->__iter__();
@@ -1533,7 +1535,7 @@ inline node *type_init(node *arg) {
 inline node *zip_init(node *arg0, node *arg1) {
     node *iter1 = arg0->__iter__();
     node *iter2 = arg1->__iter__();
-    return new(allocator) zip(iter1, iter2);
+    return pc_new(zip)(iter1, iter2);
 }
 
 #define GET_METHOD(class_name, method_name) \
@@ -1560,15 +1562,15 @@ node *node::__getattr__(node *key) {
 node *node::getattr(const char *key) {
     if (!strcmp(key, "__class__"))
         return type();
-    return new(allocator) bound_method(this, type()->getattr(key));
+    return pc_new(bound_method)(this, type()->getattr(key));
 }
 
 node *node::__hash__() {
-    return new(allocator) int_const(this->hash());
+    return pc_new(int_const)(this->hash());
 }
 
 node *node::__len__() {
-    return new(allocator) int_const(this->len());
+    return pc_new(int_const)(this->len());
 }
 
 node *node::__ncontains__(node *rhs) {
@@ -1588,11 +1590,11 @@ node *node::__isnot__(node *rhs) {
 }
 
 node *node::__repr__() {
-    return new(allocator) string_const(this->repr());
+    return pc_new(string_const)(this->repr());
 }
 
 node *node::__str__() {
-    return new(allocator) string_const(this->str());
+    return pc_new(string_const)(this->str());
 }
 
 std::string node::repr() {
@@ -1604,7 +1606,7 @@ std::string node::repr() {
 // Don't call node::getattr as a fallback -- this will result in infinite recursion
 node *builtin_class::getattr(const char *key) {
     if (!strcmp(key, "__name__"))
-        return new(allocator) string_const(this->type_name());
+        return pc_new(string_const)(this->type_name());
     if (!strcmp(key, "__class__"))
         return type();
     error("%s has no attribute %s", type_name(), key);
@@ -1630,7 +1632,7 @@ node *list::__add__(node *rhs_arg) {
     list *rhs = (list *)rhs_arg;
     int_t self_len = this->items.size();
     int_t rhs_len = rhs->items.size();
-    list *ret = new(allocator) list(self_len + rhs_len);
+    list *ret = pc_new(list)(self_len + rhs_len);
     for (int_t i = 0; i < self_len; i++)
         ret->items[i] = this->items[i];
     for (int_t i = 0; i < rhs_len; i++)
@@ -1643,9 +1645,9 @@ node *list::__mul__(node *rhs_arg) {
         error("list mul error");
     int_t rhs = ((int_const *)rhs_arg)->value;
     if (rhs <= 0)
-        return new(allocator) list;
+        return pc_new(list)();
     int_t self_len = this->items.size();
-    list *ret = new(allocator) list(self_len * rhs);
+    list *ret = pc_new(list)(self_len * rhs);
     node **items = &ret->items[0];
     do {
         for (int_t i = 0; i < self_len; i++)
@@ -1690,7 +1692,7 @@ bool list::_eq(node *rhs_arg) {
 }
 
 node *dict::__iter__() {
-    return new(allocator) dict_keys_iter(this);
+    return pc_new(dict_keys_iter)(this);
 }
 
 node *tuple::__add__(node *rhs_arg) {
@@ -1699,7 +1701,7 @@ node *tuple::__add__(node *rhs_arg) {
     tuple *rhs = (tuple *)rhs_arg;
     int_t self_len = this->items.size();
     int_t rhs_len = rhs->items.size();
-    tuple *ret = new(allocator) tuple(self_len + rhs_len);
+    tuple *ret = pc_new(tuple)(self_len + rhs_len);
     for (int_t i = 0; i < self_len; i++)
         ret->items[i] = this->items[i];
     for (int_t i = 0; i < rhs_len; i++)
@@ -1712,9 +1714,9 @@ node *tuple::__mul__(node *rhs_arg) {
         error("tuple mul error");
     int_t rhs = ((int_const *)rhs_arg)->value;
     if (rhs <= 0)
-        return new(allocator) tuple;
+        return pc_new(tuple)();
     int_t self_len = this->items.size();
-    tuple *ret = new(allocator) tuple(self_len * rhs);
+    tuple *ret = pc_new(tuple)(self_len * rhs);
     node **items = &ret->items[0];
     do {
         for (int_t i = 0; i < self_len; i++)
@@ -1852,14 +1854,14 @@ node *string_const::__mod__(node *rhs_arg) {
         else
             new_string << *c;
     }
-    return new(allocator) string_const(new_string.str());
+    return pc_new(string_const)(new_string.str());
 }
 
 node *string_const::__add__(node *rhs) {
     if (!rhs->is_str())
         error("bad argument to str.add");
     std::string new_string = this->value + rhs->str_value();
-    return new(allocator) string_const(new_string);
+    return pc_new(string_const)(new_string);
 }
 
 node *string_const::__mul__(node *rhs) {
@@ -1868,14 +1870,14 @@ node *string_const::__mul__(node *rhs) {
     std::string new_string;
     for (int_t i = 0; i < rhs->int_value(); i++)
         new_string += this->value;
-    return new(allocator) string_const(new_string);
+    return pc_new(string_const)(new_string);
 }
 
 node *file::getattr(const char *key) {
     if (!strcmp(key, "read"))
-        return new(allocator) bound_method(this, &builtin_method_file_read);
+        return pc_new(bound_method)(this, &builtin_method_file_read);
     if (!strcmp(key, "write"))
-        return new(allocator) bound_method(this, &builtin_method_file_write);
+        return pc_new(bound_method)(this, &builtin_method_file_write);
     error("file has no attribute %s", key);
 }
 
@@ -1943,15 +1945,15 @@ inline node *builtin_dict_get(dict *self, node *arg0, node *arg1) {
 }
 
 inline node *builtin_dict_keys(dict *self) {
-    return new(allocator) dict_keys(self);
+    return pc_new(dict_keys)(self);
 }
 
 inline node *builtin_dict_items(dict *self) {
-    return new(allocator) dict_items(self);
+    return pc_new(dict_items)(self);
 }
 
 inline node *builtin_dict_values(dict *self) {
-    return new(allocator) dict_values(self);
+    return pc_new(dict_values)(self);
 }
 
 inline node *builtin_file_read(file *self, node *arg) {
@@ -1992,7 +1994,7 @@ inline node *builtin_list_count(list *self, node *arg) {
         if (self->items[i]->_eq(arg))
             n++;
     }
-    return new(allocator) int_const(n);
+    return pc_new(int_const)(n);
 }
 
 inline node *builtin_list_extend(list *self, node *arg) {
@@ -2006,7 +2008,7 @@ inline node *builtin_list_index(list *self, node *arg) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
         if (self->items[i]->_eq(arg))
-            return new(allocator) int_const(i);
+            return pc_new(int_const)(i);
     }
     error("item not found in list");
 }
@@ -2090,13 +2092,13 @@ inline node *builtin_min(node *arg) {
 inline node *builtin_open(node *arg0, node *arg1) {
     if (!arg0->is_str() || !arg1->is_str())
         error("bad arguments to open()");
-    return new(allocator) file(arg0->c_str(), arg1->c_str());
+    return pc_new(file)(arg0->c_str(), arg1->c_str());
 }
 
 inline node *builtin_ord(node *arg) {
     if (!arg->is_str() || arg->len() != 1)
         error("bad arguments to ord()");
-    return new(allocator) int_const((unsigned char)arg->c_str()[0]);
+    return pc_new(int_const)((unsigned char)arg->c_str()[0]);
 }
 
 inline node *builtin_print(tuple *args) {
@@ -2184,7 +2186,7 @@ inline node *builtin_sorted(node *arg) {
         new_list.push_back(item);
     std::stable_sort(new_list.begin(), new_list.end(), compare_nodes);
     int_t size = new_list.size();
-    list *ret = new(allocator) list(size);
+    list *ret = pc_new(list)(size);
     memcpy(&ret->items[0], &new_list[0], size*sizeof(node *));
     return ret;
 }
@@ -2200,31 +2202,31 @@ inline node *builtin_str_join(string_const *self, node *arg) {
             s += self->c_str();
         s += item->str();
     }
-    return new(allocator) string_const(s);
+    return pc_new(string_const)(s);
 }
 
 inline node *builtin_str_split(node *self_arg, node *arg) {
     // XXX Implement correct behavior for missing separator (not the same as ' ')
     if (!arg || (arg == &none_singleton))
-        arg = new(allocator) string_const(" ");
+        arg = pc_new(string_const)(" ");
     if (!self_arg->is_str() || !arg->is_str() || (arg->len() != 1))
         error("bad argument to str.split()");
     string_const *self = (string_const *)self_arg;
     // XXX Implement correct behavior for this too--delimiter strings can have len>1
     char split = arg->c_str()[0];
-    list *ret = new(allocator) list;
+    list *ret = pc_new(list)();
     std::string s;
     for (auto it = self->value.begin(); it != self->value.end(); ++it) {
         char c = *it;
         if (c == split) {
-            ret->items.push_back(new(allocator) string_const(s));
+            ret->items.push_back(pc_new(string_const)(s));
             s.clear();
         }
         else {
             s += c;
         }
     }
-    ret->items.push_back(new(allocator) string_const(s));
+    ret->items.push_back(pc_new(string_const)(s));
     return ret;
 }
 
@@ -2240,7 +2242,7 @@ inline node *builtin_str_upper(string_const *self) {
     std::string new_string;
     for (auto it = self->value.begin(); it != self->value.end(); ++it)
         new_string += toupper(*it);
-    return new(allocator) string_const(new_string);
+    return pc_new(string_const)(new_string);
 }
 
 inline node *builtin_tuple_count(tuple *self, node *arg) {
@@ -2250,14 +2252,14 @@ inline node *builtin_tuple_count(tuple *self, node *arg) {
         if (self->items[i]->_eq(arg))
             n++;
     }
-    return new(allocator) int_const(n);
+    return pc_new(int_const)(n);
 }
 
 inline node *builtin_tuple_index(tuple *self, node *arg) {
     int_t len = self->items.size();
     for (int_t i = 0; i < len; i++) {
         if (self->items[i]->_eq(arg))
-            return new(allocator) int_const(i);
+            return pc_new(int_const)(i);
     }
     error("item not found in tuple");
 }
@@ -2275,10 +2277,10 @@ LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
 #undef BUILTIN_CLASS
 
-    ctx->store(sym_id___name__, new(allocator) string_const("__main__"));
-    list *plist = new(allocator) list;
+    ctx->store(sym_id___name__, pc_new(string_const)("__main__"));
+    list *plist = pc_new(list)();
     for (int_t a = 0; a < argc; a++)
-        plist->items.push_back(new(allocator) string_const(argv[a]));
+        plist->items.push_back(pc_new(string_const)(argv[a]));
     ctx->store(sym_id___args__, plist);
 }
 
@@ -2287,7 +2289,7 @@ void collect_garbage(context *ctx, node *ret_val) {
     if (++gc_tick > 128) {
         gc_tick = 0;
 
-        allocator->mark_dead();
+        alloc_mark_dead();
 
         ctx->mark_live(ret_val != NULL);
 

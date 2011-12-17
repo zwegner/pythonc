@@ -22,8 +22,11 @@
 ################################################################################
 
 def write_allocator(f):
-    block_size = 1 << 14
+    block_size_pow2 = 14
+    block_size = 1 << block_size_pow2
     chunk_size = 1 << 21
+
+    obj_sizes = [16, 24, 32, 56]
 
     f.write("""
 #define BLOCK_SIZE (%s)
@@ -35,130 +38,123 @@ uint32_t bitscan64(uint64_t r) {
    asm ("bsfq %%0, %%0" : "=r" (r) : "0" (r));
    return r;
 }
+static byte *alloc_chunk_start, *alloc_chunk_end;
 
-template <uint64_t obj_size>
-class arena_block {
+static inline void alloc_chunk() {
+    alloc_chunk_start = new byte[CHUNK_SIZE];
+    alloc_chunk_end = alloc_chunk_start + CHUNK_SIZE; 
+    // Align the start of the chunk
+    alloc_chunk_start = (byte *)(((uint64_t)alloc_chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
+}
+
+static inline byte *alloc_block() {
+    if (alloc_chunk_end - alloc_chunk_start < BLOCK_SIZE)
+        alloc_chunk();
+
+    auto p = alloc_chunk_start;
+    alloc_chunk_start += BLOCK_SIZE;
+    return p;
+}
+""" % (block_size, chunk_size))
+
+    # Write out "templates" of allocator arena blocks based on size
+    ptr_size = 8 # HACK
+    capacity = block_size - ptr_size
+
+    for obj_size in obj_sizes:
+        n_objects = (capacity * 8 // (obj_size * 8 + 1))
+        n_live = (n_objects + 63) // 64
+        padding = capacity - (n_objects * obj_size + n_live * 8)
+
+        f.write("""
+class arena_block_{obj_size} {{
 public:
-    // Static head pointer, one per arena block size.
-    static arena_block<obj_size> *head;
-    static const uint64_t capacity = BLOCK_SIZE - sizeof(void *);
-    static const uint64_t n_objects = (capacity * 8 / (obj_size * 8 + 1));
-    static const uint64_t n_live = (n_objects + 63) / 64;
+    static const uint64_t obj_size = {obj_size};
+    static const uint64_t n_objects = {n_objects};
+    static const uint64_t n_live = {n_live};
 
-    byte data[obj_size * n_objects];
+    byte data[n_objects][obj_size];
     uint64_t live_bits[n_live];
-    arena_block<obj_size> *next_block;
-    byte padding[capacity - (sizeof(data) + sizeof(live_bits))];
+    arena_block_{obj_size} *next_block;
+    byte padding[{padding_size}];
 
-    void init() {
-        assert(sizeof(arena_block<obj_size>) == BLOCK_SIZE);
+    static arena_block_{obj_size} *head;
+
+    static void *alloc_obj() {{
+        if (!arena_block_{obj_size}::head)
+            arena_block_{obj_size}::head = (arena_block_{obj_size} *)alloc_block();
+        auto block = arena_block_{obj_size}::head;
+        void *p = block->get_next_obj();
+        if (!p) {{
+            block = (arena_block_{obj_size} *)alloc_block();
+            block->next_block = arena_block_{obj_size}::head;
+            arena_block_{obj_size}::head = block;
+            p = block->get_next_obj();
+        }}
+        return p;
+    }}
+
+    void init() {{
+        assert(sizeof(*this) == BLOCK_SIZE);
         assert(sizeof(this->live_bits) * 8 >= n_objects);
         mark_dead();
-    }
-    void mark_dead() {
+    }}
+    void mark_dead() {{
         for (uint32_t t = 0; t < n_live - 1; t++)
             this->live_bits[t] = 0;
         // For the last chunk of live bits, some bits could represent objects past
         // the end of the block, so make sure their live bits are always set,
         // and thus not be used
         this->live_bits[n_live - 1] = -1ull << (n_objects & 63);
-    }
-    void *get_obj() {
-        for (uint32_t t = 0; t < n_live; t++) {
+    }}
+    void *get_next_obj() {{
+        for (uint32_t t = 0; t < n_live; t++) {{
             uint64_t dead = ~this->live_bits[t];
-            if (dead) {
+            if (dead) {{
                 uint32_t bit = bitscan64(dead);
                 uint32_t idx = t * 64 + bit;
                 this->live_bits[t] |= (1ull << bit);
-                byte *b = &this->data[idx * obj_size];
-                return (void *)b;
-            }
-        }
+                return (void *)this->data[idx];
+            }}
+        }}
         return NULL;
-    }
-    bool mark_live(void *object) {
+    }}
+    bool mark_live(void *object) {{
         uint32_t idx = ((uint64_t)object & (BLOCK_SIZE - 1)) / obj_size;
         uint32_t t = idx / 64;
         uint64_t bit = 1ull << (idx & 63);
         bool already_live = (this->live_bits[t] & bit) != 0ull;
         this->live_bits[t] |= bit;
         return already_live;
-    }
-};
+    }}
+}};
+arena_block_{obj_size} *arena_block_{obj_size}::head;
+""".format(obj_size=obj_size, n_objects=n_objects, n_live=n_live, padding_size=padding))
 
-template<uint64_t x> arena_block<x> *arena_block<x>::head;
+    def dispatch_objsize(size):
+        f.write('    if (0) ;\n')
+        for obj_size in obj_sizes:
+            f.write('    else if (%s == %s) {\n' % (size, obj_size))
+            yield 'arena_block_%s' % obj_size
+            f.write('    }\n')
 
-// Silly preprocessor stuff for "cleanly" handling multiple block sizes.
-#define FOR_EACH_OBJ_SIZE(x) x(16) x(24) x(32) x(56)
+    f.write('template<class T>\n')
+    f.write('T *pc_alloc_obj() {\n')
+    for t in dispatch_objsize('sizeof(T)'):
+        f.write('        return (T *)%s::alloc_obj();\n' % (t))
+    f.write('   assert(!"bad obj size");\n')
+    f.write('   return NULL;\n')
+    f.write('}\n')
 
-class arena {
-private:
-    byte *chunk_start, *chunk_end;
+    f.write('void alloc_mark_dead() {\n')
+    for obj_size in obj_sizes:
+        f.write('    for (auto *p = arena_block_%s::head; p; p = p->next_block)\n' % obj_size)
+        f.write('        p->mark_dead();\n')
+    f.write('}\n')
 
-public:
-    arena() {
-        this->get_new_chunk();
-#define INIT_BLOCK(size) \\
-        arena_block<size>::head = this->new_block<size>();
-
-        FOR_EACH_OBJ_SIZE(INIT_BLOCK)
-#undef INIT_BLOCK
-    }
-
-    void get_new_chunk() {
-        this->chunk_start = new byte[CHUNK_SIZE];
-        this->chunk_end = chunk_start + CHUNK_SIZE; 
-        // Align the start of the chunk
-        this->chunk_start = (byte *)(((uint64_t)this->chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
-    }
-
-    template<size_t bytes>
-    arena_block<bytes> *new_block() {
-        if (this->chunk_end - this->chunk_start < BLOCK_SIZE)
-            this->get_new_chunk();
-
-        arena_block<bytes> *block = (arena_block<bytes> *)this->chunk_start;
-        this->chunk_start += BLOCK_SIZE;
-        block->init();
-        return block;
-    }
-
-    template<size_t bytes>
-    void *allocate() {
-        arena_block<bytes> *block = arena_block<bytes>::head;
-        void *p = block->get_obj();
-        if (!p) {
-            block = this->new_block<bytes>();
-            block->next_block = arena_block<bytes>::head;
-            arena_block<bytes>::head = block;
-            p = block->get_obj();
-        }
-        return p;
-    }
-    void mark_dead() {
-#define MARK_DEAD(size) \\
-        for (arena_block<size> *p = arena_block<size>::head; p; p = p->next_block) \\
-            p->mark_dead();
-
-        FOR_EACH_OBJ_SIZE(MARK_DEAD)
-#undef MARK_DEAD
-    }
-    template<size_t bytes>
-    bool mark_live(void *object) {
-        void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));
-        return ((arena_block<bytes> *)block)->mark_live(object);
-    }
-};
-
-arena allocator[1];
-
-inline void *operator new(const size_t bytes, arena *a) {
-    switch (bytes) {
-#define OBJ_CASE(size) case size: return a->allocate<size>();
-        FOR_EACH_OBJ_SIZE(OBJ_CASE)
-        default:
-            printf("bad obj size %%" PRIu64 "\\n", bytes);
-            exit(1);
-    }
-}
-""" % (block_size, chunk_size))
+    f.write('template<size_t bytes>\n')
+    f.write('bool alloc_mark_live(void *object) {\n')
+    f.write('    void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));\n')
+    for t in dispatch_objsize('bytes'):
+        f.write('    return ((%s *)block)->mark_live(object);\n' % t)
+    f.write('}\n')

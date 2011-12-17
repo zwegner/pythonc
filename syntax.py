@@ -602,7 +602,7 @@ class SingletonRef(Node):
 @node('ref_type, args')
 class Ref(Node):
     def __str__(self):
-        return '(new(allocator) %s(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
+        return '(pc_new(%s)(%s))' % (self.ref_type, ', '.join(str(a) for a in self.args))
 
 @node('op, &rhs')
 class UnaryOp(Node):
@@ -1046,17 +1046,17 @@ public:
             return attr;
         if (!strcmp(key, "__class__"))
             return &{cinst};
-        return new(allocator) bound_method(this, {cinst}.getattr(key));
+        return pc_new(bound_method)(this, {cinst}.getattr(key));
     }}
     virtual node *type() {{ return &{cinst}; }}
 }};
 node *{cname}::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {{
     node *init = this->getattr("__init__");
-    object *obj = new(allocator) {oname}();
+    object *obj = pc_new({oname})();
     if (!init)
         return obj;
     int_t len = args->items.size();
-    tuple *new_args = new(allocator) tuple(len + 1);
+    tuple *new_args = pc_new(tuple)(len + 1);
     new_args->items[0] = obj;
     for (int_t i = 0; i < len; i++)
         new_args->items[i+1] = args->items[i];
