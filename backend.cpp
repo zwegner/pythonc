@@ -18,22 +18,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#define __STDC_FORMAT_MACROS
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
-#include <algorithm>
-#include <map>
-#include <set>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include "alloc.h"
-
 __attribute((noreturn)) void error(const char *msg, ...) {
     va_list va;
     va_start(va, msg);

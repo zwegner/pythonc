@@ -9,7 +9,7 @@ tests = set('%s.py' % s for s in sys.argv[1:])
 
 if not os.path.exists('.temp'):
     os.mkdir('.temp')
-for i in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.h']:
+for i in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.py']:
     shutil.copy(i, '.temp')
 
 passes = 0

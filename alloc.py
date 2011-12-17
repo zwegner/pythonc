@@ -1,33 +1,38 @@
-////////////////////////////////////////////////////////////////////////////////
-//
-// Pythonc memory allocator
-//
-// Copyright 2011 Zach Wegner
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
+################################################################################
+##
+## Pythonc--Python to C++ translator
+##
+## Copyright 2011 Zach Wegner
+##
+## This file is part of Pythonc.
+##
+## Pythonc is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## Pythonc is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with Pythonc.  If not, see <http://www.gnu.org/licenses/>.
+##
+################################################################################
 
-#include <stddef.h>
-#include <assert.h>
+def write_allocator(f):
+    block_size = 1 << 14
+    chunk_size = 1 << 21
 
-#define BLOCK_SIZE (1 << 14)
-#define CHUNK_SIZE (1 << 21)
+    f.write("""
+#define BLOCK_SIZE (%s)
+#define CHUNK_SIZE (%s)
 
 typedef unsigned char byte;
 
 uint32_t bitscan64(uint64_t r) {
-   asm ("bsfq %0, %0" : "=r" (r) : "0" (r));
+   asm ("bsfq %%0, %%0" : "=r" (r) : "0" (r));
    return r;
 }
 
@@ -93,7 +98,7 @@ private:
 public:
     arena() {
         this->get_new_chunk();
-#define INIT_BLOCK(size) \
+#define INIT_BLOCK(size) \\
         arena_block<size>::head = this->new_block<size>();
 
         FOR_EACH_OBJ_SIZE(INIT_BLOCK)
@@ -131,8 +136,8 @@ public:
         return p;
     }
     void mark_dead() {
-#define MARK_DEAD(size) \
-        for (arena_block<size> *p = arena_block<size>::head; p; p = p->next_block) \
+#define MARK_DEAD(size) \\
+        for (arena_block<size> *p = arena_block<size>::head; p; p = p->next_block) \\
             p->mark_dead();
 
         FOR_EACH_OBJ_SIZE(MARK_DEAD)
@@ -152,7 +157,8 @@ inline void *operator new(const size_t bytes, arena *a) {
 #define OBJ_CASE(size) case size: return a->allocate<size>();
         FOR_EACH_OBJ_SIZE(OBJ_CASE)
         default:
-            printf("bad obj size %" PRIu64 "\n", bytes);
+            printf("bad obj size %%" PRIu64 "\\n", bytes);
             exit(1);
     }
 }
+""" % (block_size, chunk_size))
