@@ -591,8 +591,8 @@ class Identifier(Node):
 
 @node('names')
 class Global(Node):
-    def reduce(self, ctx):
-        return None
+    def __str__(self):
+        return ''
 
 @node('name')
 class SingletonRef(Node):
