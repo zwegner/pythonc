@@ -24,13 +24,12 @@ Of course it does. But we'll just have to wait and see.
 
 Some near-term plans:
 Improve the memory management
-Restructure the front end so most logic is in the syntax.py domain
 Do lots of simple but effective optimizations during translation
 Fill in enough of the Python builtins/simple modules to not care anymore
 Clean up the back end code
+Remove all use of the STL
 
 Some long-term plans:
-Remove all use of the STL
 Use C instead of C++
 
 Python support
