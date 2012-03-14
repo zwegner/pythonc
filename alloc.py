@@ -132,18 +132,18 @@ arena_block_{obj_size} *arena_block_{obj_size}::head;
 """.format(obj_size=obj_size, n_objects=n_objects, n_live=n_live, padding_size=padding))
 
     def dispatch_objsize(size):
-        f.write('    if (0) ;\n')
+        f.write('    switch (%s) {\n' % size)
         for obj_size in obj_sizes:
-            f.write('    else if (%s == %s) {\n' % (size, obj_size))
+            f.write('    case %s: {\n' % obj_size)
             yield 'arena_block_%s' % obj_size
-            f.write('    }\n')
+            f.write('    } break;\n')
+        f.write('    default: assert(!"bad obj size"); return NULL;\n')
+        f.write('}\n')
 
     f.write('template<class T>\n')
     f.write('T *pc_alloc_obj() {\n')
     for t in dispatch_objsize('sizeof(T)'):
         f.write('        return (T *)%s::alloc_obj();\n' % (t))
-    f.write('   assert(!"bad obj size");\n')
-    f.write('   return NULL;\n')
     f.write('}\n')
 
     f.write('void alloc_mark_dead() {\n')
