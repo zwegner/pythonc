@@ -46,15 +46,6 @@ static inline void alloc_chunk() {
     // Align the start of the chunk
     alloc_chunk_start = (byte *)(((uint64_t)alloc_chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
 }
-
-static inline byte *alloc_block() {
-    if (alloc_chunk_end - alloc_chunk_start < BLOCK_SIZE)
-        alloc_chunk();
-
-    auto p = alloc_chunk_start;
-    alloc_chunk_start += BLOCK_SIZE;
-    return p;
-}
 """ % (block_size, chunk_size))
 
     # Write out "templates" of allocator arena blocks based on size
@@ -80,13 +71,21 @@ public:
 
     static arena_block_{obj_size} *head;
 
+    static inline arena_block_{obj_size} *alloc_block() {{
+        if (alloc_chunk_end - alloc_chunk_start < BLOCK_SIZE)
+            alloc_chunk();
+
+        auto p = (arena_block_{obj_size} *)alloc_chunk_start;
+        alloc_chunk_start += BLOCK_SIZE;
+        p->mark_dead();
+        return p;
+    }}
+
     static void *alloc_obj() {{
-        if (!arena_block_{obj_size}::head)
-            arena_block_{obj_size}::head = (arena_block_{obj_size} *)alloc_block();
         auto block = arena_block_{obj_size}::head;
         void *p = block->get_next_obj();
         if (!p) {{
-            block = (arena_block_{obj_size} *)alloc_block();
+            block = alloc_block();
             block->next_block = arena_block_{obj_size}::head;
             arena_block_{obj_size}::head = block;
             p = block->get_next_obj();
@@ -132,7 +131,7 @@ arena_block_{obj_size} *arena_block_{obj_size}::head;
 """.format(obj_size=obj_size, n_objects=n_objects, n_live=n_live, padding_size=padding))
 
     def dispatch_objsize(size):
-        f.write('    switch (%s) {\n' % size)
+        f.write('switch (%s) {\n' % size)
         for obj_size in obj_sizes:
             f.write('    case %s: {\n' % obj_size)
             yield 'arena_block_%s' % obj_size
@@ -144,6 +143,12 @@ arena_block_{obj_size} *arena_block_{obj_size}::head;
     f.write('T *pc_alloc_obj() {\n')
     for t in dispatch_objsize('sizeof(T)'):
         f.write('        return (T *)%s::alloc_obj();\n' % (t))
+    f.write('}\n')
+
+    f.write('void init_allocator() {\n')
+    for obj_size in obj_sizes:
+        f.write('    arena_block_%s::head = arena_block_%s::alloc_block();\n' % (obj_size, obj_size))
+        f.write('    arena_block_%s::head->next_block = NULL;\n' % obj_size)
     f.write('}\n')
 
     f.write('void alloc_mark_dead() {\n')
