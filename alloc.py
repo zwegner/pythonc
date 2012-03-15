@@ -139,27 +139,32 @@ arena_block_{obj_size} *arena_block_{obj_size}::head;
         f.write('    default: assert(!"bad obj size"); return NULL;\n')
         f.write('}\n')
 
-    f.write('template<class T>\n')
-    f.write('T *pc_alloc_obj() {\n')
+    f.write('class allocator {\n')
+    f.write('public:\n')
+
+    f.write('    allocator() {\n')
+    for obj_size in obj_sizes:
+        f.write('        arena_block_%s::head = arena_block_%s::alloc_block();\n' % (obj_size, obj_size))
+        f.write('        arena_block_%s::head->next_block = NULL;\n' % obj_size)
+    f.write('    }\n')
+
+    f.write('    template<class T>\n')
+    f.write('    T *alloc_obj() {\n')
     for t in dispatch_objsize('sizeof(T)'):
         f.write('        return (T *)%s::alloc_obj();\n' % (t))
-    f.write('}\n')
+    f.write('    }\n')
 
-    f.write('void init_allocator() {\n')
+    f.write('    void mark_dead() {\n')
     for obj_size in obj_sizes:
-        f.write('    arena_block_%s::head = arena_block_%s::alloc_block();\n' % (obj_size, obj_size))
-        f.write('    arena_block_%s::head->next_block = NULL;\n' % obj_size)
-    f.write('}\n')
+        f.write('        for (auto *p = arena_block_%s::head; p; p = p->next_block)\n' % obj_size)
+        f.write('            p->mark_dead();\n')
+    f.write('    }\n')
 
-    f.write('void alloc_mark_dead() {\n')
-    for obj_size in obj_sizes:
-        f.write('    for (auto *p = arena_block_%s::head; p; p = p->next_block)\n' % obj_size)
-        f.write('        p->mark_dead();\n')
-    f.write('}\n')
-
-    f.write('template<size_t bytes>\n')
-    f.write('bool alloc_mark_live(void *object) {\n')
-    f.write('    void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));\n')
+    f.write('    template<size_t bytes>\n')
+    f.write('    bool mark_live(void *object) {\n')
+    f.write('        void *block = (void *)((uint64_t)object & ~(BLOCK_SIZE - 1));\n')
     for t in dispatch_objsize('bytes'):
-        f.write('    return ((%s *)block)->mark_live(object);\n' % t)
-    f.write('}\n')
+        f.write('        return ((%s *)block)->mark_live(object);\n' % t)
+    f.write('    }\n')
+
+    f.write('} alloc;\n')

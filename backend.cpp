@@ -44,7 +44,7 @@ typedef std::vector<node *> node_list;
 
 inline node *create_bool_const(bool b);
 
-#define pc_new(T) new(pc_alloc_obj<T>()) T
+#define pc_new(T) new(alloc.alloc_obj<T>()) T
 
 class node {
 public:
@@ -55,7 +55,7 @@ public:
 
     // Macros for standard mark_live() patterns
 #define MARK_LIVE_FN \
-    virtual void mark_live() { alloc_mark_live<sizeof(*this)>(this); }
+    virtual void mark_live() { alloc.mark_live<sizeof(*this)>(this); }
 
 #define MARK_LIVE_SINGLETON_FN \
     virtual void mark_live() { }
@@ -63,7 +63,7 @@ public:
     // This one is kind of weird...
 #define MARK_LIVE_CHILDREN \
     virtual void mark_live() { \
-        if (!alloc_mark_live<sizeof(*this)>(this)) \
+        if (!alloc.mark_live<sizeof(*this)>(this)) \
             this->mark_live_children(); \
     } \
     inline void mark_live_children()
@@ -2289,7 +2289,7 @@ void collect_garbage(context *ctx, node *ret_val) {
     if (++gc_tick > 128) {
         gc_tick = 0;
 
-        alloc_mark_dead();
+        alloc.mark_dead();
 
         ctx->mark_live(ret_val != NULL);
 

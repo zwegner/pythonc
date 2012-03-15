@@ -264,7 +264,6 @@ def write_output(stmts, path):
             f.write('%s\n' % func)
 
         f.write('int main(int argc, char **argv) {\n')
-        f.write('    init_allocator();\n')
         f.write('    node *global_syms[%s] = {};\n' % (ctx.global_sym_count))
         f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (ctx.global_sym_count))
         f.write('    init_context(&ctx, argc, argv);\n')
