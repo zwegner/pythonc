@@ -165,11 +165,11 @@ def write_backend_setup(f):
         ' '.join('LIST_%s_CLASS_METHODS(x)' % name for name in sorted(builtin_methods)))
 
     for name in sorted(builtin_functions):
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % name)
+        f.write('node *wrapped_builtin_%s(context *ctx, tuple *args, dict *kwargs);\n' % name)
     for class_name in sorted(builtin_methods):
         methods = builtin_methods[class_name]
         for name in sorted(methods):
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
+            f.write('node *wrapped_builtin_%s_%s(context *ctx, tuple *args, dict *kwargs);\n' % (class_name, name))
 
 def print_arg_logic(name, f, n_args, self_class=None, method_name=None):
     f.write('    if (kwargs && kwargs->items.size())\n')
@@ -207,7 +207,7 @@ def print_arg_logic(name, f, n_args, self_class=None, method_name=None):
 def write_backend_post_setup(f):
     for name in sorted(builtin_functions):
         n_args = builtin_functions[name]
-        f.write('node *wrapped_builtin_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
+        f.write('node *wrapped_builtin_%s(context *ctx, tuple *args, dict *kwargs) {\n' % name)
         args = print_arg_logic(name, f, n_args)
         f.write('    return builtin_%s(%s);\n' % (name, args))
         f.write('}\n')
@@ -216,14 +216,14 @@ def write_backend_post_setup(f):
         methods = builtin_methods[class_name]
         for name in sorted(methods):
             n_args = methods[name]
-            f.write('node *wrapped_builtin_%s_%s(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
+            f.write('node *wrapped_builtin_%s_%s(context *ctx, tuple *args, dict *kwargs) {\n' % (class_name, name))
             args = print_arg_logic(name, f, n_args, self_class=class_name, method_name=name)
             f.write('    return builtin_%s_%s(%s);\n' % (class_name, name, args))
             f.write('}\n')
 
     for name in sorted(builtin_classes):
         n_args = builtin_classes[name]
-        f.write('node *%s_class::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {\n' % name)
+        f.write('node *%s_class::__call__(context *ctx, tuple *args, dict *kwargs) {\n' % name)
         args = print_arg_logic(name, f, n_args)
         f.write('    return %s_init(%s);\n' % (name, args))
         f.write('}\n')
@@ -246,9 +246,17 @@ def write_backend_post_setup(f):
         f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
         f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
+def globals_init():
+    stmts = []
+    for t, l in [['function', builtin_functions], ['class', builtin_classes]]:
+        for name in l:
+            stmts.append(Store(name, SingletonRef('builtin_%s_%s' % (t, name))))
+
+    return stmts
+
 def write_output(stmts, path):
-    ctx = Context()
-    stmts = ctx.translate(stmts)
+    ctx = Context('__main__')
+    stmts = ctx.translate(globals_init() + stmts)
 
     with open(path, 'w') as f:
         write_backend_setup(f)
@@ -260,13 +268,12 @@ def write_output(stmts, path):
 
         write_backend_post_setup(f)
 
-        for func in ctx.functions + ctx.classes:
-            f.write('%s\n' % func)
+        ctx.write_mod_init(f)
 
         f.write('int main(int argc, char **argv) {\n')
-        f.write('    node *global_syms[%s] = {};\n' % (ctx.global_sym_count))
-        f.write('    context ctx(%s, global_syms), *globals = &ctx;\n' % (ctx.global_sym_count))
-        f.write('    init_context(&ctx, argc, argv);\n')
+        f.write('    context *ctx = &ctx___main__, *globals = ctx;\n')
+
+        f.write('    init_context(ctx, argc, argv);\n')
 
         f.write(indent(stmts))
 
@@ -311,10 +318,12 @@ def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
 class Context:
-    def __init__(self):
+    def __init__(self, module):
         self.statements = []
         self.functions = []
         self.classes = []
+        self.modules = []
+        self.module = module
         self.temp_id = 0
 
     def get_temp(self):
@@ -344,6 +353,9 @@ class Context:
         [statements, self.statements] = self.statements, old_stmts
         return statements
 
+    def add_module(self, m):
+        self.modules.append(m)
+
     def add_class(self, c):
         c.flatten(self)
         self.classes.append(c)
@@ -364,6 +376,11 @@ class Context:
         stmts = [s.value for s in self.statements]
 
         all_globals = set(builtin_symbols)
+
+        # Get bindings for all imported modules
+        for node in self.modules:
+            assert isinstance(node, (ModuleDef))
+            node.set_binding(self)
 
         # Get bindings for all classes/functions
         for node in self.classes + self.functions:
@@ -393,6 +410,15 @@ class Context:
         self.global_sym_count = len(self.global_idx) + 1
 
         return stmts
+
+    def write_mod_init(self, f):
+        for mod in self.modules:
+            mod.module_ctx.write_mod_init(f)
+
+        f.write('node *mod_syms_%s[100] = {};\n' % self.module)
+        f.write('context ctx_%s(100, mod_syms_%s);\n' % (self.module, self.module))
+        for func in self.modules + self.functions + self.classes:
+            f.write('%s\n' % func)
 
 class Node:
     def add_use(self, edge):
@@ -628,6 +654,8 @@ class Load(Node):
             return 'globals->load(%s)' % self.idx
         elif self.scope == 'class':
             return 'this->getattr("%s")' % self.name
+        elif self.scope == 'module':
+            return 'globals->load(%s)' % self.idx
         return 'ctx.load(%s)' % self.idx
 
 @node('name, &expr', no_flatten=['expr'])
@@ -644,7 +672,9 @@ class Store(Node):
             return 'globals->store(%s, %s)' % (self.idx, self.expr())
         elif self.scope == 'class':
             return 'this->setattr("%s", %s)' % (self.name, self.expr())
-        return 'ctx.store(%s, %s)' % (self.idx, self.expr())
+        elif self.scope == 'module':
+            return 'globals->store(%s, %s)' % (self.idx, self.expr())
+        return 'ctx->store(%s, %s)' % (self.idx, self.expr())
 
 @node('&name, attr, &expr', no_flatten=['expr'])
 class StoreAttr(Node):
@@ -736,7 +766,7 @@ class Attribute(Node):
 @node('&func, &args, &kwargs')
 class Call(Node):
     def __str__(self):
-        return '%s->__call__(globals, &ctx, %s, %s)' % (self.func(), self.args(), self.kwargs())
+        return '%s->__call__(ctx, %s, %s)' % (self.func(), self.args(), self.kwargs())
 
 @node('&expr, &true_expr, &false_expr')
 class IfExp(Node):
@@ -908,7 +938,7 @@ class Raise(Node):
 @node('&expr')
 class CollectGarbage(Node):
     def __str__(self):
-        return 'collect_garbage(&ctx, %s)' % (self.expr() if self.expr else 'NULL')
+        return 'collect_garbage(ctx, %s)' % (self.expr() if self.expr else 'NULL')
 
 @node('args, *defaults')
 class Arguments(Node):
@@ -946,6 +976,8 @@ class FunctionDef(Node):
         self.exp_name = 'fn_%s' % self.exp_name # make sure no name collisions
 
     def reduce(self, ctx):
+        self.module = ctx.module
+        print('f %s %s' % (self.name, ctx.module))
         ctx.add_function(self)
         return Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))
 
@@ -981,11 +1013,12 @@ class FunctionDef(Node):
     def __str__(self):
         stmts = block_str(self.stmts)
         body = """
-node *{name}(context *globals, context *parent_ctx, tuple *args, dict *kwargs) {{
+node *{name}(context *parent_ctx, tuple *args, dict *kwargs) {{
     node *local_syms[{local_count}] = {{}};
-    context ctx(parent_ctx, {local_count}, local_syms);
+    context ctx[1] = {{context(parent_ctx, {local_count}, local_syms)}};
+    context *globals = &ctx_{module};
 {stmts}
-}}""".format(name=self.exp_name, local_count=self.local_count, stmts=stmts)
+}}""".format(name=self.exp_name, module=self.module, local_count=self.local_count, stmts=stmts)
         return body
 
 @node('name, $stmts')
@@ -996,6 +1029,7 @@ class ClassDef(Node):
         self.obj_name = '%s_obj' % self.class_name
 
     def reduce(self, ctx):
+        self.module = ctx.module
         ctx.add_class(self)
         return Store(self.name, SingletonRef(self.class_inst))
 
@@ -1030,12 +1064,13 @@ class ClassDef(Node):
 class {cname}: public class_def {{
 public:
     {cname}() {{
+    context *globals = &ctx_{module};
 {stmts}
     }}
     virtual std::string repr() {{
         return std::string("<class '{name}'>");
     }}
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs);
+    virtual node *__call__(context *ctx, tuple *args, dict *kwargs);
     virtual const char *type_name() {{ return "{cname}"; }}
 }} {cinst};
 class {oname}: public object {{
@@ -1050,7 +1085,7 @@ public:
     }}
     virtual node *type() {{ return &{cinst}; }}
 }};
-node *{cname}::__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {{
+node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
     node *init = this->getattr("__init__");
     object *obj = pc_new({oname})();
     if (!init)
@@ -1060,9 +1095,83 @@ node *{cname}::__call__(context *globals, context *ctx, tuple *args, dict *kwarg
     new_args->items[0] = obj;
     for (int_t i = 0; i < len; i++)
         new_args->items[i+1] = args->items[i];
-    init->__call__(globals, ctx, new_args, kwargs);
+    init->__call__(ctx, new_args, kwargs);
     return obj;
 }}
 """.format(name=self.name, cname=self.class_name, cinst=self.class_inst,
         oname=self.obj_name, stmts=stmts)
         return body
+
+@node('name, *stmts')
+class ModuleDef(Node):
+    def setup(self):
+        self.module_name = 'module_%s' % self.name
+        self.module_inst = '%s_singleton' % self.module_name
+
+    def reduce(self, ctx):
+        stmts = globals_init() + [s() for s in self.stmts]
+        self.module_ctx = Context(self.name)
+        self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]
+
+        ctx.add_module(self)
+
+        return Store(self.name, SingletonRef(self.module_inst))
+
+    def set_binding(self, ctx):
+        all_globals = set()
+        all_loads = set()
+        all_stores = set()
+
+        for node in self.iterate_subtree():
+            if isinstance(node, Global):
+                for name in node.names:
+                    all_globals.add(name)
+            elif isinstance(node, Load):
+                all_loads.add(node.name)
+            elif isinstance(node, Store):
+                all_stores.add(node.name)
+
+        all_globals |= (all_loads - all_stores)
+        all_locals = (all_loads | all_stores) - all_globals
+        self.local_count = len(all_locals)
+
+        self.local_idx = {symbol: idx for idx, symbol in enumerate(sorted(all_locals))}
+
+        for node in self.iterate_subtree():
+            if isinstance(node, (Load, Store)):
+                if node.name not in all_globals:
+                    node.set_binding('module', self.local_idx[node.name])
+
+        self.all_globals = all_globals
+
+    def __str__(self):
+        stmts = block_str(self.stmts, spaces=8)
+
+        getattrs = []
+        for key, idx in self.local_idx.items():
+            getattrs += ['else if (!strcmp(attr, "%s")) return ctx_%s.load(%s);' % (key, self.name, idx)]
+        getattrs = '\n'.join(getattrs)
+
+        body = """
+class {mname}: public module_def {{
+public:
+    {mname}() {{
+        node *local_syms[100] = {{}};
+        context *ctx = &ctx_{name}, *globals = ctx;
+{stmts}
+    }}
+    virtual node *getattr(const char *attr) {{
+        if (0) ;
+{getattrs}
+        error("not found");
+    }}
+    virtual std::string repr() {{
+        return std::string("<module '{name}'>");
+    }}
+    virtual const char *type_name() {{ return "{mname}"; }}
+}} {minst};
+""".format(name=self.name, mname=self.module_name, stmts=stmts,
+        getattrs=getattrs, minst=self.module_inst)
+        return body
+
+

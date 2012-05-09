@@ -22,6 +22,7 @@
 ################################################################################
 
 import ast
+import os
 
 import syntax
 
@@ -412,7 +413,18 @@ class Transformer(ast.NodeTransformer):
         for name in node.names:
             assert not name.asname
             assert name.name
-            statements.append(syntax.Store(name.name, syntax.IntConst(0)))
+            builtin_modules = {}
+            name = name.name
+            if name in builtin_modules:
+                module = syntax.Store(name, builtin_modules[name])
+            else:
+                path = '%s.py' % name
+                if not os.path.exists(path):
+                    raise TranslateError(node, 'cannot find %s' % path)
+                stmts = transform(path)
+                #print(stmts[0])
+                module = syntax.ModuleDef(name, stmts)
+            statements.append(module)
         return statements
 
     def visit_Expr(self, node):

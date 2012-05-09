@@ -147,7 +147,7 @@ public:
     node *__repr__();
     node *__str__();
 
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
+    virtual node *__call__(context *ctx, tuple *args, dict *kwargs) { error("call unimplemented for %s", this->node_type()); return NULL; }
     virtual void __delitem__(node *rhs) { error("delitem unimplemented for %s", this->node_type()); }
     virtual node *__getitem__(node *rhs) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
     virtual node *__getitem__(int index) { error("getitem unimplemented for %s", this->node_type()); return NULL; }
@@ -196,7 +196,7 @@ class name##_class: public builtin_class { \
 public: \
     virtual const char *type_name() { return #name; } \
     virtual node *getattr(const char *key); \
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs); \
+    virtual node *__call__(context *ctx, tuple *args, dict *kwargs); \
 }; \
 name##_class builtin_class_##name;
 LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
@@ -1273,7 +1273,7 @@ public:
     virtual node *type() { return &builtin_class_zip; }
 };
 
-typedef node *(*fptr)(context *globals, context *parent_ctx, tuple *args, dict *kwargs);
+typedef node *(*fptr)(context *parent_ctx, tuple *args, dict *kwargs);
 
 class bound_method : public node {
 private:
@@ -1288,13 +1288,13 @@ public:
         this->function->mark_live();
     }
 
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
+    virtual node *__call__(context *ctx, tuple *args, dict *kwargs) {
         int_t len = args->items.size();
         tuple *new_args = pc_new(tuple)(len + 1);
         new_args->items[0] = this->self;
         for (int_t i = 0; i < len; i++)
             new_args->items[i+1] = args->items[i];
-        return this->function->__call__(globals, ctx, new_args, kwargs);
+        return this->function->__call__(ctx, new_args, kwargs);
     }
     virtual node *type() { return &builtin_class_bound_method; }
 };
@@ -1310,8 +1310,8 @@ public:
 
     virtual bool is_function() { return true; }
 
-    virtual node *__call__(context *globals, context *ctx, tuple *args, dict *kwargs) {
-        return this->base_function(globals, ctx, args, kwargs);
+    virtual node *__call__(context *ctx, tuple *args, dict *kwargs) {
+        return this->base_function(ctx, args, kwargs);
     }
     virtual node *type() { return &builtin_class_function; }
 };
@@ -1330,6 +1330,34 @@ public:
     }
 
     virtual node *getattr(const char *attr) {
+        return attrs[std::string(attr)];
+    }
+    void setattr(const char *attr, node *value) {
+        attrs[std::string(attr)] = value;
+    }
+    virtual void __setattr__(node *key, node *value) {
+        if (!key->is_str())
+            error("setattr with non-string");
+        return this->setattr(key->c_str(), value);
+    }
+    virtual node *type() { return &builtin_class_type; }
+};
+
+// Abstract base class of module singleton classes
+class module_def : public node {
+protected:
+    attr_dict attrs;
+
+public:
+    virtual void mark_live() {
+        // Note that we are a singleton and thus do not mark ourselves live...
+        for (auto it = this->attrs.begin(); it != this->attrs.end(); ++it) {
+            it->second->mark_live();
+        }
+    }
+
+    virtual node *getattr(const char *attr) {
+        printf("getting attr %s =%p\n", attr, attrs[std::string(attr)]);
         return attrs[std::string(attr)];
     }
     void setattr(const char *attr, node *value) {
@@ -2269,14 +2297,6 @@ LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
 void init_context(context *ctx, int_t argc, char **argv) {
-#define BUILTIN_FUNCTION(name) ctx->store(sym_id_##name, &builtin_function_##name);
-LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
-#undef BUILTIN_FUNCTION
-
-#define BUILTIN_CLASS(name) ctx->store(sym_id_##name, &builtin_class_##name);
-LIST_BUILTIN_CLASSES(BUILTIN_CLASS)
-#undef BUILTIN_CLASS
-
     ctx->store(sym_id___name__, pc_new(string_const)("__main__"));
     list *plist = pc_new(list)();
     for (int_t a = 0; a < argc; a++)
