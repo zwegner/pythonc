@@ -1357,7 +1357,6 @@ public:
     }
 
     virtual node *getattr(const char *attr) {
-        printf("getting attr %s =%p\n", attr, attrs[std::string(attr)]);
         return attrs[std::string(attr)];
     }
     void setattr(const char *attr, node *value) {

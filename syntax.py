@@ -377,16 +377,10 @@ class Context:
 
         all_globals = set(builtin_symbols)
 
-        # Get bindings for all imported modules
-        for node in self.modules:
-            assert isinstance(node, (ModuleDef))
-            node.set_binding(self)
-
         # Get bindings for all classes/functions
         for node in self.classes + self.functions:
             assert isinstance(node, (ClassDef, FunctionDef))
-            node.set_binding(self)
-            all_globals |= node.all_globals
+            all_globals |= node.set_binding(self)
 
         for node in stmts:
             if isinstance(node, Global):
@@ -415,8 +409,10 @@ class Context:
         for mod in self.modules:
             mod.module_ctx.write_mod_init(f)
 
-        f.write('node *mod_syms_%s[100] = {};\n' % self.module)
-        f.write('context ctx_%s(100, mod_syms_%s);\n' % (self.module, self.module))
+        f.write('node *mod_syms_%s[%s] = {};\n' % (self.module,
+            self.global_sym_count))
+        f.write('context ctx_%s(%s, mod_syms_%s);\n' % (self.module,
+            self.global_sym_count, self.module))
         for func in self.modules + self.functions + self.classes:
             f.write('%s\n' % func)
 
@@ -656,7 +652,7 @@ class Load(Node):
             return 'this->getattr("%s")' % self.name
         elif self.scope == 'module':
             return 'globals->load(%s)' % self.idx
-        return 'ctx.load(%s)' % self.idx
+        return 'ctx->load(%s)' % self.idx
 
 @node('name, &expr', no_flatten=['expr'])
 class Store(Node):
@@ -969,6 +965,27 @@ class Arguments(Node):
     def __str__(self):
         return ''
 
+def get_globals_locals(node):
+    # Get bindings of all variables. Globals are the variables that have "global x"
+    # somewhere in the function, or are never written in the function.
+    all_globals = set()
+    all_loads = set()
+    all_stores = set()
+
+    for child in node.iterate_subtree():
+        if isinstance(child, Global):
+            for name in child.names:
+                all_globals.add(name)
+        elif isinstance(child, Load):
+            all_loads.add(child.name)
+        elif isinstance(child, Store):
+            all_stores.add(child.name)
+
+    all_globals |= (all_loads - all_stores)
+    all_locals = (all_loads | all_stores) - all_globals
+
+    return all_globals, all_locals
+
 @node('name, $stmts, exp_name')
 class FunctionDef(Node):
     def setup(self):
@@ -977,28 +994,12 @@ class FunctionDef(Node):
 
     def reduce(self, ctx):
         self.module = ctx.module
-        print('f %s %s' % (self.name, ctx.module))
         ctx.add_function(self)
         return Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))
 
     def set_binding(self, ctx):
-        # Get bindings of all variables. Globals are the variables that have "global x"
-        # somewhere in the function, or are never written in the function.
-        all_globals = set()
-        all_loads = set()
-        all_stores = set()
+        all_globals, all_locals = get_globals_locals(self)
 
-        for node in self.iterate_subtree():
-            if isinstance(node, Global):
-                for name in node.names:
-                    all_globals.add(name)
-            elif isinstance(node, Load):
-                all_loads.add(node.name)
-            elif isinstance(node, Store):
-                all_stores.add(node.name)
-
-        all_globals |= (all_loads - all_stores)
-        all_locals = (all_loads | all_stores) - all_globals
         self.local_count = len(all_locals)
 
         local_idx = {symbol: idx for idx, symbol in enumerate(sorted(all_locals))}
@@ -1008,7 +1009,7 @@ class FunctionDef(Node):
                 if node.name not in all_globals:
                     node.set_binding('local', local_idx[node.name])
 
-        self.all_globals = all_globals
+        return all_globals
 
     def __str__(self):
         stmts = block_str(self.stmts)
@@ -1018,7 +1019,8 @@ node *{name}(context *parent_ctx, tuple *args, dict *kwargs) {{
     context ctx[1] = {{context(parent_ctx, {local_count}, local_syms)}};
     context *globals = &ctx_{module};
 {stmts}
-}}""".format(name=self.exp_name, module=self.module, local_count=self.local_count, stmts=stmts)
+}}""".format(name=self.exp_name, module=self.module,
+        local_count=self.local_count, stmts=stmts)
         return body
 
 @node('name, $stmts')
@@ -1034,29 +1036,14 @@ class ClassDef(Node):
         return Store(self.name, SingletonRef(self.class_inst))
 
     def set_binding(self, ctx):
-        # Get bindings of all variables. Globals are the variables that have "global x"
-        # somewhere in the function, or are never written in the function.
-        all_globals = set()
-        all_loads = set()
-        all_stores = set()
-
-        for node in self.iterate_subtree():
-            if isinstance(node, Global):
-                for name in node.names:
-                    all_globals.add(name)
-            elif isinstance(node, Load):
-                all_loads.add(node.name)
-            elif isinstance(node, Store):
-                all_stores.add(node.name)
-
-        all_globals |= (all_loads - all_stores)
+        all_globals, _ = get_globals_locals(self)
 
         for node in self.iterate_subtree():
             if isinstance(node, (Load, Store)):
                 if node.name not in all_globals:
                     node.set_binding('class', 0)
 
-        self.all_globals = all_globals
+        return all_globals
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
@@ -1099,7 +1086,7 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
     return obj;
 }}
 """.format(name=self.name, cname=self.class_name, cinst=self.class_inst,
-        oname=self.obj_name, stmts=stmts)
+        module=self.module, oname=self.obj_name, stmts=stmts)
         return body
 
 @node('name, *stmts')
@@ -1117,38 +1104,11 @@ class ModuleDef(Node):
 
         return Store(self.name, SingletonRef(self.module_inst))
 
-    def set_binding(self, ctx):
-        all_globals = set()
-        all_loads = set()
-        all_stores = set()
-
-        for node in self.iterate_subtree():
-            if isinstance(node, Global):
-                for name in node.names:
-                    all_globals.add(name)
-            elif isinstance(node, Load):
-                all_loads.add(node.name)
-            elif isinstance(node, Store):
-                all_stores.add(node.name)
-
-        all_globals |= (all_loads - all_stores)
-        all_locals = (all_loads | all_stores) - all_globals
-        self.local_count = len(all_locals)
-
-        self.local_idx = {symbol: idx for idx, symbol in enumerate(sorted(all_locals))}
-
-        for node in self.iterate_subtree():
-            if isinstance(node, (Load, Store)):
-                if node.name not in all_globals:
-                    node.set_binding('module', self.local_idx[node.name])
-
-        self.all_globals = all_globals
-
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
 
         getattrs = []
-        for key, idx in self.local_idx.items():
+        for key, idx in self.module_ctx.global_idx.items():
             getattrs += ['else if (!strcmp(attr, "%s")) return ctx_%s.load(%s);' % (key, self.name, idx)]
         getattrs = '\n'.join(getattrs)
 
@@ -1156,7 +1116,6 @@ class ModuleDef(Node):
 class {mname}: public module_def {{
 public:
     {mname}() {{
-        node *local_syms[100] = {{}};
         context *ctx = &ctx_{name}, *globals = ctx;
 {stmts}
     }}
