@@ -1082,7 +1082,7 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
         module=self.module, oname=self.obj_name, stmts=stmts)
         return body
 
-@node('name, *stmts')
+@node('name, path, *stmts')
 class ModuleDef(Node):
     def setup(self):
         self.module_name = 'module_%s' % self.name
@@ -1118,10 +1118,10 @@ public:
         error("not found");
     }}
     virtual std::string repr() {{
-        return std::string("<module '{name}'>");
+        return std::string("<module '{name}' from '{path}'>");
     }}
     virtual const char *type_name() {{ return "{mname}"; }}
 }} {minst};
 """.format(name=self.name, mname=self.module_name, stmts=stmts,
-        getattrs=getattrs, minst=self.module_inst)
+        getattrs=getattrs, minst=self.module_inst, path=self.path)
         return body

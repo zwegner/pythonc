@@ -1411,7 +1411,7 @@ public:
         error("not found");
     }
     virtual std::string repr() {
-        return std::string("<module 'sys'>");
+        return std::string("<module 'sys' (built-in)>");
     }
     virtual const char *type_name() { return "module_sys"; }
 } module_sys_singleton;

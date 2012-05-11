@@ -421,8 +421,8 @@ class Transformer(ast.NodeTransformer):
                 if not os.path.exists(path):
                     raise TranslateError(node, 'cannot find %s' % path)
                 stmts = transform(path)
-                #print(stmts[0])
-                module = syntax.ModuleDef(name, stmts)
+                path = os.path.abspath(path)
+                module = syntax.ModuleDef(name, path, stmts)
             statements.append(module)
         return statements
 
