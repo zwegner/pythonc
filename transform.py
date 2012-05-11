@@ -407,16 +407,15 @@ class Transformer(ast.NodeTransformer):
 
         return syntax.ClassDef(node.name, body)
 
-    # XXX This just turns "import x" into "x = 0".  It's certainly not what we really want...
     def visit_Import(self, node):
         statements = []
         for name in node.names:
             assert not name.asname
             assert name.name
-            builtin_modules = {}
+            builtin_modules = {m: 'module_%s_singleton' % m for m in ['sys']}
             name = name.name
             if name in builtin_modules:
-                module = syntax.Store(name, builtin_modules[name])
+                module = syntax.Store(name, syntax.SingletonRef(builtin_modules[name]))
             else:
                 path = '%s.py' % name
                 if not os.path.exists(path):

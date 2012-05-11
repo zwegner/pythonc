@@ -120,10 +120,6 @@ builtin_hidden_classes = {
     'str_iterator',
     'tuple_iterator',
 }
-builtin_symbols = sorted(builtin_functions) + sorted(builtin_classes) + [
-    '__name__',
-    '__args__',
-]
 
 def write_backend_setup(f):
     f.write('#define __STDC_FORMAT_MACROS\n')
@@ -261,9 +257,6 @@ def write_output(stmts, path):
     with open(path, 'w') as f:
         write_backend_setup(f)
 
-        for x in builtin_symbols:
-            f.write('#define sym_id_%s %s\n' % (x, ctx.global_idx[x]))
-
         f.write('#include "backend.cpp"\n')
 
         write_backend_post_setup(f)
@@ -273,10 +266,7 @@ def write_output(stmts, path):
         f.write('int main(int argc, char **argv) {\n')
         f.write('    context *ctx = &ctx___main__, *globals = ctx;\n')
 
-        f.write('    list *plist = pc_new(list)();\n')
-        f.write('    for (int_t a = 0; a < argc; a++)\n')
-        f.write('        plist->items.push_back(pc_new(string_const)(argv[a]));\n')
-        f.write('    ctx->store(sym_id___args__, plist);\n')
+        f.write('    module_sys_singleton.init(argc, argv);\n')
 
         f.write(indent(stmts))
 
@@ -378,7 +368,7 @@ class Context:
             self.add_statement(i)
         stmts = [s.value for s in self.statements]
 
-        all_globals = set(builtin_symbols)
+        all_globals = set()
 
         # Get bindings for all classes/functions
         for node in self.classes + self.functions:
