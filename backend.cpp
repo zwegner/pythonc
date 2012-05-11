@@ -1117,6 +1117,8 @@ public:
 
     node *read(int_t len) {
         static char buf[64*1024];
+        if (len >= sizeof(buf))
+            error("len too long");
         size_t ret = fread(buf, 1, len, this->f);
         std::string s(buf, ret);
         return pc_new(string_const)(s);
@@ -1125,6 +1127,15 @@ public:
         size_t len = data->len();
         const char *buf = data->c_str();
         (void)fwrite(buf, 1, len, this->f);
+    }
+
+    virtual node *__iter__() { return this; }
+    virtual node *next() {
+        static char buf[1<<16];
+        if (!fgets(buf, sizeof(buf), this->f))
+            return NULL;
+        std::string s(buf);
+        return pc_new(string_const)(s);
     }
 
     virtual bool is_file() { return true; }
