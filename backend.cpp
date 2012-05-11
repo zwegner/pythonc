@@ -1899,9 +1899,11 @@ node *string_const::__mod__(node *rhs_arg) {
                 error("not enough arguments for string format");
             node *arg = rhs_items[args++];
             if (*c == 's') {
-                *fmt++ = 's';
-                *fmt = 0;
-                sprintf(buf, fmt_buf, arg->str().c_str());
+                // HACK. all of this.
+                if (fmt != fmt_buf + 1)
+                    error("format specifiers not allowed on strings for now");
+                new_string << arg->str();
+                continue;
             }
             else if (*c == 'd' || *c == 'i' || *c == 'X') {
                 *fmt++ = 'l';
