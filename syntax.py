@@ -246,8 +246,8 @@ def write_backend_post_setup(f):
         f.write('const uint8_t bytes_singleton_%d_data[] = {%s};\n' % (v, ', '.join(str(x) for x in k)))
         f.write('bytes_singleton bytes_singleton_%d(sizeof(bytes_singleton_%d_data), bytes_singleton_%d_data);\n' % (v, v, v))
 
-def globals_init():
-    stmts = []
+def globals_init(ctx):
+    stmts = [Store('__name__', StringConst(ctx.module))]
     for t, l in [['function', builtin_functions], ['class', builtin_classes]]:
         for name in l:
             stmts.append(Store(name, SingletonRef('builtin_%s_%s' % (t, name))))
@@ -256,7 +256,7 @@ def globals_init():
 
 def write_output(stmts, path):
     ctx = Context('__main__')
-    stmts = ctx.translate(globals_init() + stmts)
+    stmts = ctx.translate(globals_init(ctx) + stmts)
 
     with open(path, 'w') as f:
         write_backend_setup(f)
@@ -273,7 +273,10 @@ def write_output(stmts, path):
         f.write('int main(int argc, char **argv) {\n')
         f.write('    context *ctx = &ctx___main__, *globals = ctx;\n')
 
-        f.write('    init_context(ctx, argc, argv);\n')
+        f.write('    list *plist = pc_new(list)();\n')
+        f.write('    for (int_t a = 0; a < argc; a++)\n')
+        f.write('        plist->items.push_back(pc_new(string_const)(argv[a]));\n')
+        f.write('    ctx->store(sym_id___args__, plist);\n')
 
         f.write(indent(stmts))
 
@@ -1096,8 +1099,8 @@ class ModuleDef(Node):
         self.module_inst = '%s_singleton' % self.module_name
 
     def reduce(self, ctx):
-        stmts = globals_init() + [s() for s in self.stmts]
         self.module_ctx = Context(self.name)
+        stmts = globals_init(self.module_ctx) + [s() for s in self.stmts]
         self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]
 
         ctx.add_module(self)
@@ -1132,5 +1135,3 @@ public:
 """.format(name=self.name, mname=self.module_name, stmts=stmts,
         getattrs=getattrs, minst=self.module_inst)
         return body
-
-

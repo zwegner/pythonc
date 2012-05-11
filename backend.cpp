@@ -2295,14 +2295,6 @@ inline node *builtin_tuple_index(tuple *self, node *arg) {
 LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
 #undef BUILTIN_FUNCTION
 
-void init_context(context *ctx, int_t argc, char **argv) {
-    ctx->store(sym_id___name__, pc_new(string_const)("__main__"));
-    list *plist = pc_new(list)();
-    for (int_t a = 0; a < argc; a++)
-        plist->items.push_back(pc_new(string_const)(argv[a]));
-    ctx->store(sym_id___args__, plist);
-}
-
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
     if (++gc_tick > 128) {
