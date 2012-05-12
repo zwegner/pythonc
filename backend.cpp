@@ -1116,12 +1116,11 @@ public:
     MARK_LIVE_FN
 
     node *read(int_t len) {
-        static char buf[64*1024];
+        static char buf[1 << 16];
         if ((unsigned)len >= sizeof(buf))
             error("len too long");
-        size_t ret = fread(buf, 1, len, this->f);
-        std::string s(buf, ret);
-        return pc_new(string_const)(s);
+        (void)fread(buf, 1, len, this->f);
+        return pc_new(string_const)(buf);
     }
     void write(string_const *data) {
         size_t len = data->len();
@@ -1131,11 +1130,10 @@ public:
 
     virtual node *__iter__() { return this; }
     virtual node *next() {
-        static char buf[1<<16];
+        static char buf[1 << 16];
         if (!fgets(buf, sizeof(buf), this->f))
             return NULL;
-        std::string s(buf);
-        return pc_new(string_const)(s);
+        return pc_new(string_const)(buf);
     }
 
     virtual bool is_file() { return true; }

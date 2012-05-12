@@ -122,28 +122,29 @@ builtin_hidden_classes = {
 }
 
 def write_backend_setup(f):
-    f.write('#define __STDC_FORMAT_MACROS\n')
-    f.write('#include <assert.h>\n')
-    f.write('#include <inttypes.h>\n')
-    f.write('#include <stdarg.h>\n')
-    f.write('#include <stddef.h>\n')
-    f.write('#include <stdint.h>\n')
-    f.write('#include <stdio.h>\n')
-    f.write('#include <stdlib.h>\n')
-    f.write('#include <string.h>\n')
-    f.write('#include <algorithm>\n')
-    f.write('#include <map>\n')
-    f.write('#include <set>\n')
-    f.write('#include <sstream>\n')
-    f.write('#include <string>\n')
-    f.write('#include <vector>\n')
+    f.write("""#define __STDC_FORMAT_MACROS
+#include <assert.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <algorithm>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
+#include <vector>
+
+class node;
+class tuple;
+class dict;
+class context;
+""")
 
     alloc.write_allocator(f)
-
-    f.write('class node;\n')
-    f.write('class tuple;\n')
-    f.write('class dict;\n')
-    f.write('class context;\n')
 
     f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
         ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
