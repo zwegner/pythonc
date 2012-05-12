@@ -1117,7 +1117,7 @@ public:
 
     node *read(int_t len) {
         static char buf[64*1024];
-        if (len >= sizeof(buf))
+        if ((unsigned)len >= sizeof(buf))
             error("len too long");
         size_t ret = fread(buf, 1, len, this->f);
         std::string s(buf, ret);
