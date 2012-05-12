@@ -1400,7 +1400,7 @@ public:
             plist->items.push_back(pc_new(string_const)(argv[a]));
         ctx.store(0, plist);
 
-        // stdip
+        // stdio
         ctx.store(1, pc_new(file)(stdin));
         ctx.store(2, pc_new(file)(stdout));
     }

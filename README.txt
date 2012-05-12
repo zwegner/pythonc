@@ -52,7 +52,7 @@ Classes with inheritance
 Any dynamic features (introspection/runtime code generation)
 Exceptions
 Floating point
-Imports/the entire standard library
+Dynamic imports/most of the standard library
 Useful error messages
 Several cases of complex compound expressions (e.g. assigning to slices)
 Generators
