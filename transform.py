@@ -37,7 +37,6 @@ class TranslateError(Exception):
 
 class Transformer(ast.NodeTransformer):
     def __init__(self):
-        self.temp_id = 0
         self.statements = []
         self.in_class = False
         self.in_function = False
@@ -204,26 +203,32 @@ class Transformer(ast.NodeTransformer):
     def visit_Assign(self, node):
         assert len(node.targets) == 1
         target = node.targets[0]
-        value = self.visit(node.value)
-        if isinstance(target, ast.Name):
-            return [syntax.Store(target.id, value)]
-        elif isinstance(target, ast.Tuple):
-            if not all(isinstance(t, ast.Name) for t in target.elts):
-                raise TranslateError(target, 'Pythonc does not yet support nested tuple assignment')
-            stmts = []
-            for i, t in enumerate(target.elts):
-                stmts += [syntax.Store(t.id, syntax.Subscript(value, syntax.IntConst(i)))]
-            return stmts
-        elif isinstance(target, ast.Attribute):
-            base = self.visit(target.value)
-            return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
-        elif isinstance(target, ast.Subscript):
-            assert isinstance(target.slice, ast.Index)
-            base = self.visit(target.value)
-            index = self.visit(target.slice.value)
-            return [syntax.StoreSubscript(base, index, value)]
-        else:
-            assert False
+        # XXX will this always be unique? Should find a better
+        # solution for this, regardless...
+        temp = '__tuple_unpack_temp'
+        stmts = [syntax.Store(temp, self.visit(node.value))]
+        value = syntax.Load(temp)
+
+        def assign_value(target, value):
+            if isinstance(target, ast.Name):
+                return [syntax.Store(target.id, value)]
+            elif isinstance(target, ast.Tuple):
+                stmts = []
+                for i, t in enumerate(target.elts):
+                    stmts += assign_value(t, syntax.Subscript(value, syntax.IntConst(i)))
+                return stmts
+            elif isinstance(target, ast.Attribute):
+                base = self.visit(target.value)
+                return [syntax.StoreAttr(base, syntax.StringConst(target.attr), value)]
+            elif isinstance(target, ast.Subscript):
+                assert isinstance(target.slice, ast.Index)
+                base = self.visit(target.value)
+                index = self.visit(target.slice.value)
+                return [syntax.StoreSubscript(base, index, value)]
+            else:
+                assert False
+
+        return stmts + assign_value(target, value)
 
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
