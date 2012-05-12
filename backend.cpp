@@ -2339,10 +2339,6 @@ inline node *builtin_tuple_index(tuple *self, node *arg) {
     error("item not found in tuple");
 }
 
-#define BUILTIN_FUNCTION(name) builtin_function_def builtin_function_##name(#name, wrapped_builtin_##name);
-LIST_BUILTIN_FUNCTIONS(BUILTIN_FUNCTION)
-#undef BUILTIN_FUNCTION
-
 void collect_garbage(context *ctx, node *ret_val) {
     static int gc_tick = 0;
     if (++gc_tick > 128) {

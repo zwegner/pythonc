@@ -145,8 +145,6 @@ def write_backend_setup(f):
     f.write('class dict;\n')
     f.write('class context;\n')
 
-    f.write('#define LIST_BUILTIN_FUNCTIONS(x) %s\n' %
-        ' '.join('x(%s)' % name for name in sorted(builtin_functions)))
     f.write('#define LIST_BUILTIN_CLASSES(x) %s\n' %
         ' '.join('x(%s)' % name for name in sorted(builtin_classes)))
     f.write('#define LIST_BUILTIN_HIDDEN_CLASSES(x) %s\n' %
@@ -207,6 +205,7 @@ def write_backend_post_setup(f):
         args = print_arg_logic(name, f, n_args)
         f.write('    return builtin_%s(%s);\n' % (name, args))
         f.write('}\n')
+        f.write('builtin_function_def builtin_function_{name}("{name}", wrapped_builtin_{name});\n'.format(name=name))
 
     for class_name in sorted(builtin_methods):
         methods = builtin_methods[class_name]
