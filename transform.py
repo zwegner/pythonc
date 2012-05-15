@@ -30,6 +30,9 @@ inplace_op_table = {
     '__%s__' % x: '__i%s__' % x
     for x in ['add', 'and', 'floordiv', 'lshift', 'mod', 'mul', 'or', 'pow', 'rshift', 'sub', 'truediv', 'xor']
 }
+builtin_modules = {
+    'sys',
+}
 
 class TranslateError(Exception):
     def __init__(self, node, msg):
@@ -415,12 +418,10 @@ class Transformer(ast.NodeTransformer):
     def visit_Import(self, node):
         statements = []
         for name in node.names:
-            assert not name.asname
-            assert name.name
-            builtin_modules = {m: 'module_%s_singleton' % m for m in ['sys']}
+            alias = name.asname
             name = name.name
             if name in builtin_modules:
-                module = syntax.Store(name, syntax.SingletonRef(builtin_modules[name]))
+                module = syntax.SingletonRef('module_%s_singleton' % name)
             else:
                 path = '%s.py' % name
                 if not os.path.exists(path):
@@ -428,7 +429,11 @@ class Transformer(ast.NodeTransformer):
                 stmts = transform(path)
                 path = os.path.abspath(path)
                 module = syntax.ModuleDef(name, path, stmts)
-            statements.append(module)
+
+            if alias:
+                name = alias
+            statements.append(syntax.Store(name, module))
+
         return statements
 
     def visit_Expr(self, node):

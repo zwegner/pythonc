@@ -1095,7 +1095,7 @@ class ModuleDef(Node):
 
         ctx.add_module(self)
 
-        return Store(self.name, SingletonRef(self.module_inst))
+        return SingletonRef(self.module_inst)
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
