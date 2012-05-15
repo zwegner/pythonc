@@ -565,6 +565,11 @@ class NullConst(Node):
     def __str__(self):
         return 'NULL'
 
+@node('value')
+class IntLiteral(Node):
+    def __str__(self):
+        return '%s' % self.value
+
 @node()
 class NoneConst(Node):
     def __str__(self):
@@ -612,7 +617,7 @@ class Global(Node):
 @node('name')
 class SingletonRef(Node):
     def __str__(self):
-        return '&%s' % self.name
+        return '(&%s)' % self.name
 
 @node('ref_type, args')
 class Ref(Node):
@@ -1082,8 +1087,8 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
         module=self.module, oname=self.obj_name, stmts=stmts)
         return body
 
-@node('name, path, *stmts')
-class ModuleDef(Node):
+@node('name, from_names, path, *stmts')
+class ImportStatement(Node):
     def setup(self):
         self.module_name = 'module_%s' % self.name
         self.module_inst = '%s_singleton' % self.module_name
@@ -1094,6 +1099,17 @@ class ModuleDef(Node):
         self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]
 
         ctx.add_module(self)
+
+        if self.from_names is not None:
+            if len(self.from_names) == 0:
+                from_names = list(self.module_ctx.global_idx.items())
+            else:
+                from_names = [(asname, self.module_ctx.global_idx[name])
+                        for name, asname in self.from_names]
+            for asname, idx in from_names:
+                sym = MethodCall(SingletonRef('ctx_%s' % self.name),
+                        'load', [IntLiteral(idx)])
+                ctx.add_statement(Store(asname, sym))
 
         return SingletonRef(self.module_inst)
 

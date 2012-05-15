@@ -415,26 +415,42 @@ class Transformer(ast.NodeTransformer):
 
         return syntax.ClassDef(node.name, body)
 
+    def gen_import(self, node, name, from_names=None):
+        if name in builtin_modules:
+            assert not from_names
+            module = syntax.SingletonRef('module_%s_singleton' % name)
+        else:
+            path = '%s.py' % name
+            if not os.path.exists(path):
+                raise TranslateError(node, 'cannot find %s' % path)
+            stmts = transform(path)
+            path = os.path.abspath(path)
+            module = syntax.ImportStatement(name, from_names, path, stmts)
+
+        return module
+
     def visit_Import(self, node):
         statements = []
         for name in node.names:
-            alias = name.asname
-            name = name.name
-            if name in builtin_modules:
-                module = syntax.SingletonRef('module_%s_singleton' % name)
-            else:
-                path = '%s.py' % name
-                if not os.path.exists(path):
-                    raise TranslateError(node, 'cannot find %s' % path)
-                stmts = transform(path)
-                path = os.path.abspath(path)
-                module = syntax.ModuleDef(name, path, stmts)
-
-            if alias:
-                name = alias
+            module = self.gen_import(node, name.name)
+            name = name.asname or name.name
             statements.append(syntax.Store(name, module))
 
         return statements
+
+    def visit_ImportFrom(self, node):
+        assert not node.level
+        assert '.' not in node.module
+
+        # Empty list is a sentinel value for *
+        if any('*' in name.name for name in node.names):
+            assert len(node.names) == 1
+            from_names = []
+        else:
+            from_names = [(name.name, name.asname or name.name) for name in node.names]
+
+        return [self.gen_import(node, node.module, from_names=from_names)]
+
 
     def visit_Expr(self, node):
         return self.visit(node.value)
