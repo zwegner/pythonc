@@ -789,6 +789,16 @@ class Assign(Node):
         target_type = ('%s *' % self.target_type) if self.target_type else ''
         return '%s%s = %s' % (target_type, self.target(), self.expr())
 
+@node('&name')
+class PushTemp(Node):
+    def __str__(self):
+        return 'ctx->push(%s)' % self.name()
+
+@node('')
+class PopTemp(Node):
+    def __str__(self):
+        return 'ctx->pop()'
+
 @node('&expr')
 class Test(Node):
     def __str__(self):
@@ -873,11 +883,12 @@ class Continue(Node):
 @node('target, &iter, $stmts')
 class For(Node):
     def reduce(self, ctx):
-        iter_name = ctx.get_temp()
-        ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
+        iter_name = ctx.get_temp_id()
+        ctx.add_statement(Assign(iter_name, UnaryOp('__iter__', self.iter()), 'node'))
+        ctx.add_statement(PushTemp(iter_name))
 
         # Get next item of iterable
-        iter_next = MethodCall(Load(iter_name), 'next', [])
+        iter_next = MethodCall(iter_name, 'next', [])
         item = ctx.get_temp_id()
         stmts = [Assign(item, iter_next, 'node')]
         stmts += [If(item, [], [Break()])]
@@ -891,9 +902,9 @@ class For(Node):
 
         stmts += [s() for s in self.stmts]
 
-        w = While(stmts)
+        ctx.add_statement(While(stmts))
 
-        return w
+        return PopTemp()
 
 @node('$stmts')
 class While(Node):

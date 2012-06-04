@@ -208,6 +208,7 @@ private:
     node **symbols;
     context *parent_ctx;
 
+    node_list stack;
 public:
     context(uint32_t size, node **symbols) {
         this->parent_ctx = NULL;
@@ -220,11 +221,22 @@ public:
         this->sym_len = size;
     }
 
+    void push(node *n) {
+        this->stack.push_back(n);
+    }
+
+    void pop() {
+        this->stack.pop_back();
+    }
+
     void mark_live(bool free_ctx) {
-        if (!free_ctx)
+        if (!free_ctx) {
             for (uint32_t i = 0; i < this->sym_len; i++)
                 if (this->symbols[i])
                     this->symbols[i]->mark_live();
+            for (size_t i = 0; i < this->stack.size(); i++)
+                this->stack[i]->mark_live();
+        }
         if (this->parent_ctx)
             this->parent_ctx->mark_live(false);
     }
