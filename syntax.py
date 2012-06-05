@@ -957,7 +957,7 @@ class Arguments(Node):
         for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
             arg_value = Subscript(args, IntConst(i))
             if default:
-                comp = BinaryOp('__gt__', MethodCall(args, 'len', []), IntConst(i))
+                comp = BinaryOp('__gt__', MethodCall(args, '__len__', []), IntConst(i))
                 arg_value = IfExp(comp, arg_value, default())
 
 #            temp = ctx.get_temp_id()
