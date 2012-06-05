@@ -836,12 +836,13 @@ class Comprehension(Node):
             l = List([])
         temp = ctx.get_temp_id()
         ctx.add_statement(Assign(temp, l, self.comp_type))
-        iter_name = ctx.get_temp()
-        ctx.add_statement(Store(iter_name, UnaryOp('__iter__', self.iter())))
+        iter_name = ctx.get_temp_id()
+        ctx.add_statement(Assign(iter_name, UnaryOp('__iter__', self.iter()), 'node'))
+        ctx.add_statement(PushTemp(iter_name))
 
         # Construct body of while loop that implements comprehension
         # Get next item of iterable
-        iter_next = MethodCall(Load(iter_name), 'next', [])
+        iter_next = MethodCall(iter_name, 'next', [])
         item = ctx.get_temp_id()
         stmts = [Assign(item, iter_next, 'node')]
         stmts += [If(item, [], [Break()])]
@@ -864,9 +865,8 @@ class Comprehension(Node):
         else:
             stmts += [MethodCall(temp, 'append', [self.expr()])]
 
-        w = While(stmts)
-
-        ctx.add_statement(w)
+        ctx.add_statement(While(stmts))
+        ctx.add_statement(PopTemp())
 
         return temp
 
