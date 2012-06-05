@@ -9,13 +9,13 @@ import syntax
 import transform
 
 def usage():
-    print('usage: %s [-O] <input.py> [args...]' % sys.argv[0])
+    print('usage: %s [-Ov] <input.py> [args...]' % sys.argv[0])
     exit(1)
 
 args = sys.argv[1:]
 
 gcc_flags = ['-g', '-Wall', '-std=c++0x']
-quiet = False
+quiet = True
 compile_only = False
 while args:
     arg = args.pop(0)
@@ -23,8 +23,8 @@ while args:
         gcc_flags += ['-O3']
     elif arg == '-c':
         compile_only = True
-    elif arg == '-q':
-        quiet = True
+    elif arg == '-v':
+        quiet = False
     else:
         args = [arg] + args
         break
@@ -35,12 +35,8 @@ if not args:
 path = args[0]
 base = os.path.splitext(path)[0]
 
-def compile(input_path, output_path):
-    node = transform.transform(input_path)
-    syntax.write_output(node, output_path)
-
 start = time.time()
-compile(path, '%s.cpp' % base)
+transform.compile(path, '%s.cpp' % base)
 elapsed = time.time() - start
 if not quiet:
     print('Transform time: %.4fs' % elapsed)

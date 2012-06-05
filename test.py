@@ -33,7 +33,7 @@ for i in os.listdir('tests'):
 
     # Compile
     comp_start = time.time()
-    out_p = subprocess.check_output('./pythonc.py -O -q -c test.py', cwd=cwd, shell=True)
+    out_p = subprocess.check_output('./pythonc.py -O -c test.py', cwd=cwd, shell=True)
 
     # Run pythonc-compiled version
     start = time.time()

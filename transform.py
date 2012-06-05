@@ -470,3 +470,7 @@ def transform(path):
         node = ast.parse(f.read())
 
     return Transformer().visit(node)
+
+def compile(input_path, output_path):
+    node = transform(input_path)
+    syntax.write_output(node, output_path)
