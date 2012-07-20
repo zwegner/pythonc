@@ -193,13 +193,16 @@ class Transformer(ast.NodeTransformer):
         else:
             args = syntax.Tuple([self.visit(a) for a in node.args])
 
-        assert not node.kwargs
+        if node.kwargs:
+            kwargs = self.visit(node.kwargs)
+        else:
+            kwargs = syntax.Dict([], [])
+
         if node.keywords:
+            assert not node.kwargs
             keys = [syntax.StringConst(i.arg) for i in node.keywords]
             values = [self.visit(i.value) for i in node.keywords]
             kwargs = syntax.Dict(keys, values)
-        else:
-            kwargs = syntax.NullConst()
 
         return syntax.Call(fn, args, kwargs)
 

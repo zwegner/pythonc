@@ -804,6 +804,13 @@ class Test(Node):
     def __str__(self):
         return '%s->bool_value()' % self.expr()
 
+# Don't flatten since we can't store NULL in the symbol table
+@node('&expr', no_flatten=['expr'])
+class TestNonNull(Node):
+    def __str__(self):
+        # XXX hack, have to create a node type
+        return 'create_bool_const(%s != NULL)' % self.expr()
+
 @node('&expr, $true_stmts, $false_stmts', no_flatten=['expr'])
 class If(Node):
     def __str__(self):
@@ -948,8 +955,8 @@ class CollectGarbage(Node):
 @node('args, *defaults')
 class Arguments(Node):
     def reduce(self, ctx):
-        new_def = [None] * (len(self.args) - len(self.defaults))
-        defaults = new_def + self.defaults
+        defaults = [None] * (len(self.args) - len(self.defaults))
+        defaults += self.defaults
         name_strings = [Edge(StringConst(a)) for a in self.args]
 
         args = Identifier('args')
@@ -960,12 +967,9 @@ class Arguments(Node):
                 comp = BinaryOp('__gt__', MethodCall(args, '__len__', []), IntConst(i))
                 arg_value = IfExp(comp, arg_value, default())
 
-#            temp = ctx.get_temp_id()
-#            ctx.add_statement(Assign(temp, MethodCall(kwargs, 'lookup', [name()])))
-#            comp = BinaryOp('__gt__', MethodCall(args, 'len', []), IntConst(i))
-#            arg_value = IfExp(comp, arg_value, default())
-#            arg_value = '(kwargs && kwargs->lookup(%s)) ? kwargs->lookup(%s) : %s' % \
-#                (name(), name(), arg_value)
+            lookup = MethodCall(kwargs, 'lookup', [name()])
+            arg_value = IfExp(Test(BoolOp('and', TestNonNull(kwargs),
+                TestNonNull(lookup))), lookup, arg_value)
 
             ctx.add_statement(Store(arg, arg_value))
 
