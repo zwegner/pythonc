@@ -23,6 +23,7 @@
 
 import ast
 import os
+import sys
 
 import syntax
 
@@ -423,12 +424,16 @@ class Transformer(ast.NodeTransformer):
             assert not from_names
             module = syntax.SingletonRef('module_%s_singleton' % name)
         else:
-            path = '%s.py' % name
-            if not os.path.exists(path):
+            for d in (sys.path[0], '.'):
+                path = '%s/%s.py' % (d, name)
+                if os.path.exists(path):
+                    break
+            else:
                 raise TranslateError(node, 'cannot find %s' % path)
-            stmts = transform(path)
+
+            stmts = transform(path, name == '__builtins__')
             path = os.path.abspath(path)
-            module = syntax.ImportStatement(name, from_names, path, stmts)
+            module = syntax.ImportStatement(name, from_names, path, False, stmts)
 
         return module
 
@@ -454,7 +459,6 @@ class Transformer(ast.NodeTransformer):
 
         return [self.gen_import(node, node.module, from_names=from_names)]
 
-
     def visit_Expr(self, node):
         return self.visit(node.value)
 
@@ -468,9 +472,14 @@ class Transformer(ast.NodeTransformer):
     def visit_Load(self, node): pass
     def visit_Store(self, node): pass
 
-def transform(path):
+def transform(path, builtin=False):
     with open(path) as f:
-        node = ast.parse(f.read())
+        text = f.read()
+        # XXX HACK! this seems rather necessary at the moment, so the syntax
+        # module can stay ast-module agnostic.
+        if not builtin:
+            text = 'from __builtins__ import *\n' + text
+        node = ast.parse(text)
 
     return Transformer().visit(node)
 

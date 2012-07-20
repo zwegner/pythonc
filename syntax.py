@@ -27,8 +27,6 @@ import alloc
 
 builtin_functions = {
     'abs': 1,
-    'all': 1,
-    'any': 1,
     'isinstance': 2,
     'iter': 1,
     'len': 1,
@@ -36,8 +34,6 @@ builtin_functions = {
     'min': 1,
     'open': 2,
     'ord': 1,
-    'print': -1,
-    'print_nonl': 1,
     'repr': 1,
     'sorted': 1,
 }
@@ -964,7 +960,7 @@ class Arguments(Node):
         for i, (arg, default, name) in enumerate(zip(self.args, defaults, name_strings)):
             arg_value = Subscript(args, IntConst(i))
             if default:
-                comp = BinaryOp('__gt__', MethodCall(args, '__len__', []), IntConst(i))
+                comp = BinaryOp('_gt', MethodCall(args, '__len__', []), IntConst(i))
                 arg_value = IfExp(comp, arg_value, default())
 
             lookup = MethodCall(kwargs, 'lookup', [name()])
@@ -1102,7 +1098,7 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
         module=self.module, oname=self.obj_name, stmts=stmts)
         return body
 
-@node('name, from_names, path, *stmts')
+@node('name, from_names, path, builtin, *stmts')
 class ImportStatement(Node):
     def setup(self):
         self.module_name = 'module_%s' % self.name
@@ -1110,10 +1106,14 @@ class ImportStatement(Node):
 
     def reduce(self, ctx):
         self.module_ctx = Context(self.name)
-        stmts = globals_init(self.module_ctx) + [s() for s in self.stmts]
-        self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]
-
         ctx.add_module(self)
+
+        stmts = []
+        if self.name != 'builtins':#not self.builtin:
+            stmts += globals_init(self.module_ctx)
+        stmts += [s() for s in self.stmts]
+
+        self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]
 
         if self.from_names is not None:
             if len(self.from_names) == 0:

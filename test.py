@@ -19,7 +19,7 @@ for i in os.listdir('tests'):
     cwd = '.temp'
     shutil.rmtree(cwd)
     os.mkdir(cwd)
-    for j in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.py']:
+    for j in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.py', '__builtins__.py']:
         shutil.copy(j, cwd)
 
     path = 'tests/%s' % i

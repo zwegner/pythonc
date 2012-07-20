@@ -1995,24 +1995,6 @@ inline node *builtin_abs(node *arg) {
     return arg->__abs__();
 }
 
-inline node *builtin_all(node *arg) {
-    node *iter = arg->__iter__();
-    while (node *item = iter->next()) {
-        if (!item->bool_value())
-            return &bool_singleton_False;
-    }
-    return &bool_singleton_True;
-}
-
-inline node *builtin_any(node *arg) {
-    node *iter = arg->__iter__();
-    while (node *item = iter->next()) {
-        if (item->bool_value())
-            return &bool_singleton_True;
-    }
-    return &bool_singleton_False;
-}
-
 inline node *builtin_dict_clear(dict *self) {
     self->items.clear();
     return &none_singleton;
@@ -2184,24 +2166,6 @@ inline node *builtin_ord(node *arg) {
     if (!arg->is_str() || arg->len() != 1)
         error("bad arguments to ord()");
     return pc_new(int_const)((unsigned char)arg->c_str()[0]);
-}
-
-inline node *builtin_print(tuple *args) {
-    std::string new_string;
-    int_t args_len = args->items.size();
-    for (int_t i = 0; i < args_len; i++) {
-        if (i)
-            new_string += " ";
-        node *s = args->items[i];
-        new_string += s->str();
-    }
-    printf("%s\n", new_string.c_str());
-    return &none_singleton;
-}
-
-inline node *builtin_print_nonl(node *arg) {
-    printf("%s", arg->str().c_str());
-    return &none_singleton;
 }
 
 inline node *builtin_repr(node *arg) {
