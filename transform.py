@@ -375,11 +375,16 @@ class Transformer(ast.NodeTransformer):
 
     def visit_arguments(self, node):
         assert not node.kwarg
-        assert not node.kwonlyargs
 
         args = [a.arg for a in node.args]
         defaults = self.visit_child_list(node.defaults)
-        return syntax.Arguments(args, defaults, node.vararg)
+        if node.kwonlyargs:
+            kwonlyargs = [a.arg for a in node.kwonlyargs]
+            kw_defaults = self.visit_child_list(node.kw_defaults)
+        else:
+            kwonlyargs, kw_defaults = None, []
+        return syntax.Arguments(args, defaults, node.vararg,
+                kwonlyargs, kw_defaults)
 
     def visit_FunctionDef(self, node):
         assert not self.in_function

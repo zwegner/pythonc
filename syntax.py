@@ -948,7 +948,7 @@ class CollectGarbage(Node):
     def __str__(self):
         return 'collect_garbage(ctx, %s)' % (self.expr() if self.expr else 'NULL')
 
-@node('args, *defaults, vararg')
+@node('args, *defaults, vararg, kwonlyargs, *kw_defaults')
 class Arguments(Node):
     def reduce(self, ctx):
         defaults = [None] * (len(self.args) - len(self.defaults))
@@ -968,6 +968,16 @@ class Arguments(Node):
                 TestNonNull(lookup))), lookup, arg_value)
 
             ctx.add_statement(Store(arg, arg_value))
+
+        # Meh, figure out a way to reduce copy/paste
+        if self.kwonlyargs:
+            name_strings = [Edge(StringConst(a)) for a in self.kwonlyargs]
+            for i, (arg, default, name) in enumerate(zip(self.kwonlyargs, self.kw_defaults, name_strings)):
+                lookup = MethodCall(kwargs, 'lookup', [name()])
+                arg_value = IfExp(Test(BoolOp('and', TestNonNull(kwargs),
+                    TestNonNull(lookup))), lookup, default())
+
+                ctx.add_statement(Store(arg, arg_value))
 
         if self.vararg:
             vararg = MethodCall(args, '__slice__', [IntConst(len(self.args)), NoneConst(), NoneConst()])
