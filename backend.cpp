@@ -829,6 +829,19 @@ public:
         return this->__getitem__(rhs->int_value());
     }
     virtual int_t len() { return this->items.size(); }
+    virtual node *__slice__(node *start, node *end, node *step) {
+        if ((!start->is_none() && !start->is_int_const()) ||
+            (!end->is_none() && !end->is_int_const()) ||
+            (!step->is_none() && !step->is_int_const()))
+            error("slice error");
+        int_t lo = start->is_none() ? 0 : start->int_value();
+        int_t hi = end->is_none() ? items.size() : end->int_value();
+        int_t st = step->is_none() ? 1 : step->int_value();
+        tuple *new_tuple = pc_new(tuple)((hi - lo) / st);
+        for (int_t i = 0; st > 0 ? (lo < hi) : (lo > hi); lo += st, i++)
+            new_tuple->items[i] = items[lo];
+        return new_tuple;
+    }
     virtual node *type() { return &builtin_class_tuple; }
     virtual std::string repr() {
         std::string new_string = "(";

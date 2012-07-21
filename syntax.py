@@ -948,7 +948,7 @@ class CollectGarbage(Node):
     def __str__(self):
         return 'collect_garbage(ctx, %s)' % (self.expr() if self.expr else 'NULL')
 
-@node('args, *defaults')
+@node('args, *defaults, vararg')
 class Arguments(Node):
     def reduce(self, ctx):
         defaults = [None] * (len(self.args) - len(self.defaults))
@@ -968,6 +968,10 @@ class Arguments(Node):
                 TestNonNull(lookup))), lookup, arg_value)
 
             ctx.add_statement(Store(arg, arg_value))
+
+        if self.vararg:
+            vararg = MethodCall(args, '__slice__', [IntConst(len(self.args)), NoneConst(), NoneConst()])
+            ctx.add_statement(Store(self.vararg, vararg))
 
         return self
 

@@ -374,12 +374,12 @@ class Transformer(ast.NodeTransformer):
         return syntax.Raise(expr, node.lineno)
 
     def visit_arguments(self, node):
-        assert not node.vararg
         assert not node.kwarg
+        assert not node.kwonlyargs
 
         args = [a.arg for a in node.args]
         defaults = self.visit_child_list(node.defaults)
-        return syntax.Arguments(args, defaults)
+        return syntax.Arguments(args, defaults, node.vararg)
 
     def visit_FunctionDef(self, node):
         assert not self.in_function

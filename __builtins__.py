@@ -43,11 +43,11 @@ def all(iterable):
 #        r.append(func(element))
 #    return r
 
-def print(arg, sep=None, end=None, file=None):
+def print(*args, sep=None, end=None, file=None):
     if sep is None:
         sep = ' '
     if end is None:
         end = '\n'
     if file is None:
         file = sys.stdout
-    file.write(sep.join((arg,)) + end)
+    file.write(sep.join(args) + end)
