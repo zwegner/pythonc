@@ -306,6 +306,9 @@ def register_bytes(value):
 def int_name(i):
     return 'int_singleton_neg%d' % -i if i < 0 else 'int_singleton_%d' % i
 
+# XXX better way than global?
+module_paths = set()
+
 class Context:
     def __init__(self, module):
         self.statements = []
@@ -343,7 +346,9 @@ class Context:
         return statements
 
     def add_module(self, m):
-        self.modules.append(m)
+        if m.path not in module_paths:
+            module_paths.add(m.path)
+            self.modules.append(m)
 
     def add_class(self, c):
         c.flatten(self)
@@ -1123,7 +1128,7 @@ class ImportStatement(Node):
         ctx.add_module(self)
 
         stmts = []
-        if self.name != 'builtins':#not self.builtin:
+        if self.name != '__builtins__':#not self.builtin:
             stmts += globals_init(self.module_ctx)
         stmts += [s() for s in self.stmts]
 
