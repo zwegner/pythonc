@@ -19,9 +19,12 @@ for i in os.listdir('tests'):
     cwd = '.temp'
     shutil.rmtree(cwd)
     os.mkdir(cwd)
+
+    # Copy Pythonc scripts into temp directory
     for j in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.py', '__builtins__.py']:
         shutil.copy(j, cwd)
 
+    # Copy the test and/or test data
     path = 'tests/%s' % i
     if i.endswith('.py'):
         shutil.copy(path, '%s/test.py' % cwd)
