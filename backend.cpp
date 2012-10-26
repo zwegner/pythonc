@@ -1407,38 +1407,6 @@ public:
     virtual node *type() { return &builtin_class_type; }
 };
 
-// HACK!!
-class module_sys: public module_def {
-private:
-    context ctx;
-    node *mod_syms[3];
-public:
-    module_sys() : ctx(3, mod_syms) {
-    }
-    // sys module gets special handling...
-    void init(int argc, char **argv) {
-        // argv
-        list *plist = pc_new(list)();
-        for (int_t a = 0; a < argc; a++)
-            plist->items.push_back(pc_new(string_const)(argv[a]));
-        ctx.store(0, plist);
-
-        // stdio
-        ctx.store(1, pc_new(file)(stdin));
-        ctx.store(2, pc_new(file)(stdout));
-    }
-    virtual node *getattr(const char *attr) {
-        if (!strcmp(attr, "argv")) return ctx.load(0);
-        else if (!strcmp(attr, "stdin")) return ctx.load(1);
-        else if (!strcmp(attr, "stdout")) return ctx.load(2);
-        error("not found");
-    }
-    virtual std::string repr() {
-        return std::string("<module 'sys' (built-in)>");
-    }
-    virtual const char *type_name() { return "module_sys"; }
-} module_sys_singleton;
-
 bool_const bool_singleton_True(true);
 bool_const bool_singleton_False(false);
 none_const none_singleton(0);

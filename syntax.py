@@ -116,6 +116,13 @@ builtin_hidden_classes = {
     'str_iterator',
     'tuple_iterator',
 }
+builtin_modules = {
+    'sys': {
+        'argv': 'pc_new(list)()',
+        'stdin': 'pc_new(file)(stdin)',
+        'stdout': 'pc_new(file)(stdout)',
+    },
+}
 
 def write_backend_setup(f):
     f.write("""#define __STDC_FORMAT_MACROS
@@ -220,6 +227,33 @@ def write_backend_post_setup(f):
         f.write('    return %s_init(%s);\n' % (name, args))
         f.write('}\n')
 
+    for name, attrs in builtin_modules.items():
+        count = len(attrs)
+        f.write('class module_%s: public module_def {\n' % name)
+        f.write('private:\n')
+        f.write('    context ctx;\n')
+        f.write('    node *mod_syms[%s];\n' % count)
+        f.write('public:\n')
+        f.write('    module_%s() : ctx(%s, mod_syms) {\n' % (name, count))
+
+        for i, (attr, init) in enumerate(sorted(attrs.items())):
+            f.write('        ctx.store(%s, %s);\n' % (i, init))
+
+        f.write('    }\n')
+        f.write('    virtual node *getattr(const char *attr) {\n')
+
+        for i, attr in enumerate(sorted(attrs)):
+            f.write('        %sif (!strcmp(attr, "%s")) return ctx.load(%i);\n' %
+                    ('else ' if i > 0 else '', attr, i))
+
+        f.write('        error("not found");\n')
+        f.write('    }\n')
+        f.write('    virtual std::string repr() {\n')
+        f.write('        return std::string("<module \'%s\' (built-in)>");\n' % name)
+        f.write('    }\n')
+        f.write('    virtual const char *type_name() { return "module_%s"; }\n' % name)
+        f.write('} module_%s_singleton;\n' % name)
+
     for i in sorted(all_ints):
         f.write('int_const_singleton %s(%sll);\n' % (int_name(i), i))
 
@@ -261,11 +295,10 @@ def write_output(stmts, path):
 
         f.write('int main(int argc, char **argv) {\n')
         f.write('    context *ctx = &ctx___main__, *globals = ctx;\n')
-
-        f.write('    module_sys_singleton.init(argc, argv);\n')
-
+        f.write('    list *args = (list *)module_sys_singleton.getattr("argv");\n')
+        f.write('    for (int_t a = 0; a < argc; a++)\n')
+        f.write('        args->append(pc_new(string_const)(argv[a]));\n')
         f.write(indent(stmts))
-
         f.write('\n}\n')
 
 def indent(stmts, spaces=4):
