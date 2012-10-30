@@ -365,7 +365,7 @@ class Context:
         node = edge()
         node = node.reduce_internal(self)
         edge.set(node)
-        if not force_atom and not node.is_atom():
+        if not force_atom and not type(node).is_atom:
             temp = self.get_temp()
             edge.set(Load(temp))
             self.statements.append(Edge(Store(temp, node)))
@@ -496,7 +496,7 @@ arg_map = {'&': ARG_EDGE, '*': ARG_EDGE_LIST, '$': ARG_BLOCK}
 # &expr -> edge attribute, will create an Edge object (used for linking to other Nodes)
 # *explist -> python list of edges
 # $stmts -> also python list of edges, but representing an enclosed block
-def node(argstr='', no_flatten=[]):
+def node(argstr='', no_flatten=[], const=False):
     args = [a.strip() for a in argstr.split(',') if a.strip()]
     new_args = []
     for a in args:
@@ -509,7 +509,7 @@ def node(argstr='', no_flatten=[]):
 
     atom = not any(a[0] != ARG_REG for a in args)
 
-    # Decorators must return a function. This adds __init__ and is_atom methods
+    # Decorators must return a function. This adds __init__ and some other methods
     # to a Node subclass
     def attach(node):
         def __init__(self, *iargs):
@@ -547,6 +547,8 @@ def node(argstr='', no_flatten=[]):
 
             if self:
                 self.flatten(ctx)
+                if hasattr(self, 'simplify'):
+                    self = self.simplify(self)
 
             return self
 
@@ -583,15 +585,13 @@ def node(argstr='', no_flatten=[]):
                             getattr(self, arg_name)))
                 print('%s)' % (' ' * indent))
                 
-        def is_atom(self):
-            return atom
-
         node.__init__ = __init__
         node.iterate_subtree = iterate_subtree
         node.reduce_internal = reduce_internal
         node.flatten = flatten
         node.print_tree = print_tree
-        node.is_atom = is_atom
+        node.is_atom = atom
+        node.is_const = const
 
         return node
 
@@ -612,12 +612,12 @@ class NoneConst(Node):
     def __str__(self):
         return '(&none_singleton)'
 
-@node('value')
+@node('value', const=True)
 class BoolConst(Node):
     def __str__(self):
         return '(&bool_singleton_%s)' % self.value
 
-@node('value')
+@node('value', const=True)
 class IntConst(Node):
     def setup(self):
         register_int(self.value)
@@ -625,7 +625,7 @@ class IntConst(Node):
     def __str__(self):
         return '(&%s)' % int_name(self.value)
 
-@node('value')
+@node('value', const=True)
 class StringConst(Node):
     def setup(self):
         self.id = register_string(self.value)
@@ -633,7 +633,7 @@ class StringConst(Node):
     def __str__(self):
         return '(&string_singleton_%s)' % self.id
 
-@node('value')
+@node('value', const=True)
 class BytesConst(Node):
     def setup(self):
         self.id = register_bytes(self.value)
@@ -668,6 +668,22 @@ class UnaryOp(Node):
 
 @node('op, &lhs, &rhs')
 class BinaryOp(Node):
+    def simplify(self, ctx):
+        if type(self.lhs()).is_const and type(self.rhs()).is_const:
+            # A bit hacky: use Python logic
+            try:
+                value = self.lhs().value.__getattribute__(self.op)(self.rhs().value)
+                pc_class = {
+                    int: IntConst,
+                    str: StringConst,
+                    bytes: BytesConst,
+                    bool: BoolConst
+                }[type(value)]
+                self = pc_class(value)
+            except Exception:
+                pass
+        return self
+
     def __str__(self):
         return '%s->%s(%s)' % (self.lhs(), self.op, self.rhs())
 
