@@ -1115,7 +1115,7 @@ class ClassDef(Node):
 class {cname}: public class_def {{
 public:
     {cname}() {{
-    context *globals = &ctx_{module};
+        context *globals = &ctx_{module};
 {stmts}
     }}
     virtual std::string repr() {{
