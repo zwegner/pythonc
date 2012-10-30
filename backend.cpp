@@ -1382,28 +1382,7 @@ public:
 
 // Abstract base class of module singleton classes
 class module_def : public node {
-protected:
-    attr_dict attrs;
-
 public:
-    virtual void mark_live() {
-        // Note that we are a singleton and thus do not mark ourselves live...
-        for (auto it = this->attrs.begin(); it != this->attrs.end(); ++it) {
-            it->second->mark_live();
-        }
-    }
-
-    virtual node *getattr(const char *attr) {
-        return attrs[std::string(attr)];
-    }
-    void setattr(const char *attr, node *value) {
-        attrs[std::string(attr)] = value;
-    }
-    virtual void __setattr__(node *key, node *value) {
-        if (!key->is_str())
-            error("setattr with non-string");
-        return this->setattr(key->c_str(), value);
-    }
     virtual node *type() { return &builtin_class_type; }
 };
 

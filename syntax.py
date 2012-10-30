@@ -240,6 +240,9 @@ def write_backend_post_setup(f):
             f.write('        ctx.store(%s, %s);\n' % (i, init))
 
         f.write('    }\n')
+        f.write('    virtual void mark_live() {\n')
+        f.write('        ctx.mark_live(false);\n')
+        f.write('    }\n')
         f.write('    virtual node *getattr(const char *attr) {\n')
 
         for i, attr in enumerate(sorted(attrs)):
@@ -1184,8 +1187,9 @@ class ImportStatement(Node):
         stmts = block_str(self.stmts, spaces=8)
 
         getattrs = []
-        for key, idx in self.module_ctx.global_idx.items():
-            getattrs += ['else if (!strcmp(attr, "%s")) return ctx_%s.load(%s);' % (key, self.name, idx)]
+        for i, (key, idx) in enumerate(self.module_ctx.global_idx.items()):
+            getattrs += ['        %sif (!strcmp(attr, "%s")) return ctx_%s.load(%s);' % (
+                'else ' if i > 0 else '', key, self.name, idx)]
         getattrs = '\n'.join(getattrs)
 
         body = """
@@ -1195,8 +1199,10 @@ public:
         context *ctx = &ctx_{name}, *globals = ctx;
 {stmts}
     }}
+    virtual void mark_live() {{
+        ctx_{name}.mark_live(false);
+    }}
     virtual node *getattr(const char *attr) {{
-        if (0) ;
 {getattrs}
         error("not found");
     }}
