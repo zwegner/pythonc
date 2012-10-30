@@ -22,16 +22,6 @@ Eventually, the translator will be able to optimize the code substantially
 while translating. A speed somewhere close to C++ is expected. Sound ridiculous?
 Of course it does. But we'll just have to wait and see.
 
-Some near-term plans:
-Improve the memory management
-Do lots of simple but effective optimizations during translation
-Fill in enough of the Python builtins/simple modules to not care anymore
-Clean up the back end code
-Remove all use of the STL
-
-Some long-term plans:
-Use C instead of C++
-
 Python support
 ==============
 Pythonc only officially supports Python 3, and it will probably stay that way.
@@ -49,6 +39,8 @@ Probably a bunch of other little things
 
 Some things it doesn't support as of now:
 Classes with inheritance
+Modules don't allow setattr()
+locals()/globals()
 Any dynamic features (introspection/runtime code generation)
 Exceptions
 Floating point

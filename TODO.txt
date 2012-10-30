@@ -1,0 +1,29 @@
+Plans:
+--Improve the memory management
+    Do object-size specific allocations, as well as general power-of-two
+    allocations that can grow/shrink as necessary for vectors/maps/etc.
+    Algorithmic improvements on improving memory locality are needed too.
+    Also, where garbage collection happens and what gets marked as live.
+--Do lots of simple but effective optimizations during translation
+    This is mostly things like keeping a value table, simplifying
+    expressions, trying to do basic type inference, etc. The code
+    generated now is pretty ridiculous, with tons of stores and loads.
+--Fill in enough of the Python builtins/simple modules to not care anymore
+    One very important one is ctypes, so that we can interface with
+    C code directly (which should be an area that we excel at, if we
+    can optimize out the translation layer) and also write more
+    Pythonc code in Python.
+--Clean up the back end code
+    It would be nice to write something like dict() in Python, but
+    performance/compatibility are pretty tricky. There's no real
+    reason for something like enumerate() to be in C, though...
+--Remove all use of the STL
+    They are leaking memory right now, and I'd prefer to keep
+    as much logic in the Pythonc domain as possible. This relies on
+    writing replacements, and having memory management support for
+    growing/shrinking.
+--Use C instead of C++ 
+    This is mainly so that we are forced to keep the code very simple
+    and "close to the metal", and to have as much control over the
+    output as possible. We should not be relying so much on C++ language
+    features. Obviously this is pretty long-term...
