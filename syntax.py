@@ -565,25 +565,23 @@ def node(argstr='', no_flatten=[], const=False):
                     setattr(self, arg_name, ctx.flatten_list(getattr(self, arg_name)))
 
         def print_tree(self, indent=0):
-            if len(args) == 0:
-                print('%s' % type(self), sep='')
-            else:
-                print('%s%s(' % (' ' * indent, type(self)), sep='')
+            print('<%s>' % type(self).__name__, sep='')
+            if len(args) > 0:
                 for (arg_type, arg_name) in args:
                     if arg_type == ARG_EDGE:
-                        print('  %s%s=' % (' ' * indent, arg_name))
+                        print('  %s%s=' % (' ' * indent, arg_name), end='')
                         edge = getattr(self, arg_name)
                         if edge:
                             edge().print_tree(indent=indent+4)
                     elif arg_type in {ARG_EDGE_LIST, ARG_BLOCK}:
-                        print('  %s%s=[' % (' ' * indent, arg_name))
-                        for item in getattr(self, arg_name):
-                            item().print_tree(indent=indent+4)
-                        print('  %s],' % (' ' * indent))
+                        print('  %s%s=' % (' ' * indent, arg_name), end='')
+                        for i, item in enumerate(getattr(self, arg_name)):
+                            if i > 0:
+                                print(' ' * indent, end='')
+                            item().print_tree(indent=indent+8)
                     else:
-                        print('  %s%s=%s,' % (' ' * indent, arg_name,
+                        print('  %s%s=%s' % (' ' * indent, arg_name,
                             getattr(self, arg_name)))
-                print('%s)' % (' ' * indent))
                 
         node.__init__ = __init__
         node.iterate_subtree = iterate_subtree
