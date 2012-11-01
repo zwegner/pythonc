@@ -197,7 +197,7 @@ class Transformer(ast.NodeTransformer):
         if node.kwargs:
             kwargs = self.visit(node.kwargs)
         else:
-            kwargs = syntax.Dict([], [])
+            kwargs = syntax.NullConst()
 
         if node.keywords:
             assert not node.kwargs
