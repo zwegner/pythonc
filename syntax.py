@@ -1206,6 +1206,7 @@ class ImportStatement(Node):
                 'else ' if i > 0 else '', key, self.name, idx)]
         getattrs = '\n'.join(getattrs)
 
+        path = self.path.replace('\\', '\\\\') # Windows strikes again
         body = """
 class {mname}: public module_def {{
 public:
@@ -1226,5 +1227,5 @@ public:
     virtual const char *type_name() {{ return "{mname}"; }}
 }} {minst};
 """.format(name=self.name, mname=self.module_name, stmts=stmts,
-        getattrs=getattrs, minst=self.module_inst, path=self.path)
+        getattrs=getattrs, minst=self.module_inst, path=path)
         return body
