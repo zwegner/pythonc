@@ -17,7 +17,8 @@ for i in os.listdir('tests'):
 
     # Clear the temp directory
     cwd = '.temp'
-    shutil.rmtree(cwd)
+    if os.path.exists(cwd):
+        shutil.rmtree(cwd)
     os.mkdir(cwd)
 
     # Copy Pythonc scripts into temp directory
@@ -36,20 +37,23 @@ for i in os.listdir('tests'):
 
     # Compile
     comp_start = time.time()
-    out_p = subprocess.check_output('./pythonc.py -O -c test.py', cwd=cwd, shell=True)
+    out_p = subprocess.check_output('python pythonc.py -O -c test.py', cwd=cwd, shell=True)
 
     # Run pythonc-compiled version
     start = time.time()
-    out_p = subprocess.check_output('./test', cwd=cwd, shell=True)
+    out_p = subprocess.check_output('test', cwd=cwd, shell=True)
 
     # Run CPython version
     mid = time.time()
-    out_c = subprocess.check_output('python3 test.py', cwd=cwd, shell=True)
+    out_c = subprocess.check_output('python test.py', cwd=cwd, shell=True)
     end = time.time()
 
     if out_p != out_c:
         print('%s mismatched!\nPythonc:\n%s\nCPython:\n%s' % (i,
             out_p.decode(), out_c.decode()))
+        for path, data in [['out.pythonc', out_p], ['out.cpython', out_c]]:
+            with open(path, 'w') as f:
+                f.write(data.decode())
         fails += 1
     else:
         passes += 1
