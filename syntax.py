@@ -1064,7 +1064,7 @@ def get_globals_locals(node):
 
     return all_globals, all_locals
 
-@node('name, $stmts, exp_name')
+@node('name, $stmts, exp_name, is_builtin')
 class FunctionDef(Node):
     def setup(self):
         self.exp_name = self.exp_name if self.exp_name else self.name
@@ -1073,6 +1073,10 @@ class FunctionDef(Node):
     def reduce(self, ctx):
         self.module = ctx.module
         ctx.add_function(self)
+        if self.is_builtin:
+            # HACK: just putting python string in args list
+            # also (safely...?) assuming identifiers don't need escapes
+            return Store(self.name, Ref('builtin_function_def', ['"%s"' % self.name, Identifier(self.exp_name)]))
         return Store(self.name, Ref('function_def', [Identifier(self.exp_name)]))
 
     def set_binding(self, ctx):
@@ -1167,7 +1171,7 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
         module=self.module, oname=self.obj_name, stmts=stmts)
         return body
 
-@node('name, from_names, path, builtin, *stmts')
+@node('name, from_names, path, *stmts')
 class ImportStatement(Node):
     def setup(self):
         self.module_name = 'module_%s' % self.name
@@ -1178,8 +1182,9 @@ class ImportStatement(Node):
         ctx.add_module(self)
 
         stmts = []
-        if self.name != '__builtins__':#not self.builtin:
-            stmts += globals_init(self.module_ctx)
+        # XXX This results in duplication via "from __builtins__ import *"
+        #if self.name != '__builtins__':
+        stmts += globals_init(self.module_ctx)
         stmts += [s() for s in self.stmts]
 
         self.stmts = [Edge(s) for s in self.module_ctx.translate(stmts)]

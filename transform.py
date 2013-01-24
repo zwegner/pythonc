@@ -394,6 +394,12 @@ class Transformer(ast.NodeTransformer):
             assert isinstance(decorator, ast.Name)
             decorators.add(decorator.id)
 
+        is_builtin = False
+        if 'builtin' in decorators:
+            decorators.remove('builtin')
+            is_builtin = True
+        assert not decorators
+
         # Set some state and recursively visit child nodes, then restore state
         self.in_function = True
         args = self.visit(node.args)
@@ -403,7 +409,7 @@ class Transformer(ast.NodeTransformer):
         self.in_function = False
 
         exp_name = node.exp_name if 'exp_name' in dir(node) else None
-        return syntax.FunctionDef(node.name, body, exp_name)
+        return syntax.FunctionDef(node.name, body, exp_name, is_builtin)
 
     def visit_ClassDef(self, node):
         assert not node.bases
@@ -438,7 +444,7 @@ class Transformer(ast.NodeTransformer):
 
             stmts = transform(path, name == '__builtins__')
             path = os.path.abspath(path)
-            module = syntax.ImportStatement(name, from_names, path, False, stmts)
+            module = syntax.ImportStatement(name, from_names, path, stmts)
 
         return module
 

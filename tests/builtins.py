@@ -1,4 +1,4 @@
-for x in [abs, bool, bytes, dict, enumerate, int, isinstance, iter, len, list, max, min, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
+for x in [abs, all, any, bool, bytes, dict, enumerate, int, isinstance, iter, len, list, max, min, open, ord, print, range, repr, reversed, set, sorted, str, tuple, type, zip]:
     print(x)
 
 for x in [bool, bytes, dict, int, list, set, str, tuple]:

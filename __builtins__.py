@@ -23,12 +23,14 @@
 
 import sys
 
+@builtin
 def any(iterable):
     for element in iterable:
         if element:
             return True
     return False
 
+@builtin
 def all(iterable):
     for element in iterable:
         if not element:
@@ -43,6 +45,7 @@ def all(iterable):
 #        r.append(func(element))
 #    return r
 
+@builtin
 def print(*args, sep=None, end=None, file=None):
     if sep is None:
         sep = ' '
@@ -50,4 +53,4 @@ def print(*args, sep=None, end=None, file=None):
         end = '\n'
     if file is None:
         file = sys.stdout
-    file.write(sep.join(args) + end)
+    file.write(sep.join([str(s) for s in args]) + end)
