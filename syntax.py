@@ -2,7 +2,7 @@
 ##
 ## Pythonc--Python to C++ translator
 ##
-## Copyright 2011 Zach Wegner
+## Copyright 2013 Zach Wegner, Matt Craighead
 ##
 ## This file is part of Pythonc.
 ##

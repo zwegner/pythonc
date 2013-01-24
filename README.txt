@@ -1,6 +1,6 @@
 Pythonc--Python to C++ translator
 
-Copyright 2011 Zach Wegner, Matt Craighead
+Copyright 2013 Zach Wegner, Matt Craighead
 
 Pythonc is pronounced like "Pie Thonk", for obvious reasons.
 
