@@ -55,7 +55,7 @@ for x in [0, 1, [], {}, set(), '', 'a', '\n', '\r', '\t', '\\', '"', '"\'', '\'"
 for x in [[], [1], [1, 2, 3], (1, 2, 3)]:
     print(list(reversed(x)))
 
-for x in [[1], 'abc']:
+for x in [[1], 'a']:
     print(set(x))
 
 for x in [[5, 3, 1], (1, 3, 2), {10, 5, 0}]:
