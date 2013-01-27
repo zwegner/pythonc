@@ -1083,6 +1083,7 @@ class FunctionDef(Node):
         all_globals, all_locals = get_globals_locals(self)
 
         self.local_count = len(all_locals)
+        self.has_globals = bool(all_globals)
 
         local_idx = {symbol: idx for idx, symbol in enumerate(sorted(all_locals))}
 
@@ -1095,14 +1096,15 @@ class FunctionDef(Node):
 
     def __str__(self):
         stmts = block_str(self.stmts)
+        glbls = '        context *globals = &ctx_%s;\n' % self.module if \
+                self.has_globals else ''
         body = """
 node *{name}(context *parent_ctx, tuple *args, dict *kwargs) {{
     node *local_syms[{local_count}] = {{}};
     context ctx[1] = {{context(parent_ctx, {local_count}, local_syms)}};
-    context *globals = &ctx_{module};
-{stmts}
-}}""".format(name=self.exp_name, module=self.module,
-        local_count=self.local_count, stmts=stmts)
+{glbls}{stmts}
+}}""".format(name=self.exp_name, glbls=glbls, local_count=self.local_count,
+        stmts=stmts)
         return body
 
 @node('name, $stmts')
@@ -1120,6 +1122,8 @@ class ClassDef(Node):
     def set_binding(self, ctx):
         all_globals, _ = get_globals_locals(self)
 
+        self.has_globals = bool(all_globals)
+
         for node in self.iterate_subtree():
             if isinstance(node, (Load, Store)):
                 if node.name not in all_globals:
@@ -1129,12 +1133,13 @@ class ClassDef(Node):
 
     def __str__(self):
         stmts = block_str(self.stmts, spaces=8)
+        glbls = '        context *globals = &ctx_%s;\n' % self.module if \
+                self.has_globals else ''
         body = """
 class {cname}: public class_def {{
 public:
     {cname}() {{
-        context *globals = &ctx_{module};
-{stmts}
+{glbls}{stmts}
     }}
     virtual std::string repr() {{
         return std::string("<class '{name}'>");
@@ -1168,7 +1173,7 @@ node *{cname}::__call__(context *ctx, tuple *args, dict *kwargs) {{
     return obj;
 }}
 """.format(name=self.name, cname=self.class_name, cinst=self.class_inst,
-        module=self.module, oname=self.obj_name, stmts=stmts)
+        glbls=glbls, oname=self.obj_name, stmts=stmts)
         return body
 
 @node('name, from_names, path, *stmts')
