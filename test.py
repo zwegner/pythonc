@@ -2,6 +2,7 @@
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 import sys
 
@@ -15,11 +16,9 @@ for i in os.listdir('tests'):
     if tests and i.replace('.py', '') not in tests:
         continue
 
-    # Clear the temp directory
-    cwd = '.temp'
-    if os.path.exists(cwd):
-        shutil.rmtree(cwd)
-    os.mkdir(cwd)
+    # Create the temp directory
+    temp_dir = tempfile.TemporaryDirectory()
+    cwd = temp_dir.name
 
     # Copy Pythonc scripts into temp directory
     for j in ['pythonc.py', 'syntax.py', 'transform.py', 'backend.cpp', 'alloc.py', '__builtins__.py']:
@@ -41,22 +40,32 @@ for i in os.listdir('tests'):
 
     # Run pythonc-compiled version
     start = time.time()
-    out_p = subprocess.check_output('test', cwd=cwd, shell=True)
+    try:
+        out_p = subprocess.check_output('test', cwd=cwd, shell=True)
+    except subprocess.CalledProcessError as e:
+        # XXX assuming no output==fail
+        out_p = b''
 
     # Run CPython version
     mid = time.time()
     out_c = subprocess.check_output('python test.py', cwd=cwd, shell=True)
     end = time.time()
 
+    # Compare
     if out_p != out_c:
         print('%s mismatched!\nPythonc:\n%s\nCPython:\n%s' % (i,
             out_p.decode(), out_c.decode()))
-        for path, data in [['out.pythonc', out_p], ['out.cpython', out_c]]:
+        # Make sure the contents are visible in case of failure
+        shutil.rmtree('.out')
+        shutil.copytree(cwd, '.out')
+        for path, data in [['.out/pythonc', out_p], ['.out/cpython', out_c]]:
             with open(path, 'w') as f:
                 f.write(data.decode())
         fails += 1
     else:
         passes += 1
+
+    # Print timing info
     time_compile = start - comp_start
     time_p = mid - start
     time_c = end - mid
