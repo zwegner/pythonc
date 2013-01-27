@@ -42,7 +42,7 @@ static byte *alloc_chunk_start, *alloc_chunk_end;
 
 static inline void alloc_chunk() {
     alloc_chunk_start = new byte[CHUNK_SIZE];
-    alloc_chunk_end = alloc_chunk_start + CHUNK_SIZE; 
+    alloc_chunk_end = alloc_chunk_start + CHUNK_SIZE;
     // Align the start of the chunk
     alloc_chunk_start = (byte *)(((uint64_t)alloc_chunk_start + BLOCK_SIZE - 1) & ~(BLOCK_SIZE - 1));
 }
