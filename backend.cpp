@@ -32,6 +32,12 @@ class list;
 class string_const;
 
 typedef int64_t int_t;
+// meh
+#ifdef _WIN32
+#define I64_FMT "I64d"
+#else
+#define I64_FMT PRId64
+#endif
 
 // XXX Any use of the STL is basically a big hack right now. Their use is slow
 // and bad and ugly, and since our GC doesn't call destructors by design, they
@@ -1245,10 +1251,12 @@ public:
     virtual std::string repr() {
         char buf[128];
         if (step == 1) {
-            sprintf(buf, "range(%ld, %ld)", this->start, this->end);
+            sprintf(buf, "range(%" I64_FMT ", %" I64_FMT ")",
+                    this->start, this->end);
         }
         else {
-            sprintf(buf, "range(%ld, %ld, %ld)", this->start, this->end, this->step);
+            sprintf(buf, "range(%" I64_FMT ", %" I64_FMT ", %" I64_FMT ")",
+                    this->start, this->end, this->step);
         }
         return buf;
     }
@@ -1661,7 +1669,7 @@ bool none_const::_eq(node *rhs) {
 
 std::string int_const::repr() {
     char buf[32];
-    sprintf(buf, "%" PRId64, this->value);
+    sprintf(buf, "%" I64_FMT, this->value);
     return std::string(buf);
 }
 
