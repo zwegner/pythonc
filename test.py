@@ -6,6 +6,11 @@ import tempfile
 import time
 import sys
 
+optimize = '-O'
+if '-d' in sys.argv:
+    sys.argv.remove('-d')
+    optimize = ''
+
 tests = set(sys.argv[1:])
 
 passes = 0
@@ -36,7 +41,7 @@ for i in os.listdir('tests'):
 
     # Compile
     comp_start = time.time()
-    out_p = subprocess.check_output('python pythonc.py -O -c test.py', cwd=cwd, shell=True)
+    out_p = subprocess.check_output('python pythonc.py %s -c test.py' % optimize, cwd=cwd, shell=True)
 
     # Run pythonc-compiled version
     start = time.time()
@@ -44,7 +49,7 @@ for i in os.listdir('tests'):
         out_p = subprocess.check_output('test', cwd=cwd, shell=True)
     except subprocess.CalledProcessError as e:
         # XXX assuming no output==fail
-        out_p = b''
+        out_p = repr(e).encode('utf-8')
 
     # Run CPython version
     mid = time.time()
