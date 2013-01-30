@@ -31,9 +31,6 @@ inplace_op_table = {
     '__%s__' % x: '__i%s__' % x
     for x in ['add', 'and', 'floordiv', 'lshift', 'mod', 'mul', 'or', 'pow', 'rshift', 'sub', 'truediv', 'xor']
 }
-builtin_modules = {
-    'sys',
-}
 
 class TranslateError(Exception):
     def __init__(self, node, msg):
@@ -54,7 +51,7 @@ class Transformer(ast.NodeTransformer):
             c = self.visit(i) 
             if isinstance(c, list):
                 r.extend(c)
-            else:
+            elif c is not None:
                 r.append(c)
         return r
 
@@ -208,8 +205,6 @@ class Transformer(ast.NodeTransformer):
         return syntax.Call(fn, args, kwargs)
 
     def visit_Assign(self, node):
-        assert len(node.targets) == 1
-        target = node.targets[0]
         # XXX will this always be unique? Should find a better
         # solution for this, regardless...
         temp = '__tuple_unpack_temp'
@@ -235,7 +230,9 @@ class Transformer(ast.NodeTransformer):
             else:
                 assert False
 
-        return stmts + assign_value(target, value)
+        for target in reversed(node.targets):
+            stmts += assign_value(target, value)
+        return stmts
 
     def visit_AugAssign(self, node):
         op = self.visit(node.op)
@@ -431,7 +428,7 @@ class Transformer(ast.NodeTransformer):
         return syntax.ClassDef(node.name, body)
 
     def gen_import(self, node, name, from_names=None):
-        if name in builtin_modules:
+        if name in syntax.builtin_modules:
             assert not from_names
             module = syntax.SingletonRef('module_%s_singleton' % name)
         else:
