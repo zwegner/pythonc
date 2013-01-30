@@ -1963,6 +1963,17 @@ inline node *builtin_abs(node *arg) {
     return arg->__abs__();
 }
 
+inline node *builtin_chr(node *arg) {
+    if (!arg->is_int_const())
+        error("bad arguments to chr()");
+    int_t i = arg->int_value();
+    if (i < 0 || i > 255)
+        error("bad arguments to chr()");
+    std::string s;
+    s += (char)i;
+    return pc_new(string_const)(s);
+}
+
 inline node *builtin_dict_clear(dict *self) {
     self->items.clear();
     return &none_singleton;

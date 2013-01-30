@@ -27,6 +27,7 @@ import alloc
 
 builtin_functions = {
     'abs': 1,
+    'chr': 1,
     'isinstance': 2,
     'iter': 1,
     'len': 1,
